@@ -13,11 +13,6 @@ const (
     DNS_ADDR = "1.1.1.1"
 )
 
-type config struct {
-    port string 
-    age  int
-}
-
 func main() {
 	log.Println("##### Listening 8080..")
 
