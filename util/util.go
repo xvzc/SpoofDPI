@@ -41,10 +41,10 @@ func ReadBytes(conn net.Conn)([]byte, error) {
     return buf, nil
 }
 
-func DnsLookupOverHttps(domain string)(string, error) {
+func DnsLookupOverHttps(addr string, domain string)(string, error) {
     // Perform a A lookup on example.com
     resolver := doh.Resolver{
-        Host:  "8.8.8.8", // Change this with your favourite DoH-compliant resolver.
+        Host:  addr, // Change this with your favourite DoH-compliant resolver.
         Class: doh.IN,
     }
 
