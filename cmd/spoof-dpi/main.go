@@ -2,7 +2,7 @@ package main
 
 import (
     "fmt"
-    "github.com/jerry901/SpoofDPI/hello"
+    "github.com/itworksnow/SpoofDPI/hello"
 )
 
 func main() {

@@ -1,6 +1,5 @@
 package hello
 
-
 import (
     "fmt"
 )
