@@ -1,3 +1,3 @@
-module github.com/itworksnow/SpoofDPI
+module SpoofDPI
 
 go 1.17

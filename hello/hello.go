@@ -4,6 +4,6 @@ import (
     "fmt"
 )
 
-func Hello() {
-    fmt.Print("Hello TEST")
+func SayHello() {
+    fmt.Print("from module hello: Hello")
 }
