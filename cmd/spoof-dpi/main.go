@@ -1,9 +1,12 @@
 package main
 
 import (
-    "github.com/itworksnow/SpoofDPI/hello"
+	"fmt"
+
+	"github.com/itworksnow/SpoofDPI/hello"
 )
 
 func main() {
+    fmt.Print("AWEFWEF")
     hello.Hello()
 }
