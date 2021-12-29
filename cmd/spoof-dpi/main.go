@@ -1,12 +1,22 @@
 package main
 
 import (
-	"fmt"
+	"flag"
+	"os"
 
-	"github.com/itworksnow/SpoofDPI/hello"
+	"github.com/xvzc/SpoofDPI/proxy"
 )
 
 func main() {
-    fmt.Print("hello")
-    hello.SayHello()
+    src := flag.String("src", "localhost:8080", "source-ip:source-port")
+    dns := flag.String("dns", "8.8.8.8", "DNS server")
+    debug := flag.Bool("debug", false, "true | false")
+    mtu := flag.Int("mtu", 100, "int")
+
+    err := proxy.InitConfig(*src, *dns, *mtu, *debug)
+    if err != nil {
+        os.Exit(1)
+    }
+
+    proxy.Start()
 }
