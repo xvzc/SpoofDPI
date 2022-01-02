@@ -8,6 +8,22 @@ import (
     "github.com/babolivier/go-doh-client"
 )
 
+func WriteAndRead(conn net.Conn, message []byte) ([]byte, error){
+    _, err := conn.Write(message)
+    if err != nil {
+        log.Fatal("Error writing to client:", err)
+        return nil, err
+    }
+    // defer conn.(*net.TCPConn).CloseWrite()
+
+    buf, err := ReadMessage(conn)
+    if err != nil {
+        log.Fatal("failed:", err)
+        return nil, err
+    }
+
+    return buf, nil
+}
 
 func ReadMessage(conn net.Conn)([]byte, error) {
     buf := make([]byte, 0, 4096) // big buffer
@@ -16,9 +32,9 @@ func ReadMessage(conn net.Conn)([]byte, error) {
         n, err := conn.Read(tmp)
         if err != nil {
             if err != io.EOF {
-                log.Fatal("ReadRequest error:", err)
+                log.Println("Read error:", err)
+                return nil, err
             }
-            return nil, err
         }
         buf = append(buf, tmp[:n]...)
 
