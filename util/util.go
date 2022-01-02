@@ -3,7 +3,6 @@ package util
 import (
     "net"
     "log"
-    "io"
     "strings"
     "github.com/babolivier/go-doh-client"
 )
@@ -31,10 +30,7 @@ func ReadMessage(conn net.Conn)([]byte, error) {
     for {
         n, err := conn.Read(tmp)
         if err != nil {
-            if err != io.EOF {
-                log.Println("Read error:", err)
-                return nil, err
-            }
+            return nil, err
         }
         buf = append(buf, tmp[:n]...)
 
@@ -84,7 +80,7 @@ func DnsLookupOverHttps(dns string, domain string)(string, error) {
     log.Println(domain)
     a, _, err := resolver.LookupA(domain)
     if err != nil {
-        log.Fatal("Error looking up dns. ", err)
+        log.Println("Error looking up dns. ", err)
         return "", err
     }
 

@@ -26,7 +26,7 @@ func Start() {
 
         log.Println("Accepted a new connection.", clientConn.RemoteAddr())
 
-        func() {
+        go func() {
             defer clientConn.Close()
 
             message , err := util.ReadMessage(clientConn)
