@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+    "io"
 
 	// "time"
 
@@ -11,29 +12,35 @@ import (
 )
 
 func HandleHttps(clientConn net.Conn, ip string) {
-
     remoteConn, err := net.Dial("tcp", ip+":443") // create connection to server
     if err != nil {
         log.Fatal(err)
         return
     }
+    defer remoteConn.Close()
+
     log.Println("Connected to the server.")
 
     // established := []byte("HTTP/1.1 204 No Content\n\n")
 
-    log.Println("Sending 204 No Content to the client..")
+    log.Println("Sending 200 Connection Estabalished")
 
-    fmt.Fprintf(clientConn, "HTTP/1.1 204 No Content\r\n\r\n")
+    fmt.Fprintf(clientConn, "HTTP/1.1 200 Connection Established\r\n\r\n")
 
 
     go func() {
-        defer remoteConn.Close()
         for {
             buf, err := util.ReadMessage(remoteConn)
             if err != nil {
-                log.Println(err)
+                if err != io.EOF {
+                    log.Println("Error reading from the server:", err)
+                } else {
+                    log.Println("Remote connection Closed: ", err)
+                }
                 return
             }
+
+            log.Println("Server Sent Data", len(buf))
 
             _, write_err := clientConn.Write(buf)
             if write_err != nil {
@@ -43,14 +50,18 @@ func HandleHttps(clientConn net.Conn, ip string) {
         }
     }()
 
-
     for {
         defer clientConn.Close()
         buf, err := util.ReadMessage(clientConn)
         if err != nil {
-            log.Println(err)
+            if err != io.EOF {
+                log.Println("Error reading from the client:", err)
+            } else {
+                log.Println("Client connection Closed: ", err)
+            }
             break
         }
+        log.Println("Client Sent Data", len(buf))
 
         _, write_err := remoteConn.Write(buf)
         if write_err != nil {
@@ -58,20 +69,5 @@ func HandleHttps(clientConn net.Conn, ip string) {
             break
         }
     }
-
-    /*
-    serverHello, err := util.WriteAndRead(remoteConn, clientHello)
-    log.Println("Server sent data. length:", len(serverHello))
-
-    clientFinish, err := util.WriteAndRead(clientConn, serverHello)
-    log.Println("Client sent data. length:", len(clientFinish))
-
-    _, err = remoteConn.Write(clientFinish)
-    if err != nil {
-        log.Fatal("Error writing to client:", err)
-    }
-
-    log.Println("Written")
-    */
 
 }

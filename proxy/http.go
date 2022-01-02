@@ -42,4 +42,3 @@ func HandleHttp(clientConn net.Conn, ip string, message []byte)  {
     }
     defer clientConn.(*net.TCPConn).CloseWrite()
 }
-
