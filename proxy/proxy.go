@@ -26,7 +26,7 @@ func Start() {
 
         log.Println("Accepted a new connection.", clientConn.RemoteAddr())
 
-        go func() {
+        func() {
             defer clientConn.Close()
 
             message , err := util.ReadMessage(clientConn)
@@ -49,8 +49,10 @@ func Start() {
             log.Println("ip: "+ ip)
 
             if util.ExtractMethod(&message) == "CONNECT" {
-                fmt.Println("got a HTTPS Request")
+                log.Println("HTTPS Requested.")
+                HandleHttps(clientConn, ip)
             }else {
+                log.Println("HTTP Requested.")
                 HandleHttp(clientConn, ip, message)
             }
         }()
