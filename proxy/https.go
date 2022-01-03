@@ -4,77 +4,46 @@ import (
 	"fmt"
 	"net"
 
-	// "time"
-
-	"github.com/xvzc/SpoofDPI/config"
 	"github.com/xvzc/SpoofDPI/util"
 )
 
 func HandleHttps(clientConn net.Conn, ip string) {
-    remoteConn, err := net.Dial("tcp", ip+":443") // create connection to server
+    // Create a connection to the requested server
+    remoteConn, err := net.Dial("tcp", ip+":443")
     if err != nil {
         util.Debug(err)
         return
     }
-    defer clientConn.Close()
     defer remoteConn.Close()
 
-    util.Debug("Connected to the server.")
+    util.Debug("[HTTPS] Connected to the server.")
 
-    go func() {
-        for {
-            buf, err := util.ReadMessage(remoteConn)
-            if err != nil {
-                util.Debug("Error reading from the server", err, " Closing connection ", remoteConn.RemoteAddr())
-                return
-            }
-
-            util.Debug(remoteConn.RemoteAddr(), "Server sent data", len(buf))
-
-            _, write_err := clientConn.Write(buf)
-            if write_err != nil {
-                util.Debug("Error sending data to the client:", write_err)
-                return
-            }
-        }
-    }()
-
-    util.Debug("Sending 200 Connection Estabalished")
+    // Send self generated response for connect request
     fmt.Fprintf(clientConn, "HTTP/1.1 200 Connection Established\r\n\r\n")
+    util.Debug("[HTTPS] Sent 200 Connection Estabalished")
 
-    clientHello, err := util.ReadMessage(clientConn)
+    // Read client hello
+    clientHello, err := ReadBytes(clientConn)
     if err != nil {
-        util.Debug("Error reading client hello", err, " Closing connection ", clientConn.RemoteAddr())
+        util.Debug("[HTTPS] Error reading client hello: ", err)
+        util.Debug("Closing connection ", clientConn.RemoteAddr())
     }
 
-    util.Debug(clientConn.RemoteAddr(), "Client sent hello", len(clientHello))
+    util.Debug(clientConn.RemoteAddr(), "[HTTPS] Client sent hello", len(clientHello))
 
-    chunks, err := util.SplitInChunks(clientHello, config.GetConfig().MTU)
-    if err != nil {
-        util.Debug("Error chunking client hello: ", err)
-    }
+    // Generate a go routine that reads from the server
+    go Serve(remoteConn, clientConn, "HTTPS")
 
+    // Send chunked request
+    chunks := util.BytesToChunks(clientHello)
     for i := 0; i < len(chunks); i++ {
         _, write_err := remoteConn.Write(chunks[i])
         if write_err != nil {
-            util.Debug("Error writing to client:", write_err)
+            util.Debug("[HTTPS] Error writing to the client:", write_err)
             break
         }
     }
 
-    for {
-        buf, err := util.ReadMessage(clientConn)
-        if err != nil {
-            util.Debug("Error reading from the client", err, " Closing connection ", clientConn.RemoteAddr())
-            break
-        }
-
-        util.Debug(clientConn.RemoteAddr(), "Client sent data", len(buf))
-
-        _, write_err := remoteConn.Write(buf)
-        if write_err != nil {
-            util.Debug("Error writing to client:", write_err)
-            break
-        }
-    }
+    // Read from the client
+    Serve(clientConn, remoteConn, "HTTPS")
 }

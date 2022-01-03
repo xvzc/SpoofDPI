@@ -2,51 +2,11 @@ package util
 
 import (
 	"log"
-	"net"
 	"strings"
-    "errors"
 
 	"github.com/babolivier/go-doh-client"
 	"github.com/xvzc/SpoofDPI/config"
 )
-
-const BUF_SIZE = 1024
-
-func WriteAndRead(conn net.Conn, message []byte) ([]byte, error){
-    _, err := conn.Write(message)
-    if err != nil {
-        log.Fatal("Error writing to client:", err)
-        return nil, err
-    }
-    // defer conn.(*net.TCPConn).CloseWrite()
-
-    buf, err := ReadMessage(conn)
-    if err != nil {
-        log.Fatal("failed:", err)
-        return nil, err
-    }
-
-    return buf, nil
-}
-
-func ReadMessage(conn net.Conn)([]byte, error) {
-    buf := make([]byte, 0) // big buffer
-    tmp := make([]byte, BUF_SIZE)     // using small tmo buffer for demonstrating
-
-    for {
-        n, err := conn.Read(tmp)
-        if err != nil {
-            return nil, err
-        }
-        buf = append(buf, tmp[:n]...)
-
-        if n < BUF_SIZE {
-            break
-        }
-    }
-
-    return buf, nil
-}
 
 func ExtractDomain(message *[]byte) (string) {
     i := 0
@@ -83,7 +43,7 @@ func DnsLookupOverHttps(dns string, domain string)(string, error) {
         Class: doh.IN,
     }
 
-    log.Println(domain)
+    Debug(domain)
     a, _, err := resolver.LookupA(domain)
     if err != nil {
         log.Println("Error looking up dns. ", err)
@@ -104,22 +64,9 @@ func ExtractMethod(message *[]byte) (string) {
     }
 
     method := strings.TrimSpace(string((*message)[:i]))
-    log.Println(method)
+    Debug(method)
 
     return strings.ToUpper(method)
-}
-
-func SplitInChunks(a []byte, size int) ([][]byte, error) {
-	if size < 1 {
-		return nil, errors.New("chuckSize must be greater than zero")
-	}
-	chunks := make([][]byte, 0, (len(a)+size-1)/size)
-
-	for size < len(a) {
-		a, chunks = a[size:], append(chunks, a[0:size:size])
-	}
-	chunks = append(chunks, a)
-	return chunks, nil
 }
 
 func Debug(v ...interface{}) {
@@ -128,4 +75,12 @@ func Debug(v ...interface{}) {
     }
 
     log.Println(v...)
+}
+
+func BytesToChunks(buf []byte) ([][]byte) {
+    if len(buf) < 1 {
+        return [][]byte{buf}
+    }
+
+    return [][]byte{buf[:1], buf[1:]}
 }

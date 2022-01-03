@@ -15,29 +15,12 @@ func HandleHttp(clientConn net.Conn, ip string, message []byte)  {
     }
     defer remoteConn.Close()
 
-    _, write_err := remoteConn.Write(message)
-    if write_err != nil {
-        util.Debug("failed:", write_err)
-        return
-    }
-    defer remoteConn.(*net.TCPConn).CloseWrite()
+    util.Debug("[HTTP] Connected to the server.")
 
-    buf, err := util.ReadMessage(remoteConn)
-    if err != nil {
-        util.Debug("failed:", err)
-        return
-    }
+    go Serve(remoteConn, clientConn, "HTTP")
 
-    fmt.Println()
-    util.Debug()
-    fmt.Println("##### Response from the server: ")
-    fmt.Println(string(buf))
+    util.Debug("[HTTP] Sending request to the server")
+    fmt.Fprintf(remoteConn, string(message))
 
-    // Write to client
-    _, write_err = clientConn.Write(buf)
-    if write_err != nil {
-        util.Debug("failed:", write_err)
-        return
-    }
-    defer clientConn.(*net.TCPConn).CloseWrite()
+    Serve(clientConn, remoteConn, "HTTP")
 }
