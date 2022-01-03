@@ -1,11 +1,15 @@
 package util
 
 import (
-    "net"
-    "log"
-    "strings"
-    "github.com/babolivier/go-doh-client"
+	"log"
+	"net"
+	"strings"
+
+	"github.com/babolivier/go-doh-client"
+	"github.com/xvzc/SpoofDPI/config"
 )
+
+const BUF_SIZE = 1024
 
 func WriteAndRead(conn net.Conn, message []byte) ([]byte, error){
     _, err := conn.Write(message)
@@ -25,8 +29,9 @@ func WriteAndRead(conn net.Conn, message []byte) ([]byte, error){
 }
 
 func ReadMessage(conn net.Conn)([]byte, error) {
-    buf := make([]byte, 0, 4096) // big buffer
-    tmp := make([]byte, 1024)     // using small tmo buffer for demonstrating
+    buf := make([]byte, 0) // big buffer
+    tmp := make([]byte, BUF_SIZE)     // using small tmo buffer for demonstrating
+
     for {
         n, err := conn.Read(tmp)
         if err != nil {
@@ -34,7 +39,7 @@ func ReadMessage(conn net.Conn)([]byte, error) {
         }
         buf = append(buf, tmp[:n]...)
 
-        if n < 1024 {
+        if n < BUF_SIZE {
             break
         }
     }
@@ -101,4 +106,12 @@ func ExtractMethod(message *[]byte) (string) {
     log.Println(method)
 
     return strings.ToUpper(method)
+}
+
+func Debug(v ...interface{}) {
+    if config.GetConfig().Debug == false {
+        return
+    }
+
+    log.Println(v...)
 }

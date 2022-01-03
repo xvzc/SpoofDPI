@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/xvzc/SpoofDPI/proxy"
+	"github.com/xvzc/SpoofDPI/config"
 )
 
 func main() {
@@ -13,7 +14,7 @@ func main() {
     debug := flag.Bool("debug", false, "true | false")
     mtu := flag.Int("mtu", 100, "int")
 
-    err := proxy.InitConfig(*src, *dns, *mtu, *debug)
+    err := config.InitConfig(*src, *dns, *mtu, *debug)
     if err != nil {
         os.Exit(1)
     }
