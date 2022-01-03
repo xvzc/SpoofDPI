@@ -109,7 +109,7 @@ func ExtractMethod(message *[]byte) (string) {
     return strings.ToUpper(method)
 }
 
-func SplitSliceInChunks(a []byte, size int) ([][]byte, error) {
+func SplitInChunks(a []byte, size int) ([][]byte, error) {
 	if size < 1 {
 		return nil, errors.New("chuckSize must be greater than zero")
 	}
