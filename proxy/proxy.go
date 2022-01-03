@@ -16,7 +16,7 @@ func Start() {
         os.Exit(1)
 	}
 
-    log.Println("Created a listener")
+    util.Debug("Created a listener")
 
     for {
 		clientConn, err := listener.Accept()
@@ -25,17 +25,17 @@ func Start() {
 			continue
 		}
 
-        log.Println("Accepted a new connection.", clientConn.RemoteAddr())
+        util.Debug("Accepted a new connection.", clientConn.RemoteAddr())
 
         go func() {
             defer clientConn.Close()
 
-            message , err := util.ReadMessage(clientConn)
+            message , err := ReadBytes(clientConn)
             if err != nil {
                 return
             }
 
-            log.Println("Client sent data: ", len(message))
+            util.Debug("Client sent data: ", len(message))
 
             domain := util.ExtractDomain(&message)
 
@@ -44,13 +44,13 @@ func Start() {
                 return
             }
 
-            log.Println("ip: "+ ip)
+            util.Debug("ip: "+ ip)
 
             if util.ExtractMethod(&message) == "CONNECT" {
                 util.Debug("HTTPS Requested")
                 HandleHttps(clientConn, ip)
             }else {
-                log.Println("HTTP Requested.")
+                util.Debug("HTTP Requested.")
                 HandleHttp(clientConn, ip, message)
             }
         }()

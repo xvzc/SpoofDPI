@@ -4,15 +4,15 @@ import (
 	"errors"
 	"log"
 	"strings"
-    "fmt"
     "sync"
+    "runtime"
 )
 
 type Config struct {
     SrcIp string
     SrcPort string
     DNS string
-    MTU int
+    OS string
     Debug bool
 }
 
@@ -32,7 +32,7 @@ func tokenizeAddress(srcAddress string) (string, string, error) {
     return ip, port, nil
 }
 
-func InitConfig(srcAddress string, dns string, mtu int, debug bool) error {
+func InitConfig(srcAddress string, dns string, debug bool) error {
     err = nil
 
     once.Do(func() {
@@ -46,20 +46,10 @@ func InitConfig(srcAddress string, dns string, mtu int, debug bool) error {
             SrcIp : ip,
             SrcPort : port,
             DNS : dns,
-            MTU : mtu,
+            OS : runtime.GOOS,
             Debug : debug,
         }
     })
-
-    log.Println("source ip   : " + config.SrcIp)
-    log.Println("source port : " + config.SrcPort)
-    log.Println("dns         : " + config.DNS)
-    log.Println("mtu         : " + fmt.Sprint(config.MTU))
-    if config.Debug {
-        log.Println("debug       : true")
-    } else {
-        log.Println("debug       : false")
-    }
 
     return err
 }
