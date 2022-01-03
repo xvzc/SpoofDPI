@@ -10,7 +10,7 @@ import (
 )
 
 func Start() {
-    listener, err := net.Listen("tcp", ":" + config.GetConfig().SrcPort)
+    listener, err := net.Listen("tcp", ":" + config.GetConfig().Port)
 	if err != nil {
         log.Fatal("Error creating listener: ", err)
         os.Exit(1)
