@@ -4,6 +4,7 @@ import (
 	"log"
 	"net"
 	"strings"
+    "errors"
 
 	"github.com/babolivier/go-doh-client"
 	"github.com/xvzc/SpoofDPI/config"
@@ -106,6 +107,19 @@ func ExtractMethod(message *[]byte) (string) {
     log.Println(method)
 
     return strings.ToUpper(method)
+}
+
+func SplitSliceInChunks(a []byte, size int) ([][]byte, error) {
+	if size < 1 {
+		return nil, errors.New("chuckSize must be greater than zero")
+	}
+	chunks := make([][]byte, 0, (len(a)+size-1)/size)
+
+	for size < len(a) {
+		a, chunks = a[size:], append(chunks, a[0:size:size])
+	}
+	chunks = append(chunks, a)
+	return chunks, nil
 }
 
 func Debug(v ...interface{}) {
