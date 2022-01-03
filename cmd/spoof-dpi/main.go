@@ -4,6 +4,8 @@ import (
 	"flag"
 	"log"
 	"os"
+    "os/signal"
+    "syscall"
 
 	"github.com/xvzc/SpoofDPI/config"
 	"github.com/xvzc/SpoofDPI/proxy"
@@ -30,5 +32,21 @@ func main() {
         os.Exit(1)
     }
 
-    proxy.Start()
+    go proxy.Start()
+
+    sigs := make(chan os.Signal, 1)
+	done := make(chan bool, 1)
+    signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+    go func() {
+		_ = <-sigs
+		done <- true
+	}()
+
+    <-done
+    err = config.UnSetOsProxy()
+    if err != nil {
+        log.Fatal(err)
+        os.Exit(1)
+    }
 }
