@@ -12,9 +12,8 @@ func PrintWelcome() {
     pterm.DefaultBigText.WithLetters(cyan, purple).Render()
 
     pterm.DefaultBulletList.WithItems([]pterm.BulletListItem{
-        {Level: 0, Text: "SOURCE IP   : " + config.GetConfig().SrcIp},
-        {Level: 0, Text: "SOURCE PORT : " + config.GetConfig().SrcPort},
-        {Level: 0, Text: "DNS         : " + config.GetConfig().DNS}, 
+        {Level: 0, Text: "PORT : " + config.GetConfig().Port},
+        {Level: 0, Text: "DNS  : " + config.GetConfig().DNS}, 
     }).Render()
 
 }

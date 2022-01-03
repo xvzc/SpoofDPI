@@ -16,12 +16,12 @@ func SetOsProxy() error {
         return err
     }
 
-    _, err = exec.Command("sh", "-c", "networksetup -setwebproxy " + strings.TrimSpace(string(network)) + " " + GetConfig().SrcIp + " " + GetConfig().SrcPort).Output()
+    _, err = exec.Command("sh", "-c", "networksetup -setwebproxy " + strings.TrimSpace(string(network)) + " 127.0.0.1 " + GetConfig().Port).Output()
     if err != nil {
         return err
     }
 
-    _, err = exec.Command("sh", "-c", "networksetup -setsecurewebproxy " + strings.TrimSpace(string(network)) + " " + GetConfig().SrcIp + " " + GetConfig().SrcPort).Output()
+    _, err = exec.Command("sh", "-c", "networksetup -setsecurewebproxy " + strings.TrimSpace(string(network)) + " 127.0.0.1 " + GetConfig().Port).Output()
     if err != nil {
         return err
     }
