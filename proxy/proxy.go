@@ -2,14 +2,15 @@ package proxy
 
 import (
 	"log"
-    "fmt"
 	"net"
 	"os"
-    "github.com/xvzc/SpoofDPI/util"
+
+	"github.com/xvzc/SpoofDPI/util"
+	"github.com/xvzc/SpoofDPI/config"
 )
 
 func Start() {
-    listener, err := net.Listen("tcp", ":" + config.SrcPort)
+    listener, err := net.Listen("tcp", ":" + config.GetConfig().SrcPort)
 	if err != nil {
         log.Fatal("Error creating listener: ", err)
         os.Exit(1)
@@ -34,14 +35,11 @@ func Start() {
                 return
             }
 
-            fmt.Println()
-            log.Println()
-            fmt.Println("##### Request from client : ")
-            fmt.Println(string(message))
+            log.Println("Client sent data: ", len(message))
 
             domain := util.ExtractDomain(&message)
 
-            ip, err := util.DnsLookupOverHttps(getConfig().DNS, domain) // Dns lookup over https
+            ip, err := util.DnsLookupOverHttps(config.GetConfig().DNS, domain) // Dns lookup over https
             if err != nil {
                 return
             }
@@ -49,7 +47,7 @@ func Start() {
             log.Println("ip: "+ ip)
 
             if util.ExtractMethod(&message) == "CONNECT" {
-                log.Println("HTTPS Requested.")
+                util.Debug("HTTPS Requested")
                 HandleHttps(clientConn, ip)
             }else {
                 log.Println("HTTP Requested.")
