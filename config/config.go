@@ -1,4 +1,4 @@
-package proxy
+package config 
 
 import (
 	"errors"
@@ -64,6 +64,6 @@ func InitConfig(srcAddress string, dns string, mtu int, debug bool) error {
     return err
 }
 
-func getConfig() (*Config) {
+func GetConfig() (*Config) {
     return config
 }
