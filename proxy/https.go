@@ -2,11 +2,12 @@ package proxy
 
 import (
 	"fmt"
+	"io"
 	"net"
-    "io"
 
 	// "time"
 
+	"github.com/xvzc/SpoofDPI/config"
 	"github.com/xvzc/SpoofDPI/util"
 )
 
@@ -16,14 +17,10 @@ func HandleHttps(clientConn net.Conn, ip string) {
         util.Debug(err)
         return
     }
+    defer clientConn.Close()
     defer remoteConn.Close()
 
     util.Debug("Connected to the server.")
-
-    util.Debug("Sending 200 Connection Estabalished")
-
-    fmt.Fprintf(clientConn, "HTTP/1.1 200 Connection Established\r\n\r\n")
-
 
     go func() {
         for {
@@ -39,7 +36,7 @@ func HandleHttps(clientConn net.Conn, ip string) {
                 return
             }
 
-            util.Debug(remoteConn.RemoteAddr(), "Server Sent Data", len(buf))
+            util.Debug(remoteConn.RemoteAddr(), "Server sent data", len(buf))
 
             _, write_err := clientConn.Write(buf)
             if write_err != nil {
@@ -49,8 +46,35 @@ func HandleHttps(clientConn net.Conn, ip string) {
         }
     }()
 
+    util.Debug("Sending 200 Connection Estabalished")
+    fmt.Fprintf(clientConn, "HTTP/1.1 200 Connection Established\r\n\r\n")
+
+    clientHello, err := util.ReadMessage(clientConn)
+    if err != nil {
+        if err != io.EOF {
+            util.Debug("Error reading from the client:", err)
+        } else {
+            util.Debug("Client connection Closed: ", err)
+        }
+
+        util.Debug("Closing connection: ", clientConn.RemoteAddr())
+    }
+    util.Debug(clientConn.RemoteAddr(), "Client sent hello", len(clientHello))
+
+    chunks, err := util.SplitSliceInChunks(clientHello, config.GetConfig().MTU)
+    if err != nil {
+        util.Debug("Error chunking client hello: ", err)
+    }
+
+    for i := 0; i < len(chunks); i++ {
+        _, write_err := remoteConn.Write(chunks[i])
+        if write_err != nil {
+            util.Debug("Error writing to client:", write_err)
+            break
+        }
+    }
+
     for {
-        defer clientConn.Close()
         buf, err := util.ReadMessage(clientConn)
         if err != nil {
             if err != io.EOF {
@@ -62,7 +86,7 @@ func HandleHttps(clientConn net.Conn, ip string) {
             util.Debug("Closing connection: ", clientConn.RemoteAddr())
             break
         }
-        util.Debug(clientConn.RemoteAddr(), "Client Sent Data", len(buf))
+        util.Debug(clientConn.RemoteAddr(), "Client sent data", len(buf))
 
         _, write_err := remoteConn.Write(buf)
         if write_err != nil {
