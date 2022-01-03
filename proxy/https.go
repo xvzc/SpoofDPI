@@ -26,13 +26,7 @@ func HandleHttps(clientConn net.Conn, ip string) {
         for {
             buf, err := util.ReadMessage(remoteConn)
             if err != nil {
-                if err != io.EOF {
-                    util.Debug("Error reading from the server:", err)
-                } else {
-                    util.Debug("Remote connection Closed: ", err)
-                }
-
-                util.Debug("Closing connection: ", remoteConn.RemoteAddr())
+                util.Debug("Error reading from the server", err, " Closing connection ", remoteConn.RemoteAddr())
                 return
             }
 
@@ -40,7 +34,7 @@ func HandleHttps(clientConn net.Conn, ip string) {
 
             _, write_err := clientConn.Write(buf)
             if write_err != nil {
-                util.Debug("Error writing to client:", write_err)
+                util.Debug("Error sending data to the client:", write_err)
                 return
             }
         }
@@ -51,17 +45,12 @@ func HandleHttps(clientConn net.Conn, ip string) {
 
     clientHello, err := util.ReadMessage(clientConn)
     if err != nil {
-        if err != io.EOF {
-            util.Debug("Error reading from the client:", err)
-        } else {
-            util.Debug("Client connection Closed: ", err)
-        }
-
-        util.Debug("Closing connection: ", clientConn.RemoteAddr())
+        util.Debug("Error reading client hello", err, " Closing connection ", clientConn.RemoteAddr())
     }
+
     util.Debug(clientConn.RemoteAddr(), "Client sent hello", len(clientHello))
 
-    chunks, err := util.SplitSliceInChunks(clientHello, config.GetConfig().MTU)
+    chunks, err := util.SplitInChunks(clientHello, config.GetConfig().MTU)
     if err != nil {
         util.Debug("Error chunking client hello: ", err)
     }
@@ -77,15 +66,10 @@ func HandleHttps(clientConn net.Conn, ip string) {
     for {
         buf, err := util.ReadMessage(clientConn)
         if err != nil {
-            if err != io.EOF {
-                util.Debug("Error reading from the client:", err)
-            } else {
-                util.Debug("Client connection Closed: ", err)
-            }
-
-            util.Debug("Closing connection: ", clientConn.RemoteAddr())
+            util.Debug("Error reading from the client", err, " Closing connection ", clientConn.RemoteAddr())
             break
         }
+
         util.Debug(clientConn.RemoteAddr(), "Client sent data", len(buf))
 
         _, write_err := remoteConn.Write(buf)
