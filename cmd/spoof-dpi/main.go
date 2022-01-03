@@ -13,6 +13,7 @@ func main() {
     src := flag.String("src", "127.0.0.1:8080", "source-ip:source-port")
     dns := flag.String("dns", "8.8.8.8", "DNS server")
     debug := flag.Bool("debug", false, "true | false")
+
     flag.Parse()
 
     err := config.InitConfig(*src, *dns, *debug)
