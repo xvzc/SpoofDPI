@@ -33,4 +33,4 @@ Usage: spoof-dpi [options...]
 
 # Inspiration
 [Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel)  
-[GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) by @ValdikSS
+[GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI)
