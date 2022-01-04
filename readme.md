@@ -3,6 +3,10 @@
 A simple and fast software designed to bypass **Deep Packet Inspection**  
 ![image](https://user-images.githubusercontent.com/45588457/148035986-8b0076cc-fefb-48a1-9939-a8d9ab1d6322.png)
 
+
+# Dependencies
+- Go
+
 # Installation
 - With **go install**  
 `$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi`  
@@ -38,7 +42,7 @@ Since most of websites in the world now support HTTPS, SpoofDPI doesn't bypass D
 ### HTTPS
  Although the HTTPS requests are encryted with TLS, the domains are still shown as plaintext in the encryted requests. 
  In other words, when someone else looks on a packet, they can easily identify where the packet is headed to.
- I had tried some ways to bypass the inspections, and found out that only the first chunk is inspected when we send the encryted request in chunks. 
+ I had tried some ways to bypass the inspections, and found out that it seems like only the first chunk is inspected when we send the encryted request in chunks. 
  What SpoofDPI does to bypass this is to send the first 1 byte of a request to the server, 
  and then send the rest.
  > SpoofDPI doesn't decrypt your HTTPS requests, and that's why we don't need the SSL certificates.
