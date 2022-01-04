@@ -41,13 +41,14 @@ Usage: spoof-dpi [options...]
 Since most of websites in the world now support HTTPS, SpoofDPI doesn't bypass Deep Packet Inspections for HTTP requets, However It still serves proxy connection for all HTTP requests.
 
 ### HTTPS
- Although the HTTPS requests are encryted with TLS, the domains are still shown as plaintext in the encryted requests. 
- In other words, when someone else looks on a packet, they can easily identify where the packet is headed to.
- I had tried some ways to bypass the inspections, and found out that it seems like only the first chunk is inspected when we send the encryted request in chunks. 
+ TLS 1.3 encrypts every handshake process, the domain names are still shown as plaintext in the Client hello packet. 
+ In other words, when someone else looks on the packet, they can easily guess where the packet is headed to. 
+ The domain name can offer a significant information while DPI is being processed, And we can actually see that the connection is blocked right after sending Client hello packet.
+ I had tried some ways to bypass this, and found out that it seemed like only the first chunk gets inspected when we send the Client hello packet splited in chunks. 
  What SpoofDPI does to bypass this is to send the first 1 byte of a request to the server, 
  and then send the rest.
  > SpoofDPI doesn't decrypt your HTTPS requests, and that's why we don't need the SSL certificates.
 
-# Inspiration
+# Inspirations
 [Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel)  
 [GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI)
