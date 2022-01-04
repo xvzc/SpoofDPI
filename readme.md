@@ -1,3 +1,7 @@
+# SpoofDPI
+
+A simple and fast software designed to bypass Deep Packet Inspection  
+
 ```text
 ███████ ██████   ██████   ██████  ███████ ██████  ██████  ██  
 ██      ██   ██ ██    ██ ██    ██ ██      ██   ██ ██   ██ ██  
@@ -6,9 +10,16 @@
 ███████ ██       ██████   ██████  ██      ██████  ██      ██  
 ```
 
-## Run
+## Installation
 
-### MacOS
+### Build / Installation
+
+#### build
+Build the project with `$ go build ./cmd/...`  
+Or you can install with `$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi`  
+> Remember that $GOPATH variable is set in your $PATH
+
+### Run(OSX)
 `sh ./on.sh`  
 `go run ./cmd/spoof-dpi/main.go`  
 `sh ./off.sh`  
