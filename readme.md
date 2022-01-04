@@ -29,7 +29,7 @@ Run `$ spoof-dpi` and open your favorite browser with proxy option
 `google-chrome --proxy-server="http://127.0.0.1:8080"`
 
 ### Windows
-Use [GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) instead
+Use [GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) instead. It's way better
 
 # Usage
 ```
