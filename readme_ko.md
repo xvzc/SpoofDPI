@@ -47,3 +47,7 @@ TLS 1.3은 모든 Handshake 과정을 암호화 합니다. 하지만, Client hel
 노출된 도메인은 DPI 검열에 매우 유용하게 사용될 수도 있고, 실제로 HTTPS 요청을 보냈을 때 차단이 이루어지는 시점도 Client hello 패킷을 보낸 시점입니다. 
 여러가지 방법을 시도해본 결과, Client hello 패킷을 여러 조각으로 나누어 요청을 보냈을 때, 첫번째 조각에 대해서만 도메인 검열이 이루어지는 듯한 동작을 발견했습니다. 따라서 SpoofDPI는 해당 패킷을 두번에 나누어 보냅니다. 자세히 말하자면, 첫번째 1 바이트를 우선적으로 보내고, 나머지를 그 이후에 보내는 동작을 수행합니다.
 > SpoofDPI는 HTTPS 패킷을 복호화 하지 않기때문에 SSL 인증서를 필요로하지 않습니다.
+
+# 참고
+[Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel)  
+[GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI)
