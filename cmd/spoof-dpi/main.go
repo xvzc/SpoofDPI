@@ -43,7 +43,6 @@ func main() {
 		syscall.SIGINT,
 		syscall.SIGTERM,
 		syscall.SIGQUIT,
-		syscall.SIGCONT,
 		syscall.SIGHUP)
 
 	go func() {
