@@ -37,8 +37,14 @@ func Start() {
 
 			util.Debug("Client sent data: ", len(message))
 
+			util.Debug("")
+			util.Debug("Request : ")
+			util.Debug("\n" + string(message))
+
 			method := util.ExtractMethod(&message)
+
 			if !util.IsValidMethod(method) {
+				util.Debug("Not a valid method: " + method)
 				return
 			}
 
@@ -46,6 +52,7 @@ func Start() {
 
 			ip, err := util.DnsLookupOverHttps(config.GetConfig().DNS, domain) // Dns lookup over https
 			if err != nil {
+				log.Println("Error looking up dns: "+domain, err)
 				return
 			}
 
