@@ -7,6 +7,50 @@ import (
 	"github.com/xvzc/SpoofDPI/config"
 )
 
+var validMethod = map[string]struct{}{
+	"DELETE":      {},
+	"GET":         {},
+	"HEAD":        {},
+	"POST":        {},
+	"PUT":         {},
+	"CONNECT":     {},
+	"OPTIONS":     {},
+	"TRACE":       {},
+	"COPY":        {},
+	"LOCK":        {},
+	"MKCOL":       {},
+	"MOVE":        {},
+	"PROPFIND":    {},
+	"PROPPATCH":   {},
+	"SEARCH":      {},
+	"UNLOCK":      {},
+	"BIND":        {},
+	"REBIND":      {},
+	"UNBIND":      {},
+	"ACL":         {},
+	"REPORT":      {},
+	"MKACTIVITY":  {},
+	"CHECKOUT":    {},
+	"MERGE":       {},
+	"M-SEARCH":    {},
+	"NOTIFY":      {},
+	"SUBSCRIBE":   {},
+	"UNSUBSCRIBE": {},
+	"PATCH":       {},
+	"PURGE":       {},
+	"MKCALENDAR":  {},
+	"LINK":        {},
+	"UNLINK":      {},
+}
+
+func IsValidMethod(name string) bool {
+	if _, exists := validMethod[name]; exists {
+		return true
+	}
+
+	return false
+}
+
 func ExtractDomain(message *[]byte) string {
 	i := 0
 	for ; i < len(*message); i++ {
@@ -32,7 +76,7 @@ func ExtractDomain(message *[]byte) string {
 
 	domain := strings.Split(string((*message)[i:j]), ":")[0]
 
-	return strings.TrimSpace(domain)
+	return strings.ToUpper(strings.TrimSpace(domain))
 }
 
 func ExtractMethod(message *[]byte) string {
