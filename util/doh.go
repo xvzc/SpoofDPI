@@ -1,8 +1,6 @@
 package util
 
 import (
-	"log"
-
 	"github.com/babolivier/go-doh-client"
 )
 
@@ -16,7 +14,6 @@ func DnsLookupOverHttps(dns string, domain string) (string, error) {
 	Debug(domain)
 	a, _, err := resolver.LookupA(domain)
 	if err != nil {
-		log.Println("Error looking up dns. ", err)
 		return "", err
 	}
 
