@@ -4,13 +4,21 @@ import (
 	"strings"
 )
 
-type Request struct {
+type HttpRequest struct {
 	Raw    *[]byte
 	Method string
 	Domain string
 }
 
-func (r *Request) IsValidMethod() bool {
+func NewHttpRequest(raw *[]byte) HttpRequest {
+	return HttpRequest{
+		Raw:    raw,
+		Method: extractMethod(raw),
+		Domain: extractDomain(raw),
+	}
+}
+
+func (r *HttpRequest) IsValidMethod() bool {
 	if _, exists := getValidMethods()[r.Method]; exists {
 		return true
 	}
@@ -18,15 +26,7 @@ func (r *Request) IsValidMethod() bool {
 	return false
 }
 
-func New(raw *[]byte) Request {
-	return Request{
-		Raw:    raw,
-		Method: extractMethod(raw),
-		Domain: extractDomain(raw),
-	}
-}
-
-func (r *Request) ToChunks() {
+func (r *HttpRequest) ToChunks() {
 
 }
 

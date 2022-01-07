@@ -38,7 +38,7 @@ func Start() {
 
 			util.Debug("Client sent data: ", len(b))
 
-			r := request.New(&b)
+			r := request.NewHttpRequest(&b)
 
 			if !r.IsValidMethod() {
 				log.Println("Unsupported method: ", r.Method)
