@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/xvzc/SpoofDPI/config"
+	"github.com/xvzc/SpoofDPI/request"
 	"github.com/xvzc/SpoofDPI/util"
 )
 
@@ -30,40 +31,35 @@ func Start() {
 		go func() {
 			defer clientConn.Close()
 
-			message, err := ReadBytes(clientConn)
+			b, err := ReadBytes(clientConn)
 			if err != nil {
 				return
 			}
 
-			util.Debug("Client sent data: ", len(message))
+			util.Debug("Client sent data: ", len(b))
 
-			util.Debug("")
-			util.Debug("Request : ")
-			util.Debug("\n" + string(message))
+			r := request.New(&b)
 
-			method := util.ExtractMethod(&message)
-
-			if !util.IsValidMethod(method) {
-				util.Debug("Not a valid method: " + method)
+			if !r.IsValidMethod() {
+				log.Println("Unsupported method: ", r.Method)
 				return
 			}
 
-			domain := util.ExtractDomain(&message)
-
-			ip, err := util.DnsLookupOverHttps(config.GetConfig().DNS, domain) // Dns lookup over https
+			// Dns lookup over https
+			ip, err := util.DnsLookupOverHttps(config.GetConfig().DNS, r.Domain)
 			if err != nil {
-				log.Println("Error looking up dns: "+domain, err)
+				log.Println("Error looking up dns: "+r.Domain, err)
 				return
 			}
 
 			util.Debug("ip: " + ip)
 
-			if util.ExtractMethod(&message) == "CONNECT" {
+			if r.Method == "CONNECT" {
 				util.Debug("HTTPS Requested")
 				HandleHttps(clientConn, ip)
 			} else {
 				util.Debug("HTTP Requested.")
-				HandleHttp(clientConn, ip, message)
+				HandleHttp(clientConn, ip, b)
 			}
 		}()
 	}
