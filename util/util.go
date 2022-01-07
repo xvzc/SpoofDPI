@@ -54,13 +54,6 @@ func IsValidMethod(name string) bool {
 func ExtractDomain(message *[]byte) string {
 	i := 0
 	for ; i < len(*message); i++ {
-		if (*message)[i] == '\n' {
-			i++
-			break
-		}
-	}
-
-	for ; i < len(*message); i++ {
 		if (*message)[i] == ' ' {
 			i++
 			break
@@ -69,14 +62,18 @@ func ExtractDomain(message *[]byte) string {
 
 	j := i
 	for ; j < len(*message); j++ {
-		if (*message)[j] == '\n' {
+		if (*message)[j] == ' ' {
 			break
 		}
 	}
 
-	domain := strings.Split(string((*message)[i:j]), ":")[0]
+	domain := string((*message)[i:j])
+	domain = strings.Replace(domain, "http://", "", 1)
+	domain = strings.Replace(domain, "https://", "", 1)
+	domain = strings.Split(domain, ":")[0]
+	domain = strings.Split(domain, "/")[0]
 
-	return strings.ToUpper(strings.TrimSpace(domain))
+	return strings.TrimSpace(domain)
 }
 
 func ExtractMethod(message *[]byte) string {
