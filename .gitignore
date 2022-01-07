@@ -1,3 +1,4 @@
 spoof-dpi-*
 spoof-dpi.*
 !*/spoof-dpi/
+.DS_Store
