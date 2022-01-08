@@ -1,17 +1,17 @@
 package util
 
 import (
-	"log"
-
-	"github.com/xvzc/SpoofDPI/config"
+	"flag"
 )
 
-func Debug(v ...interface{}) {
-	if config.GetConfig().Debug == false {
-		return
-	}
+func ParseArgs() (string, string, bool) {
+	port := flag.String("port", "8080", "port")
+	dns := flag.String("dns", "8.8.8.8", "DNS server")
+	debug := flag.Bool("debug", false, "true | false")
 
-	log.Println(v...)
+	flag.Parse()
+
+	return *port, *dns, *debug
 }
 
 func BytesToChunks(buf []byte) [][]byte {
