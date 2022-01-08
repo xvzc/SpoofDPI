@@ -1,16 +1,16 @@
 package packet
 
-type Https struct {
+type HttpsPacket struct {
 	Raw *[]byte
 }
 
-func NewHttps(raw *[]byte) Https {
-	return Https{
+func NewHttpsPacket(raw *[]byte) HttpsPacket {
+	return HttpsPacket{
 		Raw: raw,
 	}
 }
 
-func (r Https) SplitInChunks() [][]byte {
+func (r HttpsPacket) SplitInChunks() [][]byte {
 	if len(*r.Raw) < 1 {
 		return [][]byte{*r.Raw}
 	}
