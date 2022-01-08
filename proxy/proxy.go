@@ -6,14 +6,14 @@ import (
 	"net"
 	"os"
 
+	"github.com/babolivier/go-doh-client"
 	"github.com/pterm/pterm"
 	"github.com/xvzc/SpoofDPI/packet"
-	"github.com/xvzc/SpoofDPI/util"
 )
 
 type Proxy struct {
 	Port  string
-	DNS   string
+	DNS   doh.Resolver
 	OS    string
 	Debug bool
 }
@@ -21,7 +21,7 @@ type Proxy struct {
 func New(port string, dns string, os string, debug bool) *Proxy {
 	return &Proxy{
 		Port:  port,
-		DNS:   dns,
+		DNS:   doh.Resolver{Host: dns, Class: doh.IN},
 		OS:    os,
 		Debug: debug,
 	}
@@ -34,7 +34,7 @@ func (p *Proxy) PrintWelcome() {
 
 	pterm.DefaultBulletList.WithItems([]pterm.BulletListItem{
 		{Level: 0, Text: "PORT  : " + p.Port},
-		{Level: 0, Text: "DNS   : " + p.DNS},
+		{Level: 0, Text: "DNS   : " + p.DNS.Host},
 		{Level: 0, Text: "DEBUG : " + fmt.Sprint(p.Debug)},
 	}).Render()
 }
@@ -76,7 +76,7 @@ func (p *Proxy) Start() {
 			}
 
 			// Dns lookup over https
-			ip, err := util.DnsLookupOverHttps(p.DNS, r.Domain)
+			ip, err := p.DnsLookupOverHttps(r.Domain)
 			if err != nil {
 				log.Println("Error looking up dns: "+r.Domain, err)
 				return
