@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -16,18 +15,15 @@ func main() {
 	port, dns, debug := util.ParseArgs()
 
 	p := proxy.New(port, dns, runtime.GOOS, debug)
-	fmt.Println(*p)
-
 	p.PrintWelcome()
 
-	err := p.SetOsProxy()
-	if err != nil {
+	if err := p.SetOsProxy(); err != nil {
 		log.Fatal(err)
-		os.Exit(1)
 	}
 
 	go p.Start()
 
+	// Handle signals
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
 
@@ -45,9 +41,7 @@ func main() {
 	}()
 
 	<-done
-	err = p.UnsetOsProxy()
-	if err != nil {
+	if err := p.UnsetOsProxy(); err != nil {
 		log.Fatal(err)
-		os.Exit(1)
 	}
 }
