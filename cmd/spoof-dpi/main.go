@@ -1,38 +1,32 @@
 package main
 
 import (
-	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 
-	"github.com/xvzc/SpoofDPI/config"
 	"github.com/xvzc/SpoofDPI/proxy"
 	"github.com/xvzc/SpoofDPI/util"
 )
 
 func main() {
-	port := flag.String("port", "8080", "port")
-	dns := flag.String("dns", "8.8.8.8", "DNS server")
-	debug := flag.Bool("debug", false, "true | false")
+	port, dns, debug := util.ParseArgs()
 
-	flag.Parse()
+	p := proxy.New(port, dns, runtime.GOOS, debug)
+	fmt.Println(*p)
 
-	err := config.InitConfig(*port, *dns, *debug)
-	if err != nil {
-		os.Exit(1)
-	}
+	p.PrintWelcome()
 
-	util.PrintWelcome()
-
-	err = config.SetOsProxy()
+	err := p.SetOsProxy()
 	if err != nil {
 		log.Fatal(err)
 		os.Exit(1)
 	}
 
-	go proxy.Start()
+	go p.Start()
 
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
@@ -51,7 +45,7 @@ func main() {
 	}()
 
 	<-done
-	err = config.UnSetOsProxy()
+	err = p.UnsetOsProxy()
 	if err != nil {
 		log.Fatal(err)
 		os.Exit(1)

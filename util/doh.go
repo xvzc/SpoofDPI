@@ -11,7 +11,6 @@ func DnsLookupOverHttps(dns string, domain string) (string, error) {
 		Class: doh.IN,
 	}
 
-	Debug(domain)
 	a, _, err := resolver.LookupA(domain)
 	if err != nil {
 		return "", err
