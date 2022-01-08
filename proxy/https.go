@@ -8,7 +8,7 @@ import (
 	"github.com/xvzc/SpoofDPI/util"
 )
 
-func HandleHttps(clientConn net.Conn, ip string, r *packet.HttpRequest) {
+func HandleHttps(clientConn net.Conn, ip string, r *packet.Http) {
 	// Create a connection to the requested server
 	remoteConn, err := net.Dial("tcp", ip+":443")
 	if err != nil {
