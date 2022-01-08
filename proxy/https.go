@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/xvzc/SpoofDPI/packet"
 	"github.com/xvzc/SpoofDPI/util"
 )
 
-func HandleHttps(clientConn net.Conn, ip string) {
+func HandleHttps(clientConn net.Conn, ip string, r *packet.HttpRequest) {
 	// Create a connection to the requested server
 	remoteConn, err := net.Dial("tcp", ip+":443")
 	if err != nil {

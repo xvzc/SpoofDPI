@@ -1,4 +1,4 @@
-package request
+package packet
 
 type HttpsRequest struct {
 	Raw *[]byte
