@@ -4,16 +4,16 @@ import (
 	"strings"
 )
 
-type HttpRequest struct {
+type Http struct {
 	Raw     *[]byte
 	Method  string
 	Domain  string
 	Version string
 }
 
-func NewHttpRequest(raw *[]byte) HttpRequest {
+func NewHttp(raw *[]byte) Http {
 	method, domain, version := parse(raw)
-	return HttpRequest{
+	return Http{
 		Raw:     raw,
 		Method:  method,
 		Domain:  domain,
@@ -21,7 +21,7 @@ func NewHttpRequest(raw *[]byte) HttpRequest {
 	}
 }
 
-func (r *HttpRequest) IsValidMethod() bool {
+func (r *Http) IsValidMethod() bool {
 	if _, exists := getValidMethods()[r.Method]; exists {
 		return true
 	}
@@ -29,7 +29,7 @@ func (r *HttpRequest) IsValidMethod() bool {
 	return false
 }
 
-func (r *HttpRequest) IsConnectMethod() bool {
+func (r *Http) IsConnectMethod() bool {
 	return r.Method == "CONNECT"
 }
 
