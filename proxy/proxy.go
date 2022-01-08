@@ -38,7 +38,7 @@ func Start() {
 
 			util.Debug("Client sent data: ", len(b))
 
-			r := packet.NewHttp(&b)
+			r := packet.NewHttpPacket(&b)
 			util.Debug("Request: \n" + string(*r.Raw))
 
 			if !r.IsValidMethod() {
