@@ -1,4 +1,4 @@
-package request
+package packet
 
 import (
 	"strings"
@@ -29,8 +29,8 @@ func (r *HttpRequest) IsValidMethod() bool {
 	return false
 }
 
-func (r *HttpRequest) ToChunks() {
-
+func (r *HttpRequest) IsConnectMethod() bool {
+	return r.Method == "CONNECT"
 }
 
 func parse(raw *[]byte) (string, string, string) {

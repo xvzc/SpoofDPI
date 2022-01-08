@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/xvzc/SpoofDPI/config"
-	"github.com/xvzc/SpoofDPI/request"
+	"github.com/xvzc/SpoofDPI/packet"
 	"github.com/xvzc/SpoofDPI/util"
 )
 
@@ -38,7 +38,7 @@ func Start() {
 
 			util.Debug("Client sent data: ", len(b))
 
-			r := request.NewHttpRequest(&b)
+			r := packet.NewHttpRequest(&b)
 			util.Debug("Request: \n" + string(*r.Raw))
 
 			if !r.IsValidMethod() {
@@ -55,9 +55,9 @@ func Start() {
 
 			util.Debug("ip: " + ip)
 
-			if r.Method == "CONNECT" {
+			if r.IsConnectMethod() {
 				util.Debug("HTTPS Requested")
-				HandleHttps(clientConn, ip)
+				HandleHttps(clientConn, ip, &r)
 			} else {
 				util.Debug("HTTP Requested.")
 				HandleHttp(clientConn, ip, &r)
