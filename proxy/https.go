@@ -20,7 +20,7 @@ func HandleHttp(clientConn net.Conn, ip string, p *packet.HttpPacket) {
 	go remoteConn.Serve(clientConn, "HTTP")
 
 	// util.Debug("[HTTP] Sending request to the server")
-	fmt.Fprintf(remoteConn.Conn, string(*p.Raw))
+	fmt.Fprintf(remoteConn.Conn, string(p.Raw))
 
 	go clientConn.Serve(remoteConn, "HTTP")
 }
@@ -52,7 +52,7 @@ func HandleHttps(clientConn net.Conn, ip string, r *packet.HttpPacket) {
 	// Generate a go routine that reads from the server
 	go remoteConn.Serve(clientConn, "HTTPS")
 
-	pkt := packet.NewHttpsPacket(&clientHello)
+	pkt := packet.NewHttpsPacket(clientHello)
 
 	chunks := pkt.SplitInChunks()
 

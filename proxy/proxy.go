@@ -20,7 +20,7 @@ func New(port string) *Proxy {
 }
 
 func (p *Proxy) Start() {
-	listener, err := net.Listen("tcp", ":"+p.Port)
+	l, err := net.Listen("tcp", ":"+p.Port)
 	if err != nil {
 		log.Fatal("Error creating listener: ", err)
 		os.Exit(1)
@@ -29,7 +29,7 @@ func (p *Proxy) Start() {
 	// util.Debug("Created a listener")
 
 	for {
-		clientConn, err := listener.Accept()
+		conn, err := l.Accept()
 		if err != nil {
 			log.Fatal("Error accepting connection: ", err)
 			continue
@@ -38,16 +38,16 @@ func (p *Proxy) Start() {
 		// util.Debug("Accepted a new connection.", clientConn.RemoteAddr())
 
 		go func() {
-			defer clientConn.Close()
+			defer conn.Close()
 
-			b, err := clientConn.ReadBytes()
+			b, err := conn.ReadBytes()
 			if err != nil {
 				return
 			}
 
 			// util.Debug("Client sent data: ", len(b))
 
-			r := packet.NewHttpPacket(&b)
+			r := packet.NewHttpPacket(b)
 			// util.Debug("Request: \n" + string(*r.Raw))
 
 			if !r.IsValidMethod() {
@@ -66,10 +66,10 @@ func (p *Proxy) Start() {
 
 			if r.IsConnectMethod() {
 				// util.Debug("HTTPS Requested")
-				HandleHttps(clientConn, ip, &r)
+				HandleHttps(conn, ip, &r)
 			} else {
 				// util.Debug("HTTP Requested.")
-				HandleHttp(clientConn, ip, &r)
+				HandleHttp(conn, ip, &r)
 			}
 		}()
 	}
