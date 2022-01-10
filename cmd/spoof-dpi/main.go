@@ -4,7 +4,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 
 	"github.com/xvzc/SpoofDPI/doh"
@@ -15,10 +14,10 @@ import (
 func main() {
 	port, dns, debug := util.ParseArgs()
 
-	p := proxy.New(port, runtime.GOOS, debug)
+	p := proxy.New(port)
 	util.PrintWelcome(port, dns, debug)
 
-	if err := p.SetOsProxy(); err != nil {
+	if err := util.SetOsProxy(port); err != nil {
 		log.Fatal(err)
 	}
 
@@ -44,7 +43,7 @@ func main() {
 	}()
 
 	<-done
-	if err := p.UnsetOsProxy(); err != nil {
+	if err := util.UnsetOsProxy(); err != nil {
 		log.Fatal(err)
 	}
 }

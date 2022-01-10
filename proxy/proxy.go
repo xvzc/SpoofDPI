@@ -10,16 +10,12 @@ import (
 )
 
 type Proxy struct {
-	Port  string
-	OS    string
-	Debug bool
+	Port string
 }
 
-func New(port string, os string, debug bool) *Proxy {
+func New(port string) *Proxy {
 	return &Proxy{
-		Port:  port,
-		OS:    os,
-		Debug: debug,
+		Port: port,
 	}
 }
 
