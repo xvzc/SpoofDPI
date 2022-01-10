@@ -17,14 +17,6 @@ func ParseArgs() (string, string, bool) {
 	return *port, *dns, *debug
 }
 
-func BytesToChunks(buf []byte) [][]byte {
-	if len(buf) < 1 {
-		return [][]byte{buf}
-	}
-
-	return [][]byte{buf[:1], buf[1:]}
-}
-
 func PrintWelcome(port string, dns string, debug bool) {
 	cyan := pterm.NewLettersFromStringWithStyle("Spoof", pterm.NewStyle(pterm.FgCyan))
 	purple := pterm.NewLettersFromStringWithStyle("DPI", pterm.NewStyle(pterm.FgLightMagenta))
