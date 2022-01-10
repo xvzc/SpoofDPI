@@ -16,7 +16,7 @@ func main() {
 	port, dns, debug := util.ParseArgs()
 
 	p := proxy.New(port, runtime.GOOS, debug)
-	p.PrintWelcome()
+	util.PrintWelcome(port, dns, debug)
 
 	if err := p.SetOsProxy(); err != nil {
 		log.Fatal(err)
