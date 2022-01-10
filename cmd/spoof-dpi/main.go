@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"syscall"
 
+	"github.com/xvzc/SpoofDPI/doh"
 	"github.com/xvzc/SpoofDPI/proxy"
 	"github.com/xvzc/SpoofDPI/util"
 )
@@ -14,12 +15,14 @@ import (
 func main() {
 	port, dns, debug := util.ParseArgs()
 
-	p := proxy.New(port, dns, runtime.GOOS, debug)
+	p := proxy.New(port, runtime.GOOS, debug)
 	p.PrintWelcome()
 
 	if err := p.SetOsProxy(); err != nil {
 		log.Fatal(err)
 	}
+
+	doh.Init(dns)
 
 	go p.Start()
 
