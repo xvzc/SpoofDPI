@@ -4,14 +4,50 @@ import (
 	"strings"
 )
 
+var validMethod = map[string]struct{}{
+	"DELETE":      {},
+	"GET":         {},
+	"HEAD":        {},
+	"POST":        {},
+	"PUT":         {},
+	"CONNECT":     {},
+	"OPTIONS":     {},
+	"TRACE":       {},
+	"COPY":        {},
+	"LOCK":        {},
+	"MKCOL":       {},
+	"MOVE":        {},
+	"PROPFIND":    {},
+	"PROPPATCH":   {},
+	"SEARCH":      {},
+	"UNLOCK":      {},
+	"BIND":        {},
+	"REBIND":      {},
+	"UNBIND":      {},
+	"ACL":         {},
+	"REPORT":      {},
+	"MKACTIVITY":  {},
+	"CHECKOUT":    {},
+	"MERGE":       {},
+	"M-SEARCH":    {},
+	"NOTIFY":      {},
+	"SUBSCRIBE":   {},
+	"UNSUBSCRIBE": {},
+	"PATCH":       {},
+	"PURGE":       {},
+	"MKCALENDAR":  {},
+	"LINK":        {},
+	"UNLINK":      {},
+}
+
 type HttpPacket struct {
-	Raw     *[]byte
+	Raw     []byte
 	Method  string
 	Domain  string
 	Version string
 }
 
-func NewHttpPacket(raw *[]byte) HttpPacket {
+func NewHttpPacket(raw []byte) HttpPacket {
 	method, domain, version := parse(raw)
 	return HttpPacket{
 		Raw:     raw,
@@ -22,7 +58,7 @@ func NewHttpPacket(raw *[]byte) HttpPacket {
 }
 
 func (r *HttpPacket) IsValidMethod() bool {
-	if _, exists := getValidMethods()[r.Method]; exists {
+	if _, exists := validMethod[r.Method]; exists {
 		return true
 	}
 
@@ -33,11 +69,11 @@ func (r *HttpPacket) IsConnectMethod() bool {
 	return r.Method == "CONNECT"
 }
 
-func parse(raw *[]byte) (string, string, string) {
+func parse(raw []byte) (string, string, string) {
 	var firstLine string
-	for i := 0; i < len(*raw); i++ {
-		if (*raw)[i] == '\n' {
-			firstLine = string((*raw)[:i])
+	for i := 0; i < len(raw); i++ {
+		if (raw)[i] == '\n' {
+			firstLine = string((raw)[:i])
 		}
 	}
 
@@ -53,42 +89,4 @@ func parse(raw *[]byte) (string, string, string) {
 	domain = strings.Split(domain, "/")[0]
 
 	return method, domain, version
-}
-
-func getValidMethods() map[string]struct{} {
-	return map[string]struct{}{
-		"DELETE":      {},
-		"GET":         {},
-		"HEAD":        {},
-		"POST":        {},
-		"PUT":         {},
-		"CONNECT":     {},
-		"OPTIONS":     {},
-		"TRACE":       {},
-		"COPY":        {},
-		"LOCK":        {},
-		"MKCOL":       {},
-		"MOVE":        {},
-		"PROPFIND":    {},
-		"PROPPATCH":   {},
-		"SEARCH":      {},
-		"UNLOCK":      {},
-		"BIND":        {},
-		"REBIND":      {},
-		"UNBIND":      {},
-		"ACL":         {},
-		"REPORT":      {},
-		"MKACTIVITY":  {},
-		"CHECKOUT":    {},
-		"MERGE":       {},
-		"M-SEARCH":    {},
-		"NOTIFY":      {},
-		"SUBSCRIBE":   {},
-		"UNSUBSCRIBE": {},
-		"PATCH":       {},
-		"PURGE":       {},
-		"MKCALENDAR":  {},
-		"LINK":        {},
-		"UNLINK":      {},
-	}
 }
