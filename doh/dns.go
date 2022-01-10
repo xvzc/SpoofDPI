@@ -1,4 +1,4 @@
-package dns
+package doh
 
 import (
 	"sync"
@@ -13,7 +13,7 @@ func Init(dns string) {
 	getInstance().Host = dns
 }
 
-func LookupOverHttps(domain string) (string, error) {
+func Lookup(domain string) (string, error) {
 	a, _, err := resolver.LookupA(domain)
 	if err != nil {
 		return "", err
