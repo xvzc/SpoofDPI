@@ -2,10 +2,10 @@ package proxy
 
 import (
 	"log"
-	"net"
 	"os"
 
 	"github.com/xvzc/SpoofDPI/doh"
+	"github.com/xvzc/SpoofDPI/net"
 	"github.com/xvzc/SpoofDPI/packet"
 )
 
@@ -40,7 +40,7 @@ func (p *Proxy) Start() {
 		go func() {
 			defer clientConn.Close()
 
-			b, err := ReadBytes(clientConn)
+			b, err := clientConn.ReadBytes()
 			if err != nil {
 				return
 			}
