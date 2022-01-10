@@ -1,12 +1,10 @@
 package proxy
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"os"
 
-	"github.com/pterm/pterm"
 	"github.com/xvzc/SpoofDPI/doh"
 	"github.com/xvzc/SpoofDPI/packet"
 )
@@ -23,17 +21,6 @@ func New(port string, os string, debug bool) *Proxy {
 		OS:    os,
 		Debug: debug,
 	}
-}
-
-func (p *Proxy) PrintWelcome() {
-	cyan := pterm.NewLettersFromStringWithStyle("Spoof", pterm.NewStyle(pterm.FgCyan))
-	purple := pterm.NewLettersFromStringWithStyle("DPI", pterm.NewStyle(pterm.FgLightMagenta))
-	pterm.DefaultBigText.WithLetters(cyan, purple).Render()
-
-	pterm.DefaultBulletList.WithItems([]pterm.BulletListItem{
-		{Level: 0, Text: "PORT  : " + p.Port},
-		{Level: 0, Text: "DEBUG : " + fmt.Sprint(p.Debug)},
-	}).Render()
 }
 
 func (p *Proxy) Start() {
