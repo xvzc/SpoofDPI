@@ -5,6 +5,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/doh"
 	"github.com/xvzc/SpoofDPI/proxy"
@@ -21,6 +22,10 @@ func main() {
 	} else {
 		log.SetLevel(log.InfoLevel)
 	}
+
+	log.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
 
 	util.PrintWelcome(port, dns, debug)
 

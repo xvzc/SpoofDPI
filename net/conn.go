@@ -77,7 +77,7 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 	// Create connection to server
 	rConn, err := Dial("tcp", ip+":80")
 	if err != nil {
-		log.Debug(err)
+		log.Debug("[HTTPS] ", err)
 		return
 	}
 	defer rConn.Close()
@@ -98,14 +98,14 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 	ip, err := doh.Lookup(p.Domain())
 	if err != nil {
-		log.Debug("[HTTPS] Error looking up for domain: ", err)
+		log.Debug("[HTTPS] Error looking up for domain: ", p.Domain(), " ", err)
 	}
 	log.Debug("[HTTPS] Found ip over HTTPS: ", ip)
 
 	// Create a connection to the requested server
 	rConn, err := Dial("tcp", ip+":443")
 	if err != nil {
-		log.Debug(err)
+		log.Debug("[HTTPS] ", err)
 		return
 	}
 	defer rConn.Close()
@@ -122,10 +122,10 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 	clientHello, err := lConn.ReadBytes()
 	if err != nil {
 		log.Debug("[HTTPS] Error reading client hello: ", err)
-		log.Debug("Closing connection: ", lConn.RemoteAddr())
+		log.Debug("[HTTPS] Closing connection: ", lConn.RemoteAddr())
 	}
 
-	log.Debug(lConn.RemoteAddr(), "[HTTPS] Client sent hello: ", len(clientHello), "bytes")
+	log.Debug("[HTTPS] Client "+lConn.RemoteAddr().String()+" sent hello: ", len(clientHello), "bytes")
 
 	// Generate a go routine that reads from the server
 	go rConn.Serve(lConn, "HTTPS")
@@ -146,17 +146,17 @@ func (from *Conn) Serve(to *Conn, proto string) {
 	for {
 		buf, err := from.ReadBytes()
 		if err != nil {
-			log.Debug("["+proto+"]"+" Error reading from ", from.RemoteAddr())
-			log.Debug("["+proto+"]", err)
-			log.Debug("[" + proto + "]" + " Exiting Serve() method. ")
+			log.Debug("["+proto+"] "+"Error reading from ", from.RemoteAddr())
+			log.Debug("["+proto+"] ", err)
+			log.Debug("[" + proto + "] " + "Exiting Serve() method. ")
 			break
 		}
-		log.Debug(from.RemoteAddr(), " sent data: ", len(buf), "bytes")
+		log.Debug("["+proto+"] ", from.RemoteAddr(), " sent data: ", len(buf), "bytes")
 
 		if _, err := to.Write(buf); err != nil {
-			log.Debug("["+proto+"]"+"Error Writing to ", to.RemoteAddr())
-			log.Debug("["+proto+"]", err)
-			log.Debug("[" + proto + "]" + " Exiting Serve() method. ")
+			log.Debug("["+proto+"] "+"Error Writing to ", to.RemoteAddr())
+			log.Debug("["+proto+"] ", err)
+			log.Debug("[" + proto + "] " + "Exiting Serve() method. ")
 			break
 		}
 	}
