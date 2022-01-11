@@ -21,6 +21,8 @@ DPI(Deep Packet Inspection) 우회를 위해 고안된 소프트웨어
 `$ go build ./cmd/...`  
 
 # 실행 
+> 만약 브라우저에서 Hotspot Shield와 같은 크롬 VPN 확장프로그램을 사용중이라면  
+  Settings > Extension 으로 이동해 비활성화 해주시기바랍니다.
 ### OSX
 터미널에서 `$ spoof-dpi`를 실행합니다.
 
@@ -52,5 +54,5 @@ TLS 1.3은 모든 Handshake 과정을 암호화 합니다. 하지만, Client hel
 > SpoofDPI는 HTTPS 패킷을 복호화 하지 않기때문에 SSL 인증서를 필요로하지 않습니다.
 
 # 참고
-[Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel)  
-[GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI)
+[Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) by @SadeghHayeri  
+[GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) by @ValdikSS

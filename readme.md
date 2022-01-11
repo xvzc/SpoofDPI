@@ -21,6 +21,8 @@ A simple and fast software designed to bypass **Deep Packet Inspection**
 `$ go build ./cmd/...`  
 
 # Run
+> If you are using any vpn extensions such as Hotspot Shield in Chrome browser,   
+  go to Settings > Extensions, and disable them.
 ### OSX
 Run `$ spoof-dpi`  
 
@@ -52,5 +54,6 @@ Since most of websites in the world now support HTTPS, SpoofDPI doesn't bypass D
  > SpoofDPI doesn't decrypt your HTTPS requests, and that's why we don't need the SSL certificates.
 
 # Inspirations
-[Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel)  
-[GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI)
+[Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) by @SadeghHayeri  
+[GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) by @ValdikSS
+
