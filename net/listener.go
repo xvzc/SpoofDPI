@@ -5,14 +5,14 @@ import (
 )
 
 type Listener struct {
-	Listener net.Listener
+	listener net.Listener
 }
 
 func (l *Listener) Accept() (Conn, error) {
-	conn, err := l.Listener.Accept()
+	conn, err := l.listener.Accept()
 	if err != nil {
 		return Conn{}, err
 	}
 
-	return Conn{Conn: conn}, nil
+	return Conn{conn: conn}, nil
 }

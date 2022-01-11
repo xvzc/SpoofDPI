@@ -11,27 +11,27 @@ import (
 const BUF_SIZE = 1024
 
 type Conn struct {
-	Conn net.Conn
+	conn net.Conn
 }
 
-func (conn *Conn) Close() {
-	conn.Conn.Close()
+func (c *Conn) Close() {
+	c.conn.Close()
 }
 
-func (conn *Conn) RemoteAddr() net.Addr {
-	return conn.Conn.RemoteAddr()
+func (c *Conn) RemoteAddr() net.Addr {
+	return c.conn.RemoteAddr()
 }
 
-func (conn *Conn) LocalAddr() net.Addr {
-	return conn.Conn.LocalAddr()
+func (c *Conn) LocalAddr() net.Addr {
+	return c.conn.LocalAddr()
 }
 
-func (conn *Conn) Read(b []byte) (n int, err error) {
-	return conn.Conn.Read(b)
+func (c *Conn) Read(b []byte) (n int, err error) {
+	return c.conn.Read(b)
 }
 
-func (conn *Conn) Write(b []byte) (n int, err error) {
-	return conn.Conn.Write(b)
+func (c *Conn) Write(b []byte) (n int, err error) {
+	return c.conn.Write(b)
 }
 
 func (conn *Conn) WriteChunks(c [][]byte) (n int, err error) {
@@ -68,7 +68,7 @@ func (conn *Conn) ReadBytes() ([]byte, error) {
 }
 
 func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
-	ip, err := doh.Lookup(p.Domain)
+	ip, err := doh.Lookup(p.Domain())
 	if err != nil {
 		log.Debug("[HTTPS] Error looking up for domain: ", err)
 	}
@@ -96,7 +96,7 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 }
 
 func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
-	ip, err := doh.Lookup(p.Domain)
+	ip, err := doh.Lookup(p.Domain())
 	if err != nil {
 		log.Debug("[HTTPS] Error looking up for domain: ", err)
 	}

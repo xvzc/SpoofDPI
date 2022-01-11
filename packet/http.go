@@ -41,32 +41,46 @@ var validMethod = map[string]struct{}{
 }
 
 type HttpPacket struct {
-	Raw     []byte
-	Method  string
-	Domain  string
-	Version string
+	raw     []byte
+	method  string
+	domain  string
+	version string
 }
 
 func NewHttpPacket(raw []byte) HttpPacket {
 	method, domain, version := parse(raw)
+
 	return HttpPacket{
-		Raw:     raw,
-		Method:  method,
-		Domain:  domain,
-		Version: version,
+		raw:     raw,
+		method:  method,
+		domain:  domain,
+		version: version,
 	}
 }
 
-func (r *HttpPacket) IsValidMethod() bool {
-	if _, exists := validMethod[r.Method]; exists {
+func (p *HttpPacket) Raw() []byte {
+	return p.raw
+}
+func (p *HttpPacket) Method() string {
+	return p.method
+}
+func (p *HttpPacket) Domain() string {
+	return p.domain
+}
+func (p *HttpPacket) Version() string {
+	return p.version
+}
+
+func (p *HttpPacket) IsValidMethod() bool {
+	if _, exists := validMethod[p.Method()]; exists {
 		return true
 	}
 
 	return false
 }
 
-func (r *HttpPacket) IsConnectMethod() bool {
-	return r.Method == "CONNECT"
+func (p *HttpPacket) IsConnectMethod() bool {
+	return p.Method() == "CONNECT"
 }
 
 func parse(raw []byte) (string, string, string) {
