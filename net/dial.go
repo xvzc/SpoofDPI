@@ -10,7 +10,7 @@ func Listen(network, address string) (Listener, error) {
 		return Listener{}, err
 	}
 
-	return Listener{Listener: l}, nil
+	return Listener{listener: l}, nil
 }
 
 func Dial(network, address string) (Conn, error) {
@@ -19,5 +19,5 @@ func Dial(network, address string) (Conn, error) {
 		return Conn{}, err
 	}
 
-	return Conn{Conn: conn}, nil
+	return Conn{conn: conn}, nil
 }
