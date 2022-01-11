@@ -9,23 +9,27 @@ import (
 )
 
 type Proxy struct {
-	Port string
+	port string
 }
 
 func New(port string) *Proxy {
 	return &Proxy{
-		Port: port,
+		port: port,
 	}
 }
 
+func (p *Proxy) Port() string {
+	return p.port
+}
+
 func (p *Proxy) Start() {
-	l, err := net.Listen("tcp", ":"+p.Port)
+	l, err := net.Listen("tcp", ":"+p.Port())
 	if err != nil {
 		log.Fatal("Error creating listener: ", err)
 		os.Exit(1)
 	}
 
-	log.Println("Created a listener on :", p.Port)
+	log.Println("Created a listener on :", p.Port())
 
 	for {
 		conn, err := l.Accept()
@@ -45,20 +49,20 @@ func (p *Proxy) Start() {
 			}
 			log.Debug("Client sent data: ", len(b))
 
-			r := packet.NewHttpPacket(b)
-			log.Debug("New request: \n\n" + string(r.Raw))
+			pkt := packet.NewHttpPacket(b)
+			log.Debug("New request: \n\n" + string(pkt.Raw()))
 
-			if !r.IsValidMethod() {
-				log.Println("Unsupported method: ", r.Method)
+			if !pkt.IsValidMethod() {
+				log.Println("Unsupported method: ", pkt.Method())
 				return
 			}
 
-			if r.IsConnectMethod() {
+			if pkt.IsConnectMethod() {
 				log.Debug("HTTPS Requested")
-				conn.HandleHttps(r)
+				conn.HandleHttps(pkt)
 			} else {
 				log.Debug("HTTP Requested.")
-				conn.HandleHttp(r)
+				conn.HandleHttp(pkt)
 			}
 		}()
 	}

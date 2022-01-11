@@ -1,19 +1,23 @@
 package packet
 
 type HttpsPacket struct {
-	Raw []byte
+	raw []byte
 }
 
 func NewHttpsPacket(raw []byte) HttpsPacket {
 	return HttpsPacket{
-		Raw: raw,
+		raw: raw,
 	}
 }
 
-func (r HttpsPacket) SplitInChunks() [][]byte {
-	if len(r.Raw) < 1 {
-		return [][]byte{r.Raw}
+func (p *HttpsPacket) Raw() []byte {
+	return p.raw
+}
+
+func (p *HttpsPacket) SplitInChunks() [][]byte {
+	if len(p.Raw()) < 1 {
+		return [][]byte{p.Raw()}
 	}
 
-	return [][]byte{(r.Raw)[:1], (r.Raw)[1:]}
+	return [][]byte{(p.Raw())[:1], (p.Raw())[1:]}
 }
