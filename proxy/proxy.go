@@ -4,7 +4,6 @@ import (
 	"os"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/xvzc/SpoofDPI/doh"
 	"github.com/xvzc/SpoofDPI/net"
 	"github.com/xvzc/SpoofDPI/packet"
 )
@@ -54,20 +53,12 @@ func (p *Proxy) Start() {
 				return
 			}
 
-			// Dns lookup over https
-			ip, err := doh.Lookup(r.Domain)
-			if err != nil {
-				log.Println("Error looking up dns: "+r.Domain, err)
-				return
-			}
-			log.Debug("ip: " + ip)
-
 			if r.IsConnectMethod() {
 				log.Debug("HTTPS Requested")
-				HandleHttps(conn, ip, &r)
+				conn.HandleHttps(r)
 			} else {
 				log.Debug("HTTP Requested.")
-				HandleHttp(conn, ip, &r)
+				conn.HandleHttp(r)
 			}
 		}()
 	}
