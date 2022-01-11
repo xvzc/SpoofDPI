@@ -5,6 +5,7 @@ go 1.17
 require (
 	github.com/babolivier/go-doh-client v0.0.0-20201028162107-a76cff4cb8b6
 	github.com/pterm/pterm v0.12.33
+	github.com/sirupsen/logrus v1.8.1
 )
 
 require (

@@ -1,9 +1,9 @@
 package proxy
 
 import (
-	"log"
 	"os"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/doh"
 	"github.com/xvzc/SpoofDPI/net"
 	"github.com/xvzc/SpoofDPI/packet"
@@ -26,7 +26,7 @@ func (p *Proxy) Start() {
 		os.Exit(1)
 	}
 
-	// util.Debug("Created a listener")
+	log.Println("Created a listener on :", p.Port)
 
 	for {
 		conn, err := l.Accept()
@@ -35,7 +35,7 @@ func (p *Proxy) Start() {
 			continue
 		}
 
-		// util.Debug("Accepted a new connection.", clientConn.RemoteAddr())
+		log.Debug("Accepted a new connection.", conn.RemoteAddr())
 
 		go func() {
 			defer conn.Close()
@@ -44,11 +44,10 @@ func (p *Proxy) Start() {
 			if err != nil {
 				return
 			}
-
-			// util.Debug("Client sent data: ", len(b))
+			log.Debug("Client sent data: ", len(b))
 
 			r := packet.NewHttpPacket(b)
-			// util.Debug("Request: \n" + string(*r.Raw))
+			log.Debug("New request: \n\n" + string(r.Raw))
 
 			if !r.IsValidMethod() {
 				log.Println("Unsupported method: ", r.Method)
@@ -61,14 +60,13 @@ func (p *Proxy) Start() {
 				log.Println("Error looking up dns: "+r.Domain, err)
 				return
 			}
-
-			// util.Debug("ip: " + ip)
+			log.Debug("ip: " + ip)
 
 			if r.IsConnectMethod() {
-				// util.Debug("HTTPS Requested")
+				log.Debug("HTTPS Requested")
 				HandleHttps(conn, ip, &r)
 			} else {
-				// util.Debug("HTTP Requested.")
+				log.Debug("HTTP Requested.")
 				HandleHttp(conn, ip, &r)
 			}
 		}()

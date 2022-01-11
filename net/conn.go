@@ -2,6 +2,8 @@ package net
 
 import (
 	"net"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const BUF_SIZE = 1024
@@ -12,6 +14,14 @@ type Conn struct {
 
 func (conn *Conn) Close() {
 	conn.Conn.Close()
+}
+
+func (conn *Conn) RemoteAddr() net.Addr {
+	return conn.Conn.RemoteAddr()
+}
+
+func (conn *Conn) LocalAddr() net.Addr {
+	return conn.Conn.LocalAddr()
 }
 
 func (conn *Conn) Read(b []byte) (n int, err error) {
@@ -59,17 +69,17 @@ func (from *Conn) Serve(to Conn, proto string) {
 	for {
 		buf, err := from.ReadBytes()
 		if err != nil {
-			// util.Debug("["+proto+"]"+"Error reading from ", from.RemoteAddr())
-			// util.Debug(err, " Closing the connection.. ")
+			log.Debug("["+proto+"]"+" Error reading from ", from.RemoteAddr())
+			log.Debug("["+proto+"]", err)
+			log.Debug("[" + proto + "]" + " Exiting Serve() method. ")
 			break
 		}
+		log.Debug(from.RemoteAddr(), " sent data: ", len(buf), "bytes")
 
-		// util.Debug(from.RemoteAddr(), "sent data", len(buf))
-
-		_, write_err := to.Write(buf)
-		if write_err != nil {
-			// util.Debug("["+proto+"]"+"Error reading from ", to.RemoteAddr())
-			// util.Debug(err, " Closing the connection.. ")
+		if _, err := to.Write(buf); err != nil {
+			log.Debug("["+proto+"]"+"Error Writing to ", to.RemoteAddr())
+			log.Debug("["+proto+"]", err)
+			log.Debug("[" + proto + "]" + " Exiting Serve() method. ")
 			break
 		}
 	}
