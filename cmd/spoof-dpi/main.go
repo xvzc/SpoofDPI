@@ -1,11 +1,11 @@
 package main
 
 import (
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/doh"
 	"github.com/xvzc/SpoofDPI/proxy"
 	"github.com/xvzc/SpoofDPI/util"
@@ -15,13 +15,18 @@ func main() {
 	port, dns, debug := util.ParseArgs()
 
 	p := proxy.New(port)
+	doh.Init(dns)
+	if debug {
+		log.SetLevel(log.DebugLevel)
+	} else {
+		log.SetLevel(log.InfoLevel)
+	}
+
 	util.PrintWelcome(port, dns, debug)
 
 	if err := util.SetOsProxy(port); err != nil {
 		log.Fatal(err)
 	}
-
-	doh.Init(dns)
 
 	go p.Start()
 
