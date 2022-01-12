@@ -11,21 +11,35 @@ A simple and fast software designed to bypass **Deep Packet Inspection**
 - Go
 
 # Installation
-- You can install the latest binary with wget  
-    - MacOS
-    ```
-    $ wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s osx 
-    ```
-    - Linux
-    ```
-    $ wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux 
-    ```
+## curl
+Install the latest binary with curl
+- OSX
+```
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s osx
+```
+- Linux
+```
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux
+```
 
-- You can also install SpoofDPI with **go install**  
+## wget
+Install the latest binary with wget
+- OSX
+```
+wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s osx 
+```
+- Linux
+```
+wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux 
+```
+
+## go install
+You can also install SpoofDPI with **go install**  
 `$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi`  
   > Remember that $GOPATH should be set in your $PATH
 
-- Or you can build your own  
+## git
+You can also build your own  
 `$ git clone https://github.com/xvzc/SpoofDPI.git`  
 `$ cd SpoofDPI`  
 `$ go build ./cmd/...`  
