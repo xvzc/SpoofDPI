@@ -1,3 +1,5 @@
+#!/bin/bash
+
 GOOS=darwin GOARCH=amd64 go build ./cmd/...
 zip -rm spoof-dpi-osx.zip spoof-dpi
 
