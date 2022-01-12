@@ -11,7 +11,17 @@ DPI(Deep Packet Inspection) 우회를 위해 고안된 소프트웨어
 - Go 
 
 # 설치
-- **go install**로 설치하기  
+- wget을 활용해 최신 바이너리 릴리즈를 바로 설치할 수 있습니다.
+    - MacOS
+    ```
+    $ wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s osx 
+    ```
+    - Linux
+    ```
+    $ wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux 
+    ```
+
+- **go install**을 활용할 수도 있습니다.
 `$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi`  
   > $GOPATH가 환경변수에 설정되어있는지 확인해주세요.
 
@@ -24,20 +34,18 @@ DPI(Deep Packet Inspection) 우회를 위해 고안된 소프트웨어
 > 만약 브라우저에서 Hotspot Shield와 같은 크롬 VPN 확장프로그램을 사용중이라면  
   Settings > Extension 으로 이동해 비활성화 해주시기바랍니다.
 ### OSX
-터미널에서 `$ spoof-dpi`를 실행합니다.
+터미널에서 `$ spoof-dpi`를 실행합니다. Proxy 설정은 자동으로 수행됩니다.
 
 ### Linux
-터미널에서 `$ spoof-dpi`를 실행하고, 프록시 설정 옵션과 함께 브라우저를 실행합니다.  
+터미널에서 `$ spoof-dpi`를 실행하고, 프록시 옵션과 함께 브라우저를 실행합니다.  
 `google-chrome --proxy-server="http://127.0.0.1:8080"`
-
-### Windows
-[GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI)를 사용하세요.. 훨씬 좋습니다..
 
 # 사용법
 ```
 Usage: spoof-dpi [options...]
--dns=<addr>  | default: 8.8.8.8
--port=<port> | default: 8080
+--dns=<addr>   | default: 8.8.8.8
+--port=<port>  | default: 8080
+--debug=<bool> | default: false
 ```
 
 # 원리
