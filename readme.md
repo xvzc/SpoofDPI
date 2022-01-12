@@ -10,7 +10,7 @@ A simple and fast software designed to bypass **Deep Packet Inspection**
 # Dependencies
 - Go
 
-# Installation / Run
+# Installation
 - You can install the latest binary with wget  
     - MacOS
     ```
