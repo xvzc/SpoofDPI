@@ -5,4 +5,5 @@ curl "https://api.github.com/repos/xvzc/SpoofDPI/releases/latest" |
     sed -E 's/.*"([^"]+)".*/\1/' |
     xargs -I {} curl -OL "https://github.com/xvzc/SpoofDPI/releases/download/"\{\}"/spoof-dpi-${1}.tar.gz"
 
-tar -xzvf ./spoof-dpi-osx.tar.gz && rm -rf ./spoof-dpi-${1}.tar.gz && mv ./spoof-dpi /usr/local/bin
+tar -xzvf ./spoof-dpi-osx.tar.gz && rm -rf ./spoof-dpi-${1}.tar.gz && mv ./spoof-dpi /usr/local/bin && hash -r
+
