@@ -10,10 +10,20 @@ A simple and fast software designed to bypass **Deep Packet Inspection**
 # Dependencies
 - Go
 
-# Installation
-- With **go install**  
+# Installation / Run
+- You can install the latest binary with wget  
+    - MacOS
+    ```
+    $ wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s osx 
+    ```
+    - Linux
+    ```
+    $ wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux 
+    ```
+
+- You can also install SpoofDPI with **go install**  
 `$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi`  
-  > Remember that $GOPATH variable should be set in your $PATH
+  > Remember that $GOPATH should be set in your $PATH
 
 - Or you can build your own  
 `$ git clone https://github.com/xvzc/SpoofDPI.git`  
@@ -23,21 +33,20 @@ A simple and fast software designed to bypass **Deep Packet Inspection**
 # Run
 > If you are using any vpn extensions such as Hotspot Shield in Chrome browser,   
   go to Settings > Extensions, and disable them.
+
 ### OSX
-Run `$ spoof-dpi`  
+Run `$ spoof-dpi` and it will automatically set your proxy
 
 ### Linux
 Run `$ spoof-dpi` and open your favorite browser with proxy option  
 `google-chrome --proxy-server="http://127.0.0.1:8080"`
 
-### Windows
-Use [GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) instead. It's way better
-
 # Usage
 ```
 Usage: spoof-dpi [options...]
--dns=<addr>  | default: 8.8.8.8
--port=<port> | default: 8080
+--dns=<addr>   | default: 8.8.8.8
+--port=<port>  | default: 8080
+--debug=<bool> | default: false
 ```
 
 # How it works
