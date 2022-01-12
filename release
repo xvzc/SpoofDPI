@@ -1,7 +1,4 @@
 #!/bin/bash
 
-GOOS=darwin GOARCH=amd64 go build ./cmd/...
-zip -rm spoof-dpi-osx.zip spoof-dpi
-
-GOOS=linux GOARCH=amd64 go build ./cmd/...
-zip -rm spoof-dpi-linux.zip spoof-dpi
+GOOS=darwin GOARCH=amd64 go build ./cmd/... && tar -zcvf spoof-dpi-osx.tar.gz ./spoof-dpi && rm -rf ./spoof-dpi
+GOOS=linux GOARCH=amd64 go build ./cmd/... && tar -zcvf spoof-dpi-linux.tar.gz ./spoof-dpi && rm -rf ./spoof-dpi
