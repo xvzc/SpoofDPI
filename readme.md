@@ -30,7 +30,13 @@ A simple and fast software designed to bypass **Deep Packet Inspection**
 `$ cd SpoofDPI`  
 `$ go build ./cmd/...`  
 
-# Run
+# Usage
+```
+Usage: spoof-dpi [options...]
+--dns=<addr>   | default: 8.8.8.8
+--port=<port>  | default: 8080
+--debug=<bool> | default: false
+```
 > If you are using any vpn extensions such as Hotspot Shield in Chrome browser,   
   go to Settings > Extensions, and disable them.
 
@@ -41,13 +47,6 @@ Run `$ spoof-dpi` and it will automatically set your proxy
 Run `$ spoof-dpi` and open your favorite browser with proxy option  
 `google-chrome --proxy-server="http://127.0.0.1:8080"`
 
-# Usage
-```
-Usage: spoof-dpi [options...]
---dns=<addr>   | default: 8.8.8.8
---port=<port>  | default: 8080
---debug=<bool> | default: false
-```
 
 # How it works
 ### HTTP

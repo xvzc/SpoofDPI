@@ -30,7 +30,13 @@ DPI(Deep Packet Inspection) 우회를 위해 고안된 소프트웨어
 `$ cd SpoofDPI`  
 `$ go build ./cmd/...`  
 
-# 실행 
+# 사용법
+```
+Usage: spoof-dpi [options...]
+--dns=<addr>   | default: 8.8.8.8
+--port=<port>  | default: 8080
+--debug=<bool> | default: false
+```
 > 만약 브라우저에서 Hotspot Shield와 같은 크롬 VPN 확장프로그램을 사용중이라면  
   Settings > Extension 으로 이동해 비활성화 해주시기바랍니다.
 ### OSX
@@ -39,14 +45,6 @@ DPI(Deep Packet Inspection) 우회를 위해 고안된 소프트웨어
 ### Linux
 터미널에서 `$ spoof-dpi`를 실행하고, 프록시 옵션과 함께 브라우저를 실행합니다.  
 `google-chrome --proxy-server="http://127.0.0.1:8080"`
-
-# 사용법
-```
-Usage: spoof-dpi [options...]
---dns=<addr>   | default: 8.8.8.8
---port=<port>  | default: 8080
---debug=<bool> | default: false
-```
 
 # 원리
 ### HTTP
