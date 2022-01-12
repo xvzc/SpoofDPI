@@ -11,7 +11,14 @@ A simple and fast software designed to bypass **Deep Packet Inspection**
 - Go
 
 # Installation
-## curl
+## Binary
+SpoofDPI will be installed in `~/.spoof-dpi/bin`.  
+To run SpoofDPI in any directory, add the line below to your `~/.bashrc || ~/.zshrc || ...`
+```
+export PATH=$PATH:~/.spoof-dpi/bin
+```
+
+### curl
 Install the latest binary with curl
 - OSX
 ```
@@ -21,8 +28,7 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
 ```
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux
 ```
-
-## wget
+### wget
 Install the latest binary with wget
 - OSX
 ```
@@ -32,13 +38,12 @@ wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash
 ```
 wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux 
 ```
-
-## go install
+## Go
 You can also install SpoofDPI with **go install**  
 `$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi`  
   > Remember that $GOPATH should be set in your $PATH
 
-## git
+## Git
 You can also build your own  
 `$ git clone https://github.com/xvzc/SpoofDPI.git`  
 `$ cd SpoofDPI`  

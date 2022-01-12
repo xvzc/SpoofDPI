@@ -11,8 +11,15 @@ DPI(Deep Packet Inspection) 우회를 위해 고안된 소프트웨어
 - Go 
 
 # 설치
-## curl
-**curl**을 활용해서 최신 바이너리 릴리즈 설치하기
+## Binary
+SpoofDPI는 `~/.spoof-dpi/bin` 경로에 설치됩니다.  
+모든 경로에서 SpoofDPI를 실행 가능하도록 하기위해서 아래 라인을  `~/.bashrc || ~/.zshrc || ...`에 추가해주세요.
+```
+export PATH=$PATH:~/.spoof-dpi/bin
+```
+
+### curl
+최신 릴리즈를 curl 명령어로 설치하기
 - OSX
 ```
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s osx
@@ -21,9 +28,8 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
 ```
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux
 ```
-
-## wget
-**wget**을 활용해서 최신 바이너리 릴리즈 설치하기
+### wget
+최신 릴리즈를 wget 명령어로 설치하기
 - OSX
 ```
 wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s osx 
@@ -32,13 +38,12 @@ wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash
 ```
 wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux 
 ```
-
-## go install
+## Go
 **go install**로 설치하기
 `$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi`  
   > Remember that $GOPATH should be set in your $PATH
 
-## git
+## Git
 직접 빌드하기
 `$ git clone https://github.com/xvzc/SpoofDPI.git`  
 `$ cd SpoofDPI`  
