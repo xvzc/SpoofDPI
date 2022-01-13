@@ -13,11 +13,11 @@ func Listen(network, address string) (Listener, error) {
 	return Listener{listener: l}, nil
 }
 
-func Dial(network, address string) (Conn, error) {
+func Dial(network, address string) (*Conn, error) {
 	conn, err := net.Dial(network, address)
 	if err != nil {
-		return Conn{}, err
+		return &Conn{}, err
 	}
 
-	return Conn{conn: conn}, nil
+	return &Conn{conn: conn}, nil
 }
