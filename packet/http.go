@@ -83,6 +83,28 @@ func (p *HttpPacket) IsConnectMethod() bool {
 	return p.Method() == "CONNECT"
 }
 
+func (p *HttpPacket) RemoveProxyHeader() {
+	s := string(p.raw)
+
+	lines := strings.Split(s, "\n")
+	for i := 0; i < len(lines); i++ {
+		if strings.HasPrefix(lines[i], "Proxy-Connection") {
+			lines[i] = ""
+		}
+	}
+
+	result := ""
+	for i := 0; i < len(lines); i++ {
+		if lines[i] == "" {
+			continue
+		}
+
+		result += lines[i] + "\n"
+	}
+
+	p.raw = []byte(result)
+}
+
 func parse(raw []byte) (string, string, string) {
 	var firstLine string
 	for i := 0; i < len(raw); i++ {
