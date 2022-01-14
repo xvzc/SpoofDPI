@@ -48,12 +48,15 @@ func (p *Proxy) Start() {
 			log.Debug("Client sent data: ", len(b))
 
 			pkt := packet.NewHttpPacket(b)
-			log.Debug("New request: \n\n" + string(pkt.Raw()))
 
 			if !pkt.IsValidMethod() {
 				log.Println("Unsupported method: ", pkt.Method())
 				return
 			}
+
+			pkt.RemoveProxyHeader()
+
+			log.Debug("New request: \n\n" + string(pkt.Raw()))
 
 			if pkt.IsConnectMethod() {
 				log.Debug("[HTTPS] Start")
