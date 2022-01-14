@@ -158,7 +158,7 @@ func (from *Conn) Serve(to *Conn, proto string) {
 			break
 		}
 
-		log.Debug(proto, from.RemoteAddr(), " sent data: ", len(buf), "bytes\n\n", string(buf))
+		log.Debug(proto, from.RemoteAddr(), " sent data: ", len(buf), "bytes")
 
 		if _, err := to.Write(buf); err != nil {
 			log.Debug(proto+"Error Writing to ", to.RemoteAddr())
