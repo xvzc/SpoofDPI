@@ -41,8 +41,6 @@ func (p *Proxy) Start() {
 		log.Debug("Accepted a new connection.", conn.RemoteAddr())
 
 		go func() {
-			defer conn.Close()
-
 			b, err := conn.ReadBytes()
 			if err != nil {
 				return
@@ -59,10 +57,10 @@ func (p *Proxy) Start() {
 
 			if pkt.IsConnectMethod() {
 				log.Debug("[HTTPS] Start")
-				conn.HandleHttps(pkt)
+				go conn.HandleHttps(pkt)
 			} else {
 				log.Debug("[HTTP] Start")
-				conn.HandleHttp(pkt)
+				go conn.HandleHttp(pkt)
 			}
 		}()
 	}
