@@ -78,33 +78,24 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 	}
 	log.Debug("[HTTP] Found ip over HTTPS: ", ip)
 
-	rConn, err := Dial("tcp", ip+":80") // create connection to server
+	// Create connection to server
+	rConn, err := Dial("tcp", ip+":80")
 	if err != nil {
-		log.Debug(err)
+		log.Debug("[HTTPS] ", err)
 		return
 	}
-	defer rConn.Close()
 
-	if _, err := rConn.Write(p.Raw()); err != nil {
-		log.Debug("failed:", err)
-		return
-	}
-	defer rConn.CloseWrite()
+	log.Debug("[HTTP] Connected to the server.")
 
-	buf, err := rConn.ReadBytes()
+	go rConn.Serve(lConn, "[HTTP]")
+	go lConn.Serve(rConn, "[HTTP]")
+
+	_, err = rConn.Write(p.Raw())
 	if err != nil {
-		log.Debug("failed:", err)
+		log.Debug("[HTTP] Error sending request to the server: ", err)
 		return
 	}
-
-	log.Debug("[HTTP] Response from the server : \n\n", string(buf))
-
-	// Write to client
-	if _, err = lConn.Write(buf); err != nil {
-		log.Debug("failed:", err)
-		return
-	}
-	defer lConn.CloseWrite()
+	log.Debug("[HTTP] Sent a request to the server")
 }
 
 func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
@@ -120,7 +111,6 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 		log.Debug("[HTTPS] ", err)
 		return
 	}
-	defer rConn.Close()
 
 	log.Debug("[HTTPS] Connected to the server.")
 
@@ -140,37 +130,41 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 	log.Debug("[HTTPS] Client "+lConn.RemoteAddr().String()+" sent hello: ", len(clientHello), "bytes")
 
 	// Generate a go routine that reads from the server
-	go rConn.ServeHttps(lConn)
+	go rConn.Serve(lConn, "[HTTPS]")
+	go lConn.Serve(rConn, "[HTTPS]")
 
 	pkt := packet.NewHttpsPacket(clientHello)
 
 	chunks := pkt.SplitInChunks()
 
 	if _, err := rConn.WriteChunks(chunks); err != nil {
+		log.Debug("[HTTPS] Error writing client hello: ", err)
 		return
 	}
-
-	// Read from the client
-	lConn.ServeHttps(rConn)
 }
 
-func (from *Conn) ServeHttps(to *Conn) {
+func (from *Conn) Serve(to *Conn, proto string) {
+	defer from.Close()
+	defer to.CloseWrite()
+
+	proto += " "
+
 	for {
 		buf, err := from.ReadBytes()
 		if err != nil {
-			log.Debug("[HTTPS] "+"Error reading from ", from.RemoteAddr())
-			log.Debug("[HTTPS] ", err)
-			log.Debug("[HTTPS] " + "Exiting Serve() method. ")
+			log.Debug(proto+"Error reading from ", from.RemoteAddr())
+			log.Debug(proto, err)
+			log.Debug(proto + "Exiting Serve() method. ")
 			break
 		}
-		log.Debug("[HTTPS] ", from.RemoteAddr(), " sent data: ", len(buf), "bytes")
+
+		log.Debug(proto, from.RemoteAddr(), " sent data: ", len(buf), "bytes\n\n", string(buf))
 
 		if _, err := to.Write(buf); err != nil {
-			log.Debug("[HTTPS] "+"Error Writing to ", to.RemoteAddr())
-			log.Debug("[HTTPS] ", err)
-			log.Debug("[HTTPS] " + "Exiting Serve() method. ")
+			log.Debug(proto+"Error Writing to ", to.RemoteAddr())
+			log.Debug(proto, err)
+			log.Debug(proto + "Exiting Serve() method. ")
 			break
 		}
-		defer to.CloseWrite()
 	}
 }
