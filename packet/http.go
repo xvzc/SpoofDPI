@@ -44,16 +44,18 @@ type HttpPacket struct {
 	raw     []byte
 	method  string
 	domain  string
+	path    string
 	version string
 }
 
 func NewHttpPacket(raw []byte) HttpPacket {
-	method, domain, version := parse(raw)
+	method, domain, path, version := parse(raw)
 
 	return HttpPacket{
 		raw:     raw,
 		method:  method,
 		domain:  domain,
+		path:    path,
 		version: version,
 	}
 }
@@ -64,9 +66,11 @@ func (p *HttpPacket) Raw() []byte {
 func (p *HttpPacket) Method() string {
 	return p.method
 }
+
 func (p *HttpPacket) Domain() string {
 	return p.domain
 }
+
 func (p *HttpPacket) Version() string {
 	return p.version
 }
@@ -83,10 +87,13 @@ func (p *HttpPacket) IsConnectMethod() bool {
 	return p.Method() == "CONNECT"
 }
 
-func (p *HttpPacket) RemoveProxyHeader() {
+func (p *HttpPacket) Tidy() {
 	s := string(p.raw)
 
 	lines := strings.Split(s, "\n")
+
+	lines[0] = p.method + " " + p.path + " " + p.version
+
 	for i := 0; i < len(lines); i++ {
 		if strings.HasPrefix(lines[i], "Proxy-Connection") {
 			lines[i] = ""
@@ -105,24 +112,44 @@ func (p *HttpPacket) RemoveProxyHeader() {
 	p.raw = []byte(result)
 }
 
-func parse(raw []byte) (string, string, string) {
+func parse(raw []byte) (string, string, string, string) {
 	var firstLine string
 	for i := 0; i < len(raw); i++ {
 		if (raw)[i] == '\n' {
 			firstLine = string((raw)[:i])
+			break
 		}
 	}
 
 	tokens := strings.Split(firstLine, " ")
 
 	method := strings.TrimSpace(tokens[0])
-	domain := strings.TrimSpace(tokens[1])
+	url := strings.TrimSpace(tokens[1])
 	version := strings.TrimSpace(tokens[2])
 
-	domain = strings.Replace(domain, "http://", "", 1)
-	domain = strings.Replace(domain, "https://", "", 1)
-	domain = strings.Split(domain, ":")[0]
-	domain = strings.Split(domain, "/")[0]
+	url = strings.Replace(url, "http://", "", 1)
+	url = strings.Replace(url, "https://", "", 1)
 
-	return method, domain, version
+	domain := url
+	for i := 0; i < len(url); i++ {
+		if url[i] == ':' {
+			domain = url[:i]
+			break
+		}
+
+		if url[i] == '/' {
+			domain = url[:i]
+			break
+		}
+	}
+
+	path := "/"
+	for i := 0; i < len(url); i++ {
+		if url[i] == '/' {
+			path = url[i:]
+			break
+		}
+	}
+
+	return method, domain, path, version
 }
