@@ -72,6 +72,10 @@ func (conn *Conn) ReadBytes() ([]byte, error) {
 }
 
 func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
+	p.Tidy()
+
+	log.Debug("[HTTP] request: \n\n" + string(p.Raw()))
+
 	ip, err := doh.Lookup(p.Domain())
 	if err != nil {
 		log.Debug("[HTTP] Error looking up for domain: ", err)
@@ -99,6 +103,8 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 }
 
 func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
+	log.Debug("[HTTPS] request: \n\n" + string(p.Raw()))
+
 	ip, err := doh.Lookup(p.Domain())
 	if err != nil {
 		log.Debug("[HTTPS] Error looking up for domain: ", p.Domain(), " ", err)

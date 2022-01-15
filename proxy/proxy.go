@@ -54,10 +54,6 @@ func (p *Proxy) Start() {
 				return
 			}
 
-			pkt.RemoveProxyHeader()
-
-			log.Debug("New request: \n\n" + string(pkt.Raw()))
-
 			if pkt.IsConnectMethod() {
 				log.Debug("[HTTPS] Start")
 				go conn.HandleHttps(pkt)
