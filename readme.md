@@ -66,7 +66,6 @@ Run `$ spoof-dpi` and it will automatically set your proxy
 Run `$ spoof-dpi` and open your favorite browser with proxy option  
 `google-chrome --proxy-server="http://127.0.0.1:8080"`
 
-
 # How it works
 ### HTTP
 Since most of websites in the world now support HTTPS, SpoofDPI doesn't bypass Deep Packet Inspections for HTTP requets, However It still serves proxy connection for all HTTP requests.
