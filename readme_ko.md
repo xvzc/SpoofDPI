@@ -1,6 +1,6 @@
 # SpoofDPI
 
-다른 언어로 읽기: [English](https://github.com/xvzc/SpoofDPI), [한국어](https://github.com/xvzc/SpoofDPI/blob/main/readme_ko.md), [简体中文](https://github.com/xvzc/SpoofDPI/blob/main/readme_zh-CN.md)
+다른 언어로 읽기: [English](https://github.com/xvzc/SpoofDPI), [한국어](https://github.com/xvzc/SpoofDPI/blob/main/readme_ko.md), [简体中文](https://github.com/xvzc/SpoofDPI/blob/main/readme_zh-cn.md)
 
 DPI(Deep Packet Inspection) 우회를 위해 고안된 소프트웨어  
   
