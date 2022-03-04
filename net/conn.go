@@ -2,6 +2,7 @@ package net
 
 import (
 	"net"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/doh"
@@ -55,6 +56,8 @@ func (conn *Conn) WriteChunks(c [][]byte) (n int, err error) {
 func (conn *Conn) ReadBytes() ([]byte, error) {
 	ret := make([]byte, 0)
 	buf := make([]byte, BUF_SIZE)
+
+    conn.conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 
 	for {
 		n, err := conn.Read(buf)
