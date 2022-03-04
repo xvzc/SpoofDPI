@@ -90,7 +90,7 @@ func (p *HttpPacket) IsConnectMethod() bool {
 func (p *HttpPacket) Tidy() {
 	s := string(p.raw)
 
-	lines := strings.Split(s, "\n")
+	lines := strings.Split(s, "\r\n")
 
 	lines[0] = p.method + " " + p.path + " " + p.version
 
@@ -101,13 +101,16 @@ func (p *HttpPacket) Tidy() {
 	}
 
 	result := ""
+
 	for i := 0; i < len(lines); i++ {
 		if lines[i] == "" {
 			continue
 		}
 
-		result += lines[i] + "\n"
+		result += lines[i] + "\r\n"
 	}
+
+    result += "\r\n"
 
 	p.raw = []byte(result)
 }
