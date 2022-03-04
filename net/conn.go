@@ -91,15 +91,16 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 
 	log.Debug("[HTTP] Connected to the server.")
 
-	go rConn.Serve(lConn, "[HTTP]")
-	go lConn.Serve(rConn, "[HTTP]")
-
 	_, err = rConn.Write(p.Raw())
 	if err != nil {
 		log.Debug("[HTTP] Error sending request to the server: ", err)
 		return
 	}
 	log.Debug("[HTTP] Sent a request to the server")
+
+	go rConn.Serve(lConn, "[HTTP]")
+	lConn.Serve(rConn, "[HTTP]")
+
 }
 
 func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
@@ -135,10 +136,6 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 
 	log.Debug("[HTTPS] Client "+lConn.RemoteAddr().String()+" sent hello: ", len(clientHello), "bytes")
 
-	// Generate a go routine that reads from the server
-	go rConn.Serve(lConn, "[HTTPS]")
-	go lConn.Serve(rConn, "[HTTPS]")
-
 	pkt := packet.NewHttpsPacket(clientHello)
 
 	chunks := pkt.SplitInChunks()
@@ -147,6 +144,10 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 		log.Debug("[HTTPS] Error writing client hello: ", err)
 		return
 	}
+
+	// Generate a go routine that reads from the server
+	go rConn.Serve(lConn, "[HTTPS]")
+	lConn.Serve(rConn, "[HTTPS]")
 }
 
 func (from *Conn) Serve(to *Conn, proto string) {

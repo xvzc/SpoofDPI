@@ -56,10 +56,10 @@ func (p *Proxy) Start() {
 
 			if pkt.IsConnectMethod() {
 				log.Debug("[HTTPS] Start")
-				go conn.HandleHttps(pkt)
+				conn.HandleHttps(pkt)
 			} else {
 				log.Debug("[HTTP] Start")
-				go conn.HandleHttp(pkt)
+				conn.HandleHttp(pkt)
 			}
 		}()
 	}
