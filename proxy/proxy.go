@@ -38,14 +38,14 @@ func (p *Proxy) Start() {
 			continue
 		}
 
-		log.Debug("Accepted a new connection.", conn.RemoteAddr())
+		log.Debug("[PROXY] Accepted a new connection from ", conn.RemoteAddr())
 
 		go func() {
 			b, err := conn.ReadBytes()
 			if err != nil {
 				return
 			}
-			log.Debug("Client sent data: ", len(b))
+			// log.Debug("[PROXY] Client sent a request")
 
 			pkt := packet.NewHttpPacket(b)
 
