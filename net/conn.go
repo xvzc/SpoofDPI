@@ -94,13 +94,21 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 	log.Debug("[DOH] Found ", ip, " with ", p.Domain())
 
 	// Create connection to server
-	rConn, err := Dial("tcp", ip+":80")
+    var port = ":80"
+    if p.Port() != "" {
+        port = p.Port()
+    }
+
+	rConn, err := Dial("tcp", ip + port)
 	if err != nil {
 		log.Debug("[HTTPS] ", err)
 		return
 	}
 
 	log.Debug("[HTTP] Connected to ", p.Domain())
+
+	go lConn.Serve(rConn, "[HTTP]", "localhost", p.Domain())
+	go rConn.Serve(lConn, "[HTTP]", p.Domain(), "localhost")
 
 	_, err = rConn.Write(p.Raw())
 	if err != nil {
@@ -109,10 +117,6 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 	}
 
 	log.Debug("[HTTP] Sent a request to ", p.Domain())
-
-	go rConn.Serve(lConn, "[HTTP]", p.Domain(), "localhost")
-	lConn.Serve(rConn, "[HTTP]", "localhost", p.Domain())
-
 }
 
 func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
@@ -127,7 +131,12 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 	log.Debug("[DOH] Found ", ip, " with ", p.Domain())
 
 	// Create a connection to the requested server
-	rConn, err := Dial("tcp", ip+":443")
+    var port = ":443"
+    if p.Port() != "" {
+        port = p.Port()
+    }
+
+	rConn, err := Dial("tcp", ip + port)
 	if err != nil {
 		log.Debug("[HTTPS] ", err)
 		return
@@ -135,7 +144,7 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 
 	log.Debug("[HTTPS] Connected to ", p.Domain())
 
-	_, err = lConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
+	_, err = lConn.Write([]byte(p.Version() + " 200 Connection Established\r\n\r\n"))
 	if err != nil {
 		log.Debug("[HTTPS] Error sending 200 Connection Established to the client", err)
         return
@@ -152,6 +161,10 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 
 	log.Debug("[HTTPS] Client sent hello ", len(clientHello), "bytes")
 
+	// Generate a go routine that reads from the server
+	go lConn.Serve(rConn, "[HTTPS]", "localhost", p.Domain())
+	go rConn.Serve(lConn, "[HTTPS]", p.Domain(), "localhost")
+
 	pkt := packet.NewHttpsPacket(clientHello)
 
 	chunks := pkt.SplitInChunks()
@@ -161,9 +174,6 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 		return
 	}
 
-	// Generate a go routine that reads from the server
-	go rConn.Serve(lConn, "[HTTPS]", p.Domain(), "localhost")
-	lConn.Serve(rConn, "[HTTPS]", "localhost", p.Domain())
 }
 
 func (from *Conn) Serve(to *Conn, proto string, fd string, td string) {

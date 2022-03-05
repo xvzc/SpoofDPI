@@ -44,17 +44,23 @@ type HttpPacket struct {
 	raw     []byte
 	method  string
 	domain  string
+    port    string
 	path    string
 	version string
 }
 
+func ParseUrl(raw []byte) {
+
+}
+
 func NewHttpPacket(raw []byte) HttpPacket {
-	method, domain, path, version := parse(raw)
+	method, domain, port, path, version := parse(raw)
 
 	return HttpPacket{
 		raw:     raw,
 		method:  method,
 		domain:  domain,
+        port:    port,
 		path:    path,
 		version: version,
 	}
@@ -69,6 +75,10 @@ func (p *HttpPacket) Method() string {
 
 func (p *HttpPacket) Domain() string {
 	return p.domain
+}
+
+func (p *HttpPacket) Port() string {
+	return p.port
 }
 
 func (p *HttpPacket) Version() string {
@@ -115,7 +125,7 @@ func (p *HttpPacket) Tidy() {
 	p.raw = []byte(result)
 }
 
-func parse(raw []byte) (string, string, string, string) {
+func parse(raw []byte) (string, string, string, string, string) {
 	var firstLine string
 	for i := 0; i < len(raw); i++ {
 		if (raw)[i] == '\n' {
@@ -133,10 +143,12 @@ func parse(raw []byte) (string, string, string, string) {
 	url = strings.Replace(url, "http://", "", 1)
 	url = strings.Replace(url, "https://", "", 1)
 
-	domain := url
+    var domain string 
+    var port string
 	for i := 0; i < len(url); i++ {
 		if url[i] == ':' {
 			domain = url[:i]
+            port = url[i:]
 			break
 		}
 
@@ -154,5 +166,5 @@ func parse(raw []byte) (string, string, string, string) {
 		}
 	}
 
-	return method, domain, path, version
+	return method, domain, port, path, version
 }
