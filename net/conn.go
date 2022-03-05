@@ -3,6 +3,7 @@ package net
 import (
 	"net"
 	"time"
+    "errors"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/doh"
@@ -61,9 +62,14 @@ func (conn *Conn) ReadBytes() ([]byte, error) {
 
 	for {
 		n, err := conn.Read(buf)
-		if err != nil {
-			return nil, err
-		}
+        if err != nil {
+            switch err.(type) {
+            case *net.OpError:
+                return nil, errors.New("timed out")
+            default:
+                return nil, err
+            }
+        }
 		ret = append(ret, buf[:n]...)
 
 		if n < BUF_SIZE {
@@ -81,9 +87,11 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 
 	ip, err := doh.Lookup(p.Domain())
 	if err != nil {
-		log.Debug("[HTTP] Error looking up for domain: ", err)
+		log.Debug("[DOH] Error looking up for domain with ", p.Domain() , err)
+        return
 	}
-	log.Debug("[HTTP] Found ip over HTTPS: ", ip)
+
+	log.Debug("[DOH] Found ", ip, " with ", p.Domain())
 
 	// Create connection to server
 	rConn, err := Dial("tcp", ip+":80")
@@ -92,17 +100,18 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 		return
 	}
 
-	log.Debug("[HTTP] Connected to the server.")
+	log.Debug("[HTTP] Connected to ", p.Domain())
 
 	_, err = rConn.Write(p.Raw())
 	if err != nil {
-		log.Debug("[HTTP] Error sending request to the server: ", err)
+		log.Debug("[HTTP] Error sending request to ", p.Domain(), err)
 		return
 	}
-	log.Debug("[HTTP] Sent a request to the server")
 
-	go rConn.Serve(lConn, "[HTTP]")
-	lConn.Serve(rConn, "[HTTP]")
+	log.Debug("[HTTP] Sent a request to ", p.Domain())
+
+	go rConn.Serve(lConn, "[HTTP]", p.Domain(), "localhost")
+	lConn.Serve(rConn, "[HTTP]", "localhost", p.Domain())
 
 }
 
@@ -111,9 +120,11 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 
 	ip, err := doh.Lookup(p.Domain())
 	if err != nil {
-		log.Debug("[HTTPS] Error looking up for domain: ", p.Domain(), " ", err)
+		log.Debug("[DOH] Error looking up for domain: ", p.Domain(), " ", err)
+        return
 	}
-	log.Debug("[HTTPS] Found ip over HTTPS: ", ip)
+
+	log.Debug("[DOH] Found ", ip, " with ", p.Domain())
 
 	// Create a connection to the requested server
 	rConn, err := Dial("tcp", ip+":443")
@@ -122,38 +133,40 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 		return
 	}
 
-	log.Debug("[HTTPS] Connected to the server.")
+	log.Debug("[HTTPS] Connected to ", p.Domain())
 
 	_, err = lConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
 	if err != nil {
-		log.Debug("[HTTPS] Error sending client hello: ", err)
+		log.Debug("[HTTPS] Error sending 200 Connection Established to the client", err)
+        return
 	}
-	log.Debug("[HTTPS] Sent 200 Connection Estabalished")
+	log.Debug("[HTTPS] Sent 200 Connection Estabalished to the client")
 
 	// Read client hello
 	clientHello, err := lConn.ReadBytes()
 	if err != nil {
-		log.Debug("[HTTPS] Error reading client hello: ", err)
-		log.Debug("[HTTPS] Closing connection: ", lConn.RemoteAddr())
+		log.Debug("[HTTPS] Error reading client hello from the client", err)
+		log.Debug("[HTTPS] Closing local connection..")
+        return
 	}
 
-	log.Debug("[HTTPS] Client "+lConn.RemoteAddr().String()+" sent hello: ", len(clientHello), "bytes")
+	log.Debug("[HTTPS] Client sent hello ", len(clientHello), "bytes")
 
 	pkt := packet.NewHttpsPacket(clientHello)
 
 	chunks := pkt.SplitInChunks()
 
 	if _, err := rConn.WriteChunks(chunks); err != nil {
-		log.Debug("[HTTPS] Error writing client hello: ", err)
+		log.Debug("[HTTPS] Error writing client hello to ", p.Domain(), err)
 		return
 	}
 
 	// Generate a go routine that reads from the server
-	go rConn.Serve(lConn, "[HTTPS]")
-	lConn.Serve(rConn, "[HTTPS]")
+	go rConn.Serve(lConn, "[HTTPS]", p.Domain(), "localhost")
+	lConn.Serve(rConn, "[HTTPS]", "localhost", p.Domain())
 }
 
-func (from *Conn) Serve(to *Conn, proto string) {
+func (from *Conn) Serve(to *Conn, proto string, fd string, td string) {
 	defer from.Close()
 	defer to.CloseWrite()
 
@@ -162,18 +175,14 @@ func (from *Conn) Serve(to *Conn, proto string) {
 	for {
 		buf, err := from.ReadBytes()
 		if err != nil {
-			log.Debug(proto+"Error reading from ", from.RemoteAddr())
-			log.Debug(proto, err)
-			log.Debug(proto + "Exiting Serve() method. ")
+			log.Debug(proto, "Error reading from ", fd, " ", err)
 			break
 		}
 
-		log.Debug(proto, from.RemoteAddr(), " sent data: ", len(buf), "bytes")
+		// log.Debug(proto, fd, " sent data: ", len(buf), "bytes")
 
 		if _, err := to.Write(buf); err != nil {
-			log.Debug(proto+"Error Writing to ", to.RemoteAddr())
-			log.Debug(proto, err)
-			log.Debug(proto + "Exiting Serve() method. ")
+			log.Debug(proto, "Error Writing to ", td)
 			break
 		}
 	}
