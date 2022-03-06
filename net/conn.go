@@ -58,7 +58,7 @@ func (conn *Conn) ReadBytes() ([]byte, error) {
 	ret := make([]byte, 0)
 	buf := make([]byte, BUF_SIZE)
 
-    conn.conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+    conn.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 
 	for {
 		n, err := conn.Read(buf)
