@@ -53,8 +53,11 @@ func ParseUrl(raw []byte) {
 
 }
 
-func NewHttpPacket(raw []byte) HttpPacket {
-	method, domain, port, path, version := parse(raw)
+func NewHttpPacket(raw []byte) (HttpPacket, error){
+	method, domain, port, path, version, err := parse(raw)
+    if err != nil {
+        return HttpPacket{}, err
+    }
 
 	return HttpPacket{
 		raw:     raw,
@@ -63,7 +66,7 @@ func NewHttpPacket(raw []byte) HttpPacket {
         port:    port,
 		path:    path,
 		version: version,
-	}
+	}, nil
 }
 
 func (p *HttpPacket) Raw() []byte {
@@ -125,10 +128,10 @@ func (p *HttpPacket) Tidy() {
 	p.raw = []byte(result)
 }
 
-func parse(raw []byte) (string, string, string, string, string) {
+func parse(raw []byte) (string, string, string, string, string, error) {
 	var firstLine string
 	for i := 0; i < len(raw); i++ {
-		if (raw)[i] == '\n' {
+		if (raw)[i] == '\r' {
 			firstLine = string((raw)[:i])
 			break
 		}
@@ -136,15 +139,15 @@ func parse(raw []byte) (string, string, string, string, string) {
 
 	tokens := strings.Split(firstLine, " ")
 
-	method := strings.TrimSpace(tokens[0])
-	url := strings.TrimSpace(tokens[1])
-	version := strings.TrimSpace(tokens[2])
+	method := tokens[0]
+	url := tokens[1]
+	version := tokens[2]
 
 	url = strings.Replace(url, "http://", "", 1)
 	url = strings.Replace(url, "https://", "", 1)
 
-    var domain string 
-    var port string
+    domain := ""
+    port := ""
 	for i := 0; i < len(url); i++ {
 		if url[i] == ':' {
 			domain = url[:i]
@@ -166,5 +169,5 @@ func parse(raw []byte) (string, string, string, string, string) {
 		}
 	}
 
-	return method, domain, port, path, version
+	return method, domain, port, path, version, nil
 }

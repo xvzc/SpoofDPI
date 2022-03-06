@@ -47,10 +47,15 @@ func (p *Proxy) Start() {
 			}
 			// log.Debug("[PROXY] Client sent a request")
 
-			pkt := packet.NewHttpPacket(b)
+			pkt, err := packet.NewHttpPacket(b)
+            if err != nil {
+				log.Debug("Error while parsing request")
+                log.Println(b)
+                return
+            }
 
 			if !pkt.IsValidMethod() {
-				log.Println("Unsupported method: ", pkt.Method())
+				log.Debug("Unsupported method: ", pkt.Method())
 				return
 			}
 
