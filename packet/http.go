@@ -1,6 +1,7 @@
 package packet
 
 import (
+	"errors"
 	"strings"
 )
 
@@ -138,6 +139,10 @@ func parse(raw []byte) (string, string, string, string, string, error) {
 	}
 
 	tokens := strings.Split(firstLine, " ")
+
+    if (len(tokens) < 3) {
+        return "", "", "", "", "", errors.New("Unexpected request format")
+    }
 
 	method := tokens[0]
 	url := tokens[1]
