@@ -6,10 +6,6 @@ A simple and fast software designed to bypass **Deep Packet Inspection**
   
 ![image](https://user-images.githubusercontent.com/45588457/148035986-8b0076cc-fefb-48a1-9939-a8d9ab1d6322.png)
 
-
-# Dependencies
-- Go
-
 # Installation
 ## Binary
 SpoofDPI will be installed in `~/.spoof-dpi/bin`.  
