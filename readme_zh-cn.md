@@ -6,11 +6,6 @@
   
 ![image](https://user-images.githubusercontent.com/45588457/148035986-8b0076cc-fefb-48a1-9939-a8d9ab1d6322.png)
 
-
-# 依赖
-
-- Go
-
 # 安装
 ## Binary
 
