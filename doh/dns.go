@@ -1,6 +1,7 @@
 package doh
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/babolivier/go-doh-client"
@@ -18,6 +19,10 @@ func Lookup(domain string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+    if len(a) < 1 {
+        return "", errors.New(" couldn't resolve the domain")
+    }
 
 	ip := a[0].IP4
 
