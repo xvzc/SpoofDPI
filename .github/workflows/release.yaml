@@ -1,5 +1,5 @@
 on:
-  pull_request:
+  push:
     branches:
       - "main"
 
@@ -12,7 +12,7 @@ jobs:
       # ...
       - name: "Build & test"
         run: |
-          GOOS=linux GOARCH=amd64 go build ./cmd/... && tar -zcvf spoof-dpi-linux.tar.gz ./spoof-dpi
+          ls -al && GOOS=linux GOARCH=amd64 go build ./cmd/... && tar -zcvf spoof-dpi-linux.tar.gz ./spoof-dpi
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
