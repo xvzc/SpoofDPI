@@ -15,4 +15,3 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         goos: linux
         goarch: amd64
-        build_command: "go build -o . github.com/xvzc/SpoofDPI/cmd/spoof-dpi && tar -zcvf spoof-dpi-osx.tar.gz ./spoof-dpi"
