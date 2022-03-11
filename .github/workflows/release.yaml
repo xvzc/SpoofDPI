@@ -12,7 +12,7 @@ jobs:
       # ...
       - name: "Build & test"
         run: |
-          GOOS=linux GOARCH=amd64 go build -o . github.com/xvzc/SpoofDPI/cmd/spoof-dpi && tar -zcvf spoof-dpi-linux.tar.gz ./spoof-dpi 
+          GOOS=linux GOARCH=amd64 go build ./cmd/... && tar -zcvf spoof-dpi-linux.tar.gz ./spoof-dpi
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
