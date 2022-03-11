@@ -1,0 +1,19 @@
+# .github/workflows/release.yaml
+
+on:
+  pull_request:
+    branches: 
+    - main
+
+jobs:
+  release-linux-amd64:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: wangyoucao577/go-release-action@v1.25
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        goos: linux
+        goarch: amd64
+        build_command: "go build -o . github.com/xvzc/SpoofDPI/cmd/spoof-dpi && tar -zcvf spoof-dpi-osx.tar.gz ./spoof-dpi"
