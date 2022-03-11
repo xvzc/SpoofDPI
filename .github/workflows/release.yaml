@@ -1,17 +1,23 @@
-# .github/workflows/release.yaml
-
 on:
-  release:
-    types: [created]
+  pull_request:
+    branches:
+      - "master"
 
 jobs:
-  release-linux-amd64:
-    name: Release
-    runs-on: ubuntu-latest
+  linux:
+    name: "Release"
+    runs-on: "ubuntu-latest"
+
     steps:
-    - uses: actions/checkout@v2
-    - uses: wangyoucao577/go-release-action@v1.25
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        goos: linux
-        goarch: amd64
+      # ...
+      - name: "Build & test"
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o . github.com/xvzc/SpoofDPI/cmd/spoof-dpi && tar -zcvf spoof-dpi-linux.tar.gz ./spoof-dpi 
+      - uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "latest"
+          prerelease: true
+          title: "Development Build"
+          files: |
+            *.tar.gz
