@@ -15,7 +15,7 @@ jobs:
           ls -al && pwd && ls -al .. && GOOS=linux GOARCH=amd64 go build ./cmd/... && tar -zcvf spoof-dpi-linux.tar.gz ./spoof-dpi
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          repo_token: "${{ secrets.PERSONAL_TOKEN }}"
           automatic_release_tag: "latest"
           prerelease: true
           title: "Development Build"
