@@ -1,9 +1,8 @@
 # .github/workflows/release.yaml
 
 on:
-  pull_request:
-    branches: 
-    - main
+  release:
+    types: [created]
 
 jobs:
   release-linux-amd64:
