@@ -49,8 +49,7 @@ func (p *Proxy) Start() {
 
 			pkt, err := packet.NewHttpPacket(b)
             if err != nil {
-				log.Debug("Error while parsing request")
-                log.Println(b)
+                log.Debug("Error while parsing request: ", string(b))
                 return
             }
 
