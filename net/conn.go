@@ -40,6 +40,16 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 	return c.conn.Write(b)
 }
 
+func (c *Conn) SetDeadLine(t time.Time) (error) {
+    c.conn.SetDeadline(t)
+    return nil
+}
+
+func (c *Conn) SetKeepAlive(b bool) (error) {
+    c.conn.(*net.TCPConn).SetKeepAlive(b)
+    return nil
+}
+
 func (conn *Conn) WriteChunks(c [][]byte) (n int, err error) {
 	total := 0
 	for i := 0; i < len(c); i++ {
@@ -87,9 +97,15 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 
 	ip, err := doh.Lookup(p.Domain())
 	if err != nil {
-		log.Debug("[DOH] Error looking up for domain with ", p.Domain() , err)
+		// log.Error("[HTTP DOH] Error looking up for domain with ", p.Domain() , " ", err)
+        log.Error(lConn.RemoteAddr().String())
+        // log.Error(string(p.Raw()))
+        lConn.Write([]byte(p.Version() + " 502 Bad Gateway\r\n\r\n"))
+        lConn.Close()
         return
 	}
+    log.Info(string(lConn.RemoteAddr().String()))
+
 
 	log.Debug("[DOH] Found ", ip, " with ", p.Domain())
 
@@ -102,6 +118,7 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 	rConn, err := Dial("tcp", ip + port)
 	if err != nil {
 		log.Debug("[HTTPS] ", err)
+        lConn.Close()
 		return
 	}
 
@@ -113,6 +130,8 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 	_, err = rConn.Write(p.Raw())
 	if err != nil {
 		log.Debug("[HTTP] Error sending request to ", p.Domain(), err)
+        lConn.Close()
+        rConn.Close()
 		return
 	}
 
@@ -124,7 +143,9 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 
 	ip, err := doh.Lookup(p.Domain())
 	if err != nil {
-		log.Debug("[DOH] Error looking up for domain: ", p.Domain(), " ", err)
+		log.Error("[HTTPS DOH] Error looking up for domain: ", p.Domain(), " ", err)
+        lConn.Write([]byte(p.Version() + " 502 Bad Gateway\r\n\r\n"))
+        lConn.Close()
         return
 	}
 
@@ -139,6 +160,7 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 	rConn, err := Dial("tcp", ip + port)
 	if err != nil {
 		log.Debug("[HTTPS] ", err)
+        lConn.Close()
 		return
 	}
 
@@ -147,6 +169,8 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 	_, err = lConn.Write([]byte(p.Version() + " 200 Connection Established\r\n\r\n"))
 	if err != nil {
 		log.Debug("[HTTPS] Error sending 200 Connection Established to the client", err)
+        lConn.Close()
+        rConn.Close()
         return
 	}
 	log.Debug("[HTTPS] Sent 200 Connection Estabalished to the client")
@@ -156,6 +180,8 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 	if err != nil {
 		log.Debug("[HTTPS] Error reading client hello from the client", err)
 		log.Debug("[HTTPS] Closing local connection..")
+        lConn.Close()
+        rConn.Close()
         return
 	}
 
@@ -171,6 +197,8 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 
 	if _, err := rConn.WriteChunks(chunks); err != nil {
 		log.Debug("[HTTPS] Error writing client hello to ", p.Domain(), err)
+        lConn.Close()
+        rConn.Close()
 		return
 	}
 
@@ -178,7 +206,7 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 
 func (from *Conn) Serve(to *Conn, proto string, fd string, td string) {
 	defer from.Close()
-	defer to.CloseWrite()
+	defer to.Close()
 
 	proto += " "
 
