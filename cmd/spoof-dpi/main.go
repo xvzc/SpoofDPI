@@ -13,9 +13,9 @@ import (
 )
 
 func main() {
-	port, dns, debug := util.ParseArgs()
+	addr, port, dns, debug := util.ParseArgs()
 
-	p := proxy.New(port)
+	p := proxy.New(addr, port)
 	doh.Init(dns)
 	if debug {
 		log.SetLevel(log.DebugLevel)
@@ -27,7 +27,7 @@ func main() {
 		FullTimestamp: true,
 	})
 
-	util.PrintWelcome(port, dns, debug)
+	util.PrintWelcome(addr, port, dns, debug)
 
 	if err := util.SetOsProxy(port); err != nil {
 		log.Fatal(err)
