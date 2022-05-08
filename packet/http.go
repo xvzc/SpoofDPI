@@ -54,20 +54,12 @@ func ParseUrl(raw []byte) {
 
 }
 
-func NewHttpPacket(raw []byte) (HttpPacket, error){
-	method, domain, port, path, version, err := parse(raw)
-    if err != nil {
-        return HttpPacket{}, err
-    }
+func NewHttpPacket(raw []byte) (*HttpPacket, error){
+    pkt := &HttpPacket{raw: raw}
 
-	return HttpPacket{
-		raw:     raw,
-		method:  method,
-		domain:  domain,
-        port:    port,
-		path:    path,
-		version: version,
-	}, nil
+    pkt.parse()
+
+	return pkt, nil
 }
 
 func (p *HttpPacket) Raw() []byte {
@@ -129,11 +121,11 @@ func (p *HttpPacket) Tidy() {
 	p.raw = []byte(result)
 }
 
-func parse(raw []byte) (string, string, string, string, string, error) {
+func (p *HttpPacket )parse() error {
 	var firstLine string
-	for i := 0; i < len(raw); i++ {
-		if (raw)[i] == '\r' {
-			firstLine = string((raw)[:i])
+	for i := 0; i < len(p.raw); i++ {
+		if (p.raw)[i] == '\r' {
+			firstLine = string(p.raw[:i])
 			break
 		}
 	}
@@ -141,15 +133,20 @@ func parse(raw []byte) (string, string, string, string, string, error) {
 	tokens := strings.Split(firstLine, " ")
 
     if (len(tokens) < 3) {
-        return "", "", "", "", "", errors.New("Unexpected request format")
+        return errors.New("Error parsing http request")
     }
 
-	method := tokens[0]
+	p.method = tokens[0]
 	url := tokens[1]
-	version := tokens[2]
+	p.version = tokens[2]
 
-	url = strings.Replace(url, "http://", "", 1)
-	url = strings.Replace(url, "https://", "", 1)
+    if strings.HasPrefix(url, "http://") {
+        url = strings.Replace(url, "http://", "", 1)
+    }
+
+    if strings.HasPrefix(url, "https://") {
+	    url = strings.Replace(url, "https://", "", 1)
+    }
 
     domain := ""
     port := ""
@@ -165,6 +162,8 @@ func parse(raw []byte) (string, string, string, string, string, error) {
 			break
 		}
 	}
+    p.domain = domain
+    p.port = port
 
 	path := "/"
 	for i := 0; i < len(url); i++ {
@@ -174,5 +173,7 @@ func parse(raw []byte) (string, string, string, string, string, error) {
 		}
 	}
 
-	return method, domain, port, path, version, nil
+    p.path = path
+
+    return nil
 }
