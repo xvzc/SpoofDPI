@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"os"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/net"
@@ -44,8 +43,8 @@ func (p *Proxy) Start() {
 			log.Fatal("Error accepting connection: ", err)
 			continue
 		}
-        conn.SetDeadLine(time.Now().Add(3 * time.Second))
-        conn.SetKeepAlive(false)
+        // conn.SetDeadLine(time.Now().Add(3 * time.Second))
+        // conn.SetKeepAlive(false)
 
 		log.Debug("[PROXY] Accepted a new connection from ", conn.RemoteAddr())
 

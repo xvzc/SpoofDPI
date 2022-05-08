@@ -2,6 +2,7 @@ package net
 
 import (
 	"errors"
+	"io"
 	"net"
 	"time"
 
@@ -91,6 +92,7 @@ func (conn *Conn) ReadBytes() ([]byte, error) {
 }
 
 func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
+    defer lConn.Close()
 	p.Tidy()
 
 	log.Debug("[HTTP] request: \n\n" + string(p.Raw()))
@@ -104,8 +106,6 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
         lConn.Close()
         return
 	}
-    log.Info(string(lConn.RemoteAddr().String()))
-
 
 	log.Debug("[DOH] Found ", ip, " with ", p.Domain())
 
@@ -121,11 +121,13 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
         lConn.Close()
 		return
 	}
+    defer rConn.Close()
 
 	log.Debug("[HTTP] Connected to ", p.Domain())
 
-	go lConn.Serve(rConn, "[HTTP]", "localhost", p.Domain())
-	go rConn.Serve(lConn, "[HTTP]", p.Domain(), "localhost")
+	// go lConn.Serve(rConn, "[HTTP]", "localhost", p.Domain())
+	// go rConn.Serve(lConn, "[HTTP]", p.Domain(), "localhost")
+    go io.Copy(lConn, rConn)
 
 	_, err = rConn.Write(p.Raw())
 	if err != nil {
@@ -136,9 +138,15 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 	}
 
 	log.Debug("[HTTP] Sent a request to ", p.Domain())
+
+    io.Copy(rConn, lConn)
+
+	log.Debug("[HTTP] Closing Connection..", p.Domain())
+
 }
 
 func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
+    defer lConn.Close()
 	log.Debug("[HTTPS] request: \n\n" + string(p.Raw()))
 
 	ip, err := doh.Lookup(p.Domain())
@@ -163,6 +171,7 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
         lConn.Close()
 		return
 	}
+    defer rConn.Close()
 
 	log.Debug("[HTTPS] Connected to ", p.Domain())
 
@@ -188,8 +197,7 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 	log.Debug("[HTTPS] Client sent hello ", len(clientHello), "bytes")
 
 	// Generate a go routine that reads from the server
-	go lConn.Serve(rConn, "[HTTPS]", "localhost", p.Domain())
-	go rConn.Serve(lConn, "[HTTPS]", p.Domain(), "localhost")
+    go io.Copy(lConn, rConn)
 
 	pkt := packet.NewHttpsPacket(clientHello)
 
@@ -201,6 +209,12 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
         rConn.Close()
 		return
 	}
+
+    io.Copy(rConn, lConn)
+
+	log.Debug("[HTTPS] Closing Connection..", p.Domain())
+	// go lConn.Serve(rConn, "[HTTPS]", "localhost", p.Domain())
+	// go rConn.Serve(lConn, "[HTTPS]", p.Domain(), "localhost")
 
 }
 
