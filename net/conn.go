@@ -91,7 +91,7 @@ func (conn *Conn) ReadBytes() ([]byte, error) {
     return ret, nil
 }
 
-func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
+func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
     defer lConn.Close()
 	p.Tidy()
 
@@ -138,7 +138,7 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 
 }
 
-func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
+func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
     defer lConn.Close()
 
 	ip, err := doh.Lookup(p.Domain())
