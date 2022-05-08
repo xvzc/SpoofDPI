@@ -11,12 +11,18 @@ import (
 
 type Proxy struct {
 	port string
+    addr string
 }
 
-func New(port string) *Proxy {
+func New(addr string, port string) *Proxy {
 	return &Proxy{
+        addr: addr,
 		port: port,
 	}
+}
+
+func (p *Proxy) TcpAddr() string {
+    return p.addr + ":" + p.port
 }
 
 func (p *Proxy) Port() string {
@@ -24,7 +30,7 @@ func (p *Proxy) Port() string {
 }
 
 func (p *Proxy) Start() {
-	l, err := net.Listen("tcp", "127.0.0.1:"+p.Port())
+	l, err := net.Listen("tcp", p.TcpAddr())
 	if err != nil {
 		log.Fatal("Error creating listener: ", err)
 		os.Exit(1)

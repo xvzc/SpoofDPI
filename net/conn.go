@@ -1,9 +1,9 @@
 package net
 
 import (
+	"errors"
 	"net"
 	"time"
-    "errors"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/doh"
@@ -83,11 +83,11 @@ func (conn *Conn) ReadBytes() ([]byte, error) {
 		ret = append(ret, buf[:n]...)
 
 		if n < BUF_SIZE {
-			break
+            break
 		}
 	}
 
-	return ret, nil
+    return ret, nil
 }
 
 func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
