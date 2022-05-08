@@ -46,14 +46,13 @@ func (p *Proxy) Start() {
         // conn.SetDeadLine(time.Now().Add(3 * time.Second))
         // conn.SetKeepAlive(false)
 
-		log.Debug("[PROXY] Accepted a new connection from ", conn.RemoteAddr())
-
 		go func() {
 			b, err := conn.ReadBytes()
 			if err != nil {
 				return
 			}
-			// log.Debug("[PROXY] Client sent a request")
+
+            log.Debug("[PROXY] Request from ", conn.RemoteAddr(), "\n\n", string(b))
 
 			pkt, err := packet.NewHttpPacket(b)
             if err != nil {

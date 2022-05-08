@@ -95,13 +95,9 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
     defer lConn.Close()
 	p.Tidy()
 
-	log.Debug("[HTTP] request: \n\n" + string(p.Raw()))
-
 	ip, err := doh.Lookup(p.Domain())
 	if err != nil {
-		// log.Error("[HTTP DOH] Error looking up for domain with ", p.Domain() , " ", err)
-        log.Error(lConn.RemoteAddr().String())
-        // log.Error(string(p.Raw()))
+        log.Error("[HTTP DOH] Error looking up for domain with ", p.Domain() , " ", err)
         lConn.Write([]byte(p.Version() + " 502 Bad Gateway\r\n\r\n"))
         lConn.Close()
         return
@@ -117,17 +113,13 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 
 	rConn, err := Dial("tcp", ip + port)
 	if err != nil {
-		log.Debug("[HTTPS] ", err)
+		log.Debug("[HTTP] ", err)
         lConn.Close()
 		return
 	}
     defer rConn.Close()
 
 	log.Debug("[HTTP] Connected to ", p.Domain())
-
-	// go lConn.Serve(rConn, "[HTTP]", "localhost", p.Domain())
-	// go rConn.Serve(lConn, "[HTTP]", p.Domain(), "localhost")
-    go io.Copy(lConn, rConn)
 
 	_, err = rConn.Write(p.Raw())
 	if err != nil {
@@ -139,6 +131,7 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 
 	log.Debug("[HTTP] Sent a request to ", p.Domain())
 
+    go io.Copy(lConn, rConn)
     io.Copy(rConn, lConn)
 
 	log.Debug("[HTTP] Closing Connection..", p.Domain())
@@ -147,7 +140,6 @@ func (lConn *Conn) HandleHttp(p packet.HttpPacket) {
 
 func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
     defer lConn.Close()
-	log.Debug("[HTTPS] request: \n\n" + string(p.Raw()))
 
 	ip, err := doh.Lookup(p.Domain())
 	if err != nil {
@@ -197,7 +189,6 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 	log.Debug("[HTTPS] Client sent hello ", len(clientHello), "bytes")
 
 	// Generate a go routine that reads from the server
-    go io.Copy(lConn, rConn)
 
 	pkt := packet.NewHttpsPacket(clientHello)
 
@@ -210,11 +201,10 @@ func (lConn *Conn) HandleHttps(p packet.HttpPacket) {
 		return
 	}
 
+    go io.Copy(lConn, rConn)
     io.Copy(rConn, lConn)
 
 	log.Debug("[HTTPS] Closing Connection..", p.Domain())
-	// go lConn.Serve(rConn, "[HTTPS]", "localhost", p.Domain())
-	// go rConn.Serve(lConn, "[HTTPS]", p.Domain(), "localhost")
 
 }
 
