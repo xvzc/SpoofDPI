@@ -48,6 +48,7 @@ wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash
 # 사용법
 ```
 Usage: spoof-dpi [options...]
+--addr=<addr>  | default: 127.0.0.1
 --dns=<addr>   | default: 8.8.8.8
 --port=<port>  | default: 8080
 --debug=<bool> | default: false
