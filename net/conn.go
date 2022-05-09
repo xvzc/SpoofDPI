@@ -108,7 +108,7 @@ func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
 	// Create connection to server
     var port = ":80"
     if p.Port() != "" {
-        port = p.Port()
+        port = ":" + p.Port()
     }
 
 	rConn, err := Dial("tcp", ip + port)
@@ -154,7 +154,7 @@ func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
 	// Create a connection to the requested server
     var port = ":443"
     if p.Port() != "" {
-        port = p.Port()
+        port = ":" + p.Port()
     }
 
 	rConn, err := Dial("tcp", ip + port)
