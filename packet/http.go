@@ -1,7 +1,9 @@
 package packet
 
 import (
-	"errors"
+	"bufio"
+	"net"
+	"net/http"
 	"strings"
 )
 
@@ -122,58 +124,34 @@ func (p *HttpPacket) Tidy() {
 }
 
 func (p *HttpPacket )parse() error {
-	var firstLine string
-	for i := 0; i < len(p.raw); i++ {
-		if (p.raw)[i] == '\r' {
-			firstLine = string(p.raw[:i])
-			break
-		}
-	}
-
-	tokens := strings.Split(firstLine, " ")
-
-    if (len(tokens) < 3) {
-        return errors.New("Error parsing http request")
+    reader := bufio.NewReader(strings.NewReader(string(p.raw)))
+    request, err := http.ReadRequest(reader)
+    if err != nil {
+        return err
     }
 
-	p.method = tokens[0]
-	url := tokens[1]
-	p.version = tokens[2]
-
-    if strings.HasPrefix(url, "http://") {
-        url = strings.Replace(url, "http://", "", 1)
+    p.domain, p.port, err = net.SplitHostPort(request.Host)
+    if err != nil {
+        p.domain = request.Host
+        p.port = ""
     }
 
-    if strings.HasPrefix(url, "https://") {
-	    url = strings.Replace(url, "https://", "", 1)
+    p.method = request.Method
+    p.version = request.Proto
+    p.path = request.URL.Path
+
+    if request.URL.RawQuery != "" {
+        p.path += "?" + request.URL.RawQuery
     }
 
-    domain := ""
-    port := ""
-	for i := 0; i < len(url); i++ {
-		if url[i] == ':' {
-			domain = url[:i]
-            port = url[i:]
-			break
-		}
+    if request.URL.RawFragment != "" {
+        p.path += "#" + request.URL.RawFragment
+    }
+    if p.path == "" {
+        p.path = "/"
+    }
 
-		if url[i] == '/' {
-			domain = url[:i]
-			break
-		}
-	}
-    p.domain = domain
-    p.port = port
-
-	path := "/"
-	for i := 0; i < len(url); i++ {
-		if url[i] == '/' {
-			path = url[i:]
-			break
-		}
-	}
-
-    p.path = path
+    request.Body.Close()
 
     return nil
 }
