@@ -1,7 +1,7 @@
 package net
 
 import (
-	"errors"
+	"io"
 	"net"
 	"time"
 
@@ -70,27 +70,45 @@ func (conn *Conn) WriteChunks(c [][]byte) (n int, err error) {
 }
 
 func (conn *Conn) ReadBytes() ([]byte, error) {
-	ret := make([]byte, 0)
-	buf := make([]byte, BUF_SIZE)
+	// ret := make([]byte, 0)
+	// buf := make([]byte, BUF_SIZE)
 
-	for {
-		n, err := conn.Read(buf)
+	// for {
+	//     n, err := conn.Read(buf)
+    //     if err != nil {
+    //         switch err.(type) {
+    //         case *net.OpError:
+    //             return nil, errors.New("timed out")
+    //         default:
+    //             return nil, err
+    //         }
+    //     }
+	//     ret = append(ret, buf[:n]...)
+
+    //     if n == 0 {
+    //         return nil, io.EOF
+    //     }
+
+	//     if n < BUF_SIZE {
+    //         break
+	//     }
+	// }
+    buf := make([]byte, 0, 4096) // big buffer
+    tmp := make([]byte, 256)     // using small tmo buffer for demonstrating
+    for {
+        n, err := conn.Read(tmp)
         if err != nil {
-            switch err.(type) {
-            case *net.OpError:
-                return nil, errors.New("timed out")
-            default:
+            if err != io.EOF {
                 return nil, err
             }
-        }
-		ret = append(ret, buf[:n]...)
 
-		if n < BUF_SIZE {
             break
-		}
-	}
+        }
 
-    return ret, nil
+        buf = append(buf, tmp[:n]...)
+    }
+
+    return buf, nil
 }
 
 func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
