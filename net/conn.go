@@ -2,7 +2,6 @@ package net
 
 import (
 	"errors"
-	"io"
 	"net"
 	"time"
 
@@ -41,6 +40,11 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 	return c.conn.Write(b)
 }
 
+func (c *Conn) SetReadDeadline(t time.Time) (error) {
+    c.conn.SetReadDeadline(t)
+    return nil
+}
+
 func (c *Conn) SetDeadLine(t time.Time) (error) {
     c.conn.SetDeadline(t)
     return nil
@@ -68,8 +72,6 @@ func (conn *Conn) WriteChunks(c [][]byte) (n int, err error) {
 func (conn *Conn) ReadBytes() ([]byte, error) {
 	ret := make([]byte, 0)
 	buf := make([]byte, BUF_SIZE)
-
-    conn.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 
 	for {
 		n, err := conn.Read(buf)
@@ -119,6 +121,7 @@ func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
 		log.Debug("[HTTP] ", err)
 		return
 	}
+
     defer func() {
         defer rConn.Close()
         log.Debug("[HTTP] Closing server Connection.. ", p.Domain(), " ", rConn.LocalAddr())
@@ -134,8 +137,8 @@ func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
 
 	log.Debug("[HTTP] Sent a request to ", p.Domain())
 
-    go io.Copy(lConn, rConn)
-    io.Copy(rConn, lConn)
+    go lConn.Serve(rConn, "[HTTP]", lConn.RemoteAddr().String(), p.Domain())
+    rConn.Serve(lConn, "[HTTP]", lConn.RemoteAddr().String(), p.Domain())
 
 }
 
@@ -165,6 +168,7 @@ func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
 		log.Debug("[HTTPS] ", err)
 		return
 	}
+
     defer func() {
         defer rConn.Close()
         log.Debug("[HTTPS] Closing server Connection.. ", p.Domain(), " ", rConn.LocalAddr())
@@ -199,29 +203,24 @@ func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
 		return
 	}
 
-    // go io.Copy(lConn, rConn)
-    // io.Copy(rConn, lConn)
-    go lConn.Serve(rConn, "[HTTPS]", "client", p.Domain())
-    rConn.Serve(lConn, "[HTTPS]", p.Domain(), "client")
+    go lConn.Serve(rConn, "[HTTPS]", lConn.RemoteAddr().String(), p.Domain())
+    rConn.Serve(lConn, "[HTTPS]", lConn.RemoteAddr().String(), p.Domain())
 }
 
 func (from *Conn) Serve(to *Conn, proto string, fd string, td string) {
 	proto += " "
 
-	for {
-		buf, err := from.ReadBytes()
-		if err != nil {
-			log.Debug(proto, "Error reading from ", fd, " ", err)
+    for {
+        from.conn.SetReadDeadline(time.Now().Add(2000 * time.Millisecond))
+        buf, err := from.ReadBytes()
+        if err != nil {
+            log.Debug(proto, "Error reading from ", fd, " ", err)
             return
-        } else {
-        }
+        } 
 
-		// log.Debug(proto, fd, " sent data: ", len(buf), "bytes")
-
-		if _, err := to.Write(buf); err != nil {
-			log.Debug(proto, "Error Writing to ", td)
+        if _, err := to.Write(buf); err != nil {
+            log.Debug(proto, "Error Writing to ", td)
             return
-        } else {
-        }
-	}
+        } 
+    }
 }
