@@ -2,7 +2,6 @@ package net
 
 import (
 	"errors"
-	"io"
 	"net"
 	"time"
 
@@ -41,6 +40,11 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 	return c.conn.Write(b)
 }
 
+func (c *Conn) SetReadDeadline(t time.Time) (error) {
+    c.conn.SetReadDeadline(t)
+    return nil
+}
+
 func (c *Conn) SetDeadLine(t time.Time) (error) {
     c.conn.SetDeadline(t)
     return nil
@@ -66,13 +70,11 @@ func (conn *Conn) WriteChunks(c [][]byte) (n int, err error) {
 }
 
 func (conn *Conn) ReadBytes() ([]byte, error) {
-	ret := make([]byte, 0)
-	buf := make([]byte, BUF_SIZE)
+    ret := make([]byte, 0)
+    buf := make([]byte, BUF_SIZE)
 
-    conn.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-
-	for {
-		n, err := conn.Read(buf)
+    for {
+        n, err := conn.Read(buf)
         if err != nil {
             switch err.(type) {
             case *net.OpError:
@@ -81,25 +83,28 @@ func (conn *Conn) ReadBytes() ([]byte, error) {
                 return nil, err
             }
         }
-		ret = append(ret, buf[:n]...)
+        ret = append(ret, buf[:n]...)
 
-		if n < BUF_SIZE {
+        if n < BUF_SIZE {
             break
-		}
-	}
+        }
+    }
 
     return ret, nil
 }
 
 func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
-    defer lConn.Close()
+    defer func() {
+        lConn.Close()
+        log.Debug("[HTTP] Closing client Connection.. ", lConn.RemoteAddr())
+    }()
+
 	p.Tidy()
 
 	ip, err := doh.Lookup(p.Domain())
 	if err != nil {
         log.Error("[HTTP DOH] Error looking up for domain with ", p.Domain() , " ", err)
         lConn.Write([]byte(p.Version() + " 502 Bad Gateway\r\n\r\n"))
-        lConn.Close()
         return
 	}
 
@@ -114,38 +119,39 @@ func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
 	rConn, err := Dial("tcp", ip + port)
 	if err != nil {
 		log.Debug("[HTTP] ", err)
-        lConn.Close()
 		return
 	}
-    defer rConn.Close()
 
-	log.Debug("[HTTP] Connected to ", p.Domain())
+    defer func() {
+        defer rConn.Close()
+        log.Debug("[HTTP] Closing server Connection.. ", p.Domain(), " ", rConn.LocalAddr())
+    }()
+
+    log.Debug("[HTTP] New connection to the server ", p.Domain(), " ", rConn.LocalAddr())
 
 	_, err = rConn.Write(p.Raw())
 	if err != nil {
 		log.Debug("[HTTP] Error sending request to ", p.Domain(), err)
-        lConn.Close()
-        rConn.Close()
 		return
 	}
 
 	log.Debug("[HTTP] Sent a request to ", p.Domain())
 
-    go io.Copy(lConn, rConn)
-    io.Copy(rConn, lConn)
-
-	log.Debug("[HTTP] Closing Connection..", p.Domain())
+    go lConn.Serve(rConn, "[HTTP]", lConn.RemoteAddr().String(), p.Domain())
+    rConn.Serve(lConn, "[HTTP]", lConn.RemoteAddr().String(), p.Domain())
 
 }
 
 func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
-    defer lConn.Close()
+    defer func() {
+        lConn.Close()
+        log.Debug("[HTTPS] Closing client Connection.. ", lConn.RemoteAddr())
+    }()
 
 	ip, err := doh.Lookup(p.Domain())
 	if err != nil {
 		log.Error("[HTTPS DOH] Error looking up for domain: ", p.Domain(), " ", err)
         lConn.Write([]byte(p.Version() + " 502 Bad Gateway\r\n\r\n"))
-        lConn.Close()
         return
 	}
 
@@ -160,18 +166,19 @@ func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
 	rConn, err := Dial("tcp", ip + port)
 	if err != nil {
 		log.Debug("[HTTPS] ", err)
-        lConn.Close()
 		return
 	}
-    defer rConn.Close()
 
-	log.Debug("[HTTPS] Connected to ", p.Domain())
+    defer func() {
+        defer rConn.Close()
+        log.Debug("[HTTPS] Closing server Connection.. ", p.Domain(), " ", rConn.LocalAddr())
+    }()
+
+    log.Debug("[HTTPS] New connection to the server ", p.Domain(), " ", rConn.LocalAddr())
 
 	_, err = lConn.Write([]byte(p.Version() + " 200 Connection Established\r\n\r\n"))
 	if err != nil {
 		log.Debug("[HTTPS] Error sending 200 Connection Established to the client", err)
-        lConn.Close()
-        rConn.Close()
         return
 	}
 	log.Debug("[HTTPS] Sent 200 Connection Estabalished to the client")
@@ -180,9 +187,6 @@ func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
 	clientHello, err := lConn.ReadBytes()
 	if err != nil {
 		log.Debug("[HTTPS] Error reading client hello from the client", err)
-		log.Debug("[HTTPS] Closing local connection..")
-        lConn.Close()
-        rConn.Close()
         return
 	}
 
@@ -196,36 +200,27 @@ func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
 
 	if _, err := rConn.WriteChunks(chunks); err != nil {
 		log.Debug("[HTTPS] Error writing client hello to ", p.Domain(), err)
-        lConn.Close()
-        rConn.Close()
 		return
 	}
 
-    go io.Copy(lConn, rConn)
-    io.Copy(rConn, lConn)
-
-	log.Debug("[HTTPS] Closing Connection..", p.Domain())
-
+    go lConn.Serve(rConn, "[HTTPS]", lConn.RemoteAddr().String(), p.Domain())
+    rConn.Serve(lConn, "[HTTPS]", lConn.RemoteAddr().String(), p.Domain())
 }
 
 func (from *Conn) Serve(to *Conn, proto string, fd string, td string) {
-	defer from.Close()
-	defer to.Close()
-
 	proto += " "
 
-	for {
-		buf, err := from.ReadBytes()
-		if err != nil {
-			log.Debug(proto, "Error reading from ", fd, " ", err)
-			break
-		}
+    for {
+        from.conn.SetReadDeadline(time.Now().Add(2000 * time.Millisecond))
+        buf, err := from.ReadBytes()
+        if err != nil {
+            log.Debug(proto, "Error reading from ", fd, " ", err)
+            return
+        } 
 
-		// log.Debug(proto, fd, " sent data: ", len(buf), "bytes")
-
-		if _, err := to.Write(buf); err != nil {
-			log.Debug(proto, "Error Writing to ", td)
-			break
-		}
-	}
+        if _, err := to.Write(buf); err != nil {
+            log.Debug(proto, "Error Writing to ", td)
+            return
+        } 
+    }
 }

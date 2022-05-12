@@ -43,7 +43,6 @@ func (p *Proxy) Start() {
 			log.Fatal("Error accepting connection: ", err)
 			continue
 		}
-        conn.SetKeepAlive(false)
 
 		go func() {
 			b, err := conn.ReadBytes()
