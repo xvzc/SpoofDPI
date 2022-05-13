@@ -2,10 +2,11 @@ package net
 
 import (
 	"net"
+	"strconv"
 )
 
-func Listen(network, address string) (Listener, error) {
-	l, err := net.Listen(network, address)
+func ListenTCP(network string, addr *TCPAddr) (Listener, error) {
+	l, err := net.ListenTCP(network, addr.Addr)
 	if err != nil {
 		return Listener{}, err
 	}
@@ -13,8 +14,15 @@ func Listen(network, address string) (Listener, error) {
 	return Listener{listener: l}, nil
 }
 
-func Dial(network, address string) (*Conn, error) {
-	conn, err := net.Dial(network, address)
+func DialTCP(network string, ip string, port string) (*Conn, error) {
+    p, _ := strconv.Atoi(port)
+
+    addr := &net.TCPAddr{
+        IP: net.ParseIP(ip),
+        Port: p,
+    }
+
+	conn, err := net.DialTCP(network, nil, addr)
 	if err != nil {
 		return &Conn{}, err
 	}
