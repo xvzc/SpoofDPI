@@ -9,27 +9,27 @@ import (
 )
 
 type Proxy struct {
-	port string
     addr string
+	port int
 }
 
-func New(addr string, port string) *Proxy {
+func New(addr string, port int) *Proxy {
 	return &Proxy{
         addr: addr,
 		port: port,
 	}
 }
 
-func (p *Proxy) TcpAddr() string {
-    return p.addr + ":" + p.port
+func (p *Proxy) TcpAddr() *net.TCPAddr {
+    return net.TcpAddr(p.addr, p.port)
 }
 
-func (p *Proxy) Port() string {
+func (p *Proxy) Port() int {
 	return p.port
 }
 
 func (p *Proxy) Start() {
-	l, err := net.Listen("tcp", p.TcpAddr())
+	l, err := net.ListenTCP("tcp4", p.TcpAddr())
 	if err != nil {
 		log.Fatal("Error creating listener: ", err)
 		os.Exit(1)

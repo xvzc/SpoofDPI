@@ -13,11 +13,15 @@ import (
 const BUF_SIZE = 1024
 
 type Conn struct {
-	conn net.Conn
+	conn *net.TCPConn
 }
 
 func (c *Conn) CloseWrite() {
-	c.conn.(*net.TCPConn).CloseWrite()
+	c.conn.CloseWrite()
+}
+
+func (c *Conn) CloseRead() {
+	c.conn.CloseRead()
 }
 
 func (c *Conn) Close() {
@@ -51,7 +55,7 @@ func (c *Conn) SetDeadLine(t time.Time) (error) {
 }
 
 func (c *Conn) SetKeepAlive(b bool) (error) {
-    c.conn.(*net.TCPConn).SetKeepAlive(b)
+    c.conn.SetKeepAlive(b)
     return nil
 }
 
@@ -95,6 +99,8 @@ func (conn *Conn) ReadBytes() ([]byte, error) {
 
 func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
     defer func() {
+        lConn.CloseRead()
+        lConn.CloseWrite()
         lConn.Close()
         log.Debug("[HTTP] Closing client Connection.. ", lConn.RemoteAddr())
     }()
@@ -111,19 +117,21 @@ func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
 	log.Debug("[DOH] Found ", ip, " with ", p.Domain())
 
 	// Create connection to server
-    var port = ":80"
+    var port = "80"
     if p.Port() != "" {
-        port = ":" + p.Port()
+        port = p.Port()
     }
 
-	rConn, err := Dial("tcp", ip + port)
+	rConn, err := DialTCP("tcp", ip, port)
 	if err != nil {
 		log.Debug("[HTTP] ", err)
 		return
 	}
 
     defer func() {
-        defer rConn.Close()
+        rConn.CloseRead()
+        rConn.CloseWrite()
+        rConn.Close()
         log.Debug("[HTTP] Closing server Connection.. ", p.Domain(), " ", rConn.LocalAddr())
     }()
 
@@ -144,6 +152,8 @@ func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
 
 func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
     defer func() {
+        lConn.CloseRead()
+        lConn.CloseWrite()
         lConn.Close()
         log.Debug("[HTTPS] Closing client Connection.. ", lConn.RemoteAddr())
     }()
@@ -158,19 +168,21 @@ func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
 	log.Debug("[DOH] Found ", ip, " with ", p.Domain())
 
 	// Create a connection to the requested server
-    var port = ":443"
+    var port = "443"
     if p.Port() != "" {
-        port = ":" + p.Port()
+        port = p.Port()
     }
 
-	rConn, err := Dial("tcp", ip + port)
+	rConn, err := DialTCP("tcp4", ip, port)
 	if err != nil {
 		log.Debug("[HTTPS] ", err)
 		return
 	}
 
     defer func() {
-        defer rConn.Close()
+        rConn.CloseRead()
+        rConn.CloseWrite()
+        rConn.Close()
         log.Debug("[HTTPS] Closing server Connection.. ", p.Domain(), " ", rConn.LocalAddr())
     }()
 

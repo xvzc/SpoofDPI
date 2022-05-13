@@ -1,12 +1,13 @@
 package util
 
 import (
+	"fmt"
 	"os/exec"
 	"runtime"
 	"strings"
 )
 
-func SetOsProxy(port string) error {
+func SetOsProxy(port int) error {
 	if runtime.GOOS != "darwin" {
 		return nil
 	}
@@ -17,12 +18,12 @@ func SetOsProxy(port string) error {
 		return err
 	}
 
-	_, err = exec.Command("sh", "-c", "networksetup -setwebproxy "+ "'" +strings.TrimSpace(string(network)) + "'" + " 127.0.0.1 "+port).Output()
+	_, err = exec.Command("sh", "-c", "networksetup -setwebproxy "+ "'" +strings.TrimSpace(string(network)) + "'" + " 127.0.0.1 "+ fmt.Sprint(port)).Output()
 	if err != nil {
 		return err
 	}
 
-	_, err = exec.Command("sh", "-c", "networksetup -setsecurewebproxy " + "'" + strings.TrimSpace(string(network))+"'" + " 127.0.0.1 "+port).Output()
+	_, err = exec.Command("sh", "-c", "networksetup -setsecurewebproxy " + "'" + strings.TrimSpace(string(network))+"'" + " 127.0.0.1 "+ fmt.Sprint(port)).Output()
 	if err != nil {
 		return err
 	}
