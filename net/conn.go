@@ -2,6 +2,7 @@ package net
 
 import (
 	"errors"
+	"io"
 	"net"
 	"time"
 
@@ -94,13 +95,15 @@ func (conn *Conn) ReadBytes() ([]byte, error) {
         }
     }
 
+    if len(ret) == 0 {
+        return nil, io.EOF
+    }
+
     return ret, nil
 }
 
 func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
     defer func() {
-        lConn.CloseRead()
-        lConn.CloseWrite()
         lConn.Close()
         log.Debug("[HTTP] Closing client Connection.. ", lConn.RemoteAddr())
     }()
@@ -129,8 +132,6 @@ func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
 	}
 
     defer func() {
-        rConn.CloseRead()
-        rConn.CloseWrite()
         rConn.Close()
         log.Debug("[HTTP] Closing server Connection.. ", p.Domain(), " ", rConn.LocalAddr())
     }()
@@ -152,8 +153,6 @@ func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
 
 func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
     defer func() {
-        lConn.CloseRead()
-        lConn.CloseWrite()
         lConn.Close()
         log.Debug("[HTTPS] Closing client Connection.. ", lConn.RemoteAddr())
     }()
@@ -180,8 +179,6 @@ func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
 	}
 
     defer func() {
-        rConn.CloseRead()
-        rConn.CloseWrite()
         rConn.Close()
         log.Debug("[HTTPS] Closing server Connection.. ", p.Domain(), " ", rConn.LocalAddr())
     }()
@@ -193,7 +190,8 @@ func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
 		log.Debug("[HTTPS] Error sending 200 Connection Established to the client", err)
         return
 	}
-	log.Debug("[HTTPS] Sent 200 Connection Estabalished to the client")
+
+	log.Debug("[HTTPS] Sent 200 Connection Estabalished to ", lConn.RemoteAddr())
 
 	// Read client hello
 	clientHello, err := lConn.ReadBytes()
