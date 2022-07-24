@@ -55,10 +55,11 @@ You can also build your own
 
 ```
 Usage: spoof-dpi [options...]
---addr=<addr>  | default: 127.0.0.1
---dns=<addr>   | default: 8.8.8.8
---port=<port>  | default: 8080
---debug=<bool> | default: false
+--addr=<addr>   | default: 127.0.0.1
+--dns=<addr>    | default: 8.8.8.8
+--port=<port>   | default: 8080
+--debug=<bool>  | default: false
+--banner=<bool> | default: true
 ```
 
 > 如果你在 Chrome 浏览器使用其他 VPN 扩展比如 Hotspot Shield 请去 设置 > 扩展程序禁用它们
