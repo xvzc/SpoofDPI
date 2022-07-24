@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	addr, port, dns, debug := util.ParseArgs()
+	addr, port, dns, debug, banner := util.ParseArgs()
 
 	p := proxy.New(addr, port)
 	doh.Init(dns)
@@ -27,7 +27,11 @@ func main() {
 		FullTimestamp: true,
 	})
 
-	util.PrintWelcome(addr, port, dns, debug)
+    if banner {
+        util.PrintColoredBanner(addr, port, dns, debug)
+    } else {
+        util.PrintSimpleInfo(addr, port, dns, debug)
+    }
 
 	if err := util.SetOsProxy(port); err != nil {
 		log.Fatal(err)
