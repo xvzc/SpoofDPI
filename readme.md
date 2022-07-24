@@ -48,10 +48,10 @@ You can also build your own
 # Usage
 ```
 Usage: spoof-dpi [options...]
---addr=<addr>  | default: 127.0.0.1
---dns=<addr>   | default: 8.8.8.8
---port=<port>  | default: 8080
---debug=<bool> | default: false
+--addr=<addr>   | default: 127.0.0.1
+--dns=<addr>    | default: 8.8.8.8
+--port=<port>   | default: 8080
+--debug=<bool>  | default: false
 --banner=<bool> | default: true
 ```
 > If you are using any vpn extensions such as Hotspot Shield in Chrome browser,   
