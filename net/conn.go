@@ -103,11 +103,6 @@ func (conn *Conn) ReadBytes() ([]byte, error) {
 }
 
 func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
-    defer func() {
-        lConn.Close()
-        log.Debug("[HTTP] Closing client Connection.. ", lConn.RemoteAddr())
-    }()
-
 	p.Tidy()
 
 	ip, err := doh.Lookup(p.Domain())
@@ -132,11 +127,16 @@ func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
 	}
 
     defer func() {
+        lConn.Close()
+        log.Debug("[HTTP] Closing client Connection.. ", lConn.RemoteAddr())
+
         rConn.Close()
         log.Debug("[HTTP] Closing server Connection.. ", p.Domain(), " ", rConn.LocalAddr())
     }()
 
     log.Debug("[HTTP] New connection to the server ", p.Domain(), " ", rConn.LocalAddr())
+
+    go rConn.Serve(lConn, "[HTTP]", lConn.RemoteAddr().String(), p.Domain())
 
 	_, err = rConn.Write(p.Raw())
 	if err != nil {
@@ -146,17 +146,11 @@ func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
 
 	log.Debug("[HTTP] Sent a request to ", p.Domain())
 
-    go lConn.Serve(rConn, "[HTTP]", lConn.RemoteAddr().String(), p.Domain())
-    rConn.Serve(lConn, "[HTTP]", lConn.RemoteAddr().String(), p.Domain())
+    lConn.Serve(rConn, "[HTTP]", lConn.RemoteAddr().String(), p.Domain())
 
 }
 
 func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
-    defer func() {
-        lConn.Close()
-        log.Debug("[HTTPS] Closing client Connection.. ", lConn.RemoteAddr())
-    }()
-
 	ip, err := doh.Lookup(p.Domain())
 	if err != nil {
 		log.Error("[HTTPS DOH] Error looking up for domain: ", p.Domain(), " ", err)
@@ -179,6 +173,9 @@ func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
 	}
 
     defer func() {
+        lConn.Close()
+        log.Debug("[HTTPS] Closing client Connection.. ", lConn.RemoteAddr())
+
         rConn.Close()
         log.Debug("[HTTPS] Closing server Connection.. ", p.Domain(), " ", rConn.LocalAddr())
     }()
@@ -208,13 +205,14 @@ func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
 
 	chunks := pkt.SplitInChunks()
 
+    go rConn.Serve(lConn, "[HTTPS]", rConn.RemoteAddr().String(), p.Domain())
+
 	if _, err := rConn.WriteChunks(chunks); err != nil {
 		log.Debug("[HTTPS] Error writing client hello to ", p.Domain(), err)
 		return
 	}
 
-    go lConn.Serve(rConn, "[HTTPS]", lConn.RemoteAddr().String(), p.Domain())
-    rConn.Serve(lConn, "[HTTPS]", lConn.RemoteAddr().String(), p.Domain())
+    lConn.Serve(rConn, "[HTTPS]", lConn.RemoteAddr().String(), p.Domain())
 }
 
 func (from *Conn) Serve(to *Conn, proto string, fd string, td string) {
@@ -224,6 +222,10 @@ func (from *Conn) Serve(to *Conn, proto string, fd string, td string) {
         from.conn.SetReadDeadline(time.Now().Add(2000 * time.Millisecond))
         buf, err := from.ReadBytes()
         if err != nil {
+            if err == io.EOF {
+                log.Debug(proto, "Finished ", fd)
+                return
+            }
             log.Debug(proto, "Error reading from ", fd, " ", err)
             return
         } 
