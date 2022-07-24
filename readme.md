@@ -52,6 +52,7 @@ Usage: spoof-dpi [options...]
 --dns=<addr>   | default: 8.8.8.8
 --port=<port>  | default: 8080
 --debug=<bool> | default: false
+--banner=<bool> | default: true
 ```
 > If you are using any vpn extensions such as Hotspot Shield in Chrome browser,   
   go to Settings > Extensions, and disable them.
