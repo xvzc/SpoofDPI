@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/bin/sh
 
 docker build ./ --file ./Dockerfile.build --tag spoof-dpi:latest && \
     docker run --rm \
-        -v $(pwd)/:/app spoof-dpi:latest \
+        -v $(pwd):/app spoof-dpi:latest \
         sh make-releases.sh
