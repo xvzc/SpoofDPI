@@ -18,12 +18,12 @@ func SetOsProxy(port int) error {
 		return err
 	}
 
-	_, err = exec.Command("sh", "-c", "networksetup -setwebproxy "+ "'" +strings.TrimSpace(string(network)) + "'" + " 127.0.0.1 "+ fmt.Sprint(port)).Output()
+	_, err = exec.Command("sh", "-c", "networksetup -setwebproxy "+"'"+strings.TrimSpace(string(network))+"'"+" 127.0.0.1 "+fmt.Sprint(port)).Output()
 	if err != nil {
 		return err
 	}
 
-	_, err = exec.Command("sh", "-c", "networksetup -setsecurewebproxy " + "'" + strings.TrimSpace(string(network))+"'" + " 127.0.0.1 "+ fmt.Sprint(port)).Output()
+	_, err = exec.Command("sh", "-c", "networksetup -setsecurewebproxy "+"'"+strings.TrimSpace(string(network))+"'"+" 127.0.0.1 "+fmt.Sprint(port)).Output()
 	if err != nil {
 		return err
 	}
@@ -41,12 +41,12 @@ func UnsetOsProxy() error {
 		return err
 	}
 
-	_, err = exec.Command("sh", "-c", "networksetup -setwebproxystate " + "'" + strings.TrimSpace(string(network)) + "'" + " off").Output()
+	_, err = exec.Command("sh", "-c", "networksetup -setwebproxystate "+"'"+strings.TrimSpace(string(network))+"'"+" off").Output()
 	if err != nil {
 		return err
 	}
 
-	_, err = exec.Command("sh", "-c", "networksetup -setsecurewebproxystate " + "'" + strings.TrimSpace(string(network)) + "'" + " off").Output()
+	_, err = exec.Command("sh", "-c", "networksetup -setsecurewebproxystate "+"'"+strings.TrimSpace(string(network))+"'"+" off").Output()
 	if err != nil {
 		return err
 	}

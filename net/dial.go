@@ -15,12 +15,12 @@ func ListenTCP(network string, addr *TCPAddr) (Listener, error) {
 }
 
 func DialTCP(network string, ip string, port string) (*Conn, error) {
-    p, _ := strconv.Atoi(port)
+	p, _ := strconv.Atoi(port)
 
-    addr := &net.TCPAddr{
-        IP: net.ParseIP(ip),
-        Port: p,
-    }
+	addr := &net.TCPAddr{
+		IP:   net.ParseIP(ip),
+		Port: p,
+	}
 
 	conn, err := net.DialTCP(network, nil, addr)
 	if err != nil {

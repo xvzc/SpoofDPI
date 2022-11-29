@@ -4,7 +4,8 @@ import (
 	"errors"
 	"sync"
 
-    "regexp"
+	"regexp"
+
 	"github.com/babolivier/go-doh-client"
 )
 
@@ -16,21 +17,20 @@ func Init(dns string) {
 }
 
 func Lookup(domain string) (string, error) {
-    ipRegex := "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
-    
-    if r, _ := regexp.MatchString(ipRegex, domain); r {
-        return domain, nil
-    }
+	ipRegex := "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
 
+	if r, _ := regexp.MatchString(ipRegex, domain); r {
+		return domain, nil
+	}
 
 	a, _, err := resolver.LookupA(domain)
 	if err != nil {
 		return "", err
 	}
 
-    if len(a) < 1 {
-        return "", errors.New(" couldn't resolve the domain")
-    }
+	if len(a) < 1 {
+		return "", errors.New(" couldn't resolve the domain")
+	}
 
 	ip := a[0].IP4
 

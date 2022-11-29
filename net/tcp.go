@@ -5,17 +5,16 @@ import (
 )
 
 type TCPAddr struct {
-    Addr *net.TCPAddr
+	Addr *net.TCPAddr
 }
 
+func TcpAddr(ip string, port int) *TCPAddr {
+	addr := &net.TCPAddr{
+		IP:   net.ParseIP(ip),
+		Port: port,
+	}
 
-func TcpAddr(ip string, port int) (*TCPAddr) {
-    addr := &net.TCPAddr {
-        IP: net.ParseIP(ip),
-        Port: port,
-    }
-
-    return &TCPAddr{
-        Addr: addr,
-    }
+	return &TCPAddr{
+		Addr: addr,
+	}
 }

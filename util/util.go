@@ -33,10 +33,10 @@ func PrintColoredBanner(addr string, port int, dns string, debug bool) {
 }
 
 func PrintSimpleInfo(addr string, port int, dns string, debug bool) {
-    fmt.Println("")
-    fmt.Println("- ADDR  : ", addr)
-    fmt.Println("- PORT  : ", port)
-    fmt.Println("- DNS   : ", dns)
-    fmt.Println("- DEBUG : ", debug)
-    fmt.Println("")
+	fmt.Println("")
+	fmt.Println("- ADDR  : ", addr)
+	fmt.Println("- PORT  : ", port)
+	fmt.Println("- DNS   : ", dns)
+	fmt.Println("- DEBUG : ", debug)
+	fmt.Println("")
 }

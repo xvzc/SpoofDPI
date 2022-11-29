@@ -9,19 +9,19 @@ import (
 )
 
 type Proxy struct {
-    addr string
+	addr string
 	port int
 }
 
 func New(addr string, port int) *Proxy {
 	return &Proxy{
-        addr: addr,
+		addr: addr,
 		port: port,
 	}
 }
 
 func (p *Proxy) TcpAddr() *net.TCPAddr {
-    return net.TcpAddr(p.addr, p.port)
+	return net.TcpAddr(p.addr, p.port)
 }
 
 func (p *Proxy) Port() int {
@@ -50,13 +50,13 @@ func (p *Proxy) Start() {
 				return
 			}
 
-            log.Debug("[PROXY] Request from ", conn.RemoteAddr(), "\n\n", string(b))
+			log.Debug("[PROXY] Request from ", conn.RemoteAddr(), "\n\n", string(b))
 
 			pkt, err := packet.NewHttpPacket(b)
-            if err != nil {
-                log.Debug("Error while parsing request: ", string(b))
-                return
-            }
+			if err != nil {
+				log.Debug("Error while parsing request: ", string(b))
+				return
+			}
 
 			if !pkt.IsValidMethod() {
 				log.Debug("Unsupported method: ", pkt.Method())

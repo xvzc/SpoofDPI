@@ -47,7 +47,7 @@ type HttpPacket struct {
 	raw     []byte
 	method  string
 	domain  string
-    port    string
+	port    string
 	path    string
 	version string
 }
@@ -56,10 +56,10 @@ func ParseUrl(raw []byte) {
 
 }
 
-func NewHttpPacket(raw []byte) (*HttpPacket, error){
-    pkt := &HttpPacket{raw: raw}
+func NewHttpPacket(raw []byte) (*HttpPacket, error) {
+	pkt := &HttpPacket{raw: raw}
 
-    pkt.parse()
+	pkt.parse()
 
 	return pkt, nil
 }
@@ -118,40 +118,40 @@ func (p *HttpPacket) Tidy() {
 		result += lines[i] + "\r\n"
 	}
 
-    result += "\r\n"
+	result += "\r\n"
 
 	p.raw = []byte(result)
 }
 
-func (p *HttpPacket )parse() error {
-    reader := bufio.NewReader(strings.NewReader(string(p.raw)))
-    request, err := http.ReadRequest(reader)
-    if err != nil {
-        return err
-    }
+func (p *HttpPacket) parse() error {
+	reader := bufio.NewReader(strings.NewReader(string(p.raw)))
+	request, err := http.ReadRequest(reader)
+	if err != nil {
+		return err
+	}
 
-    p.domain, p.port, err = net.SplitHostPort(request.Host)
-    if err != nil {
-        p.domain = request.Host
-        p.port = ""
-    }
+	p.domain, p.port, err = net.SplitHostPort(request.Host)
+	if err != nil {
+		p.domain = request.Host
+		p.port = ""
+	}
 
-    p.method = request.Method
-    p.version = request.Proto
-    p.path = request.URL.Path
+	p.method = request.Method
+	p.version = request.Proto
+	p.path = request.URL.Path
 
-    if request.URL.RawQuery != "" {
-        p.path += "?" + request.URL.RawQuery
-    }
+	if request.URL.RawQuery != "" {
+		p.path += "?" + request.URL.RawQuery
+	}
 
-    if request.URL.RawFragment != "" {
-        p.path += "#" + request.URL.RawFragment
-    }
-    if p.path == "" {
-        p.path = "/"
-    }
+	if request.URL.RawFragment != "" {
+		p.path += "#" + request.URL.RawFragment
+	}
+	if p.path == "" {
+		p.path = "/"
+	}
 
-    request.Body.Close()
+	request.Body.Close()
 
-    return nil
+	return nil
 }

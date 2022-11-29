@@ -27,11 +27,11 @@ func main() {
 		FullTimestamp: true,
 	})
 
-    if banner {
-        util.PrintColoredBanner(addr, port, dns, debug)
-    } else {
-        util.PrintSimpleInfo(addr, port, dns, debug)
-    }
+	if banner {
+		util.PrintColoredBanner(addr, port, dns, debug)
+	} else {
+		util.PrintSimpleInfo(addr, port, dns, debug)
+	}
 
 	if err := util.SetOsProxy(port); err != nil {
 		log.Fatal(err)
