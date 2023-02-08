@@ -1,6 +1,6 @@
 # SpoofDPI
 
-Read in other Languages: [English](https://github.com/xvzc/SpoofDPI), [한국어](https://github.com/xvzc/SpoofDPI/blob/main/readme_ko.md), [简体中文](https://github.com/xvzc/SpoofDPI/blob/main/readme_zh-cn.md)
+Read in other Languages: [English](https://github.com/xvzc/SpoofDPI), [🇰🇷한국어](https://github.com/xvzc/SpoofDPI/blob/main/readme_ko.md), [简体中文](https://github.com/xvzc/SpoofDPI/blob/main/readme_zh-cn.md)
 
 A simple and fast software designed to bypass **Deep Packet Inspection**  
   
