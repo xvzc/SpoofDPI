@@ -1,3 +1,5 @@
+**⭐PRs and any types of contributions are welcomed⭐**
+
 # SpoofDPI
 
 选择语言: [🇬🇧English](https://github.com/xvzc/SpoofDPI), [🇰🇷한국어](https://github.com/xvzc/SpoofDPI/blob/main/readme_ko.md), [🇨🇳简体中文](https://github.com/xvzc/SpoofDPI/blob/main/readme_zh-cn.md)
