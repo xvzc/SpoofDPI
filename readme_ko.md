@@ -1,4 +1,4 @@
-**⭐PRs and any types of contributions are welcomed⭐**
+**⭐PRs and any form of contributions are appreciated⭐**
 
 # SpoofDPI
 
