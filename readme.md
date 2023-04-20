@@ -50,11 +50,17 @@ You can also build your own
 # Usage
 ```
 Usage: spoof-dpi [options...]
---addr=<addr>   | default: 127.0.0.1
---dns=<addr>    | default: 8.8.8.8
---port=<port>   | default: 8080
---debug=<bool>  | default: false
---banner=<bool> | default: true
+--addr=<addr>       | default: 127.0.0.1
+--dns=<addr>        | default: 8.8.8.8
+--port=<port>       | default: 8080
+--debug=<bool>      | default: false
+--banner=<bool>     | default: true
+--url=<url>         | Can be used multiple times. If set, 
+                    | it will bypass DPI only for this url. 
+                    | Example: --url=google.com --url=github.com
+--pattern=<regex>   | If set, it will bypass DPI only for packets 
+                    | that matches this regex pattern.
+                    | Example: --pattern="google|github"
 ```
 > If you are using any vpn extensions such as Hotspot Shield in Chrome browser,   
   go to Settings > Extensions, and disable them.

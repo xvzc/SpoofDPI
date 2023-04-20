@@ -7,16 +7,31 @@ import (
 	"github.com/pterm/pterm"
 )
 
-func ParseArgs() (string, int, string, bool, bool) {
+type ArrayFlags []string
+
+func (i *ArrayFlags) String() string {
+    return "my string representation"
+}
+
+func (i *ArrayFlags) Set(value string) error {
+	*i = append(*i, value)
+	return nil
+}
+
+func ParseArgs() (string, int, string, bool, bool, *ArrayFlags, string) {
 	addr := flag.String("addr", "127.0.0.1", "Listen addr")
 	port := flag.Int("port", 8080, "port")
 	dns := flag.String("dns", "8.8.8.8", "DNS server")
 	debug := flag.Bool("debug", false, "true | false")
 	banner := flag.Bool("banner", true, "true | false")
 
+	var allowedUrls ArrayFlags
+	flag.Var(&allowedUrls, "url", "Bypass DPI only on this url, can be passed multiple times")
+	allowedPattern := flag.String("pattern", "", "Bypass DPI only on packets matching this regex pattern")
+
 	flag.Parse()
 
-	return *addr, *port, *dns, *debug, *banner
+	return *addr, *port, *dns, *debug, *banner, &allowedUrls, *allowedPattern
 }
 
 func PrintColoredBanner(addr string, port int, dns string, debug bool) {
