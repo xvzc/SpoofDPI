@@ -3,17 +3,34 @@ package main
 import (
 	"os"
 	"os/signal"
+	"regexp"
+	"strings"
 	"syscall"
 
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/doh"
+	"github.com/xvzc/SpoofDPI/packet"
 	"github.com/xvzc/SpoofDPI/proxy"
 	"github.com/xvzc/SpoofDPI/util"
 )
 
 func main() {
-	addr, port, dns, debug, banner := util.ParseArgs()
+	addr, port, dns, debug, banner, allowedHosts, allowedPattern := util.ParseArgs()
+
+	if(len(*allowedHosts) > 0) {
+		var escapedUrls []string
+		for _, host := range *allowedHosts {
+			escapedUrls = append(escapedUrls, regexp.QuoteMeta(host))
+		}
+
+		allowedHostsRegex := strings.Join(escapedUrls, "|")
+		packet.UrlsMatcher = regexp.MustCompile(allowedHostsRegex)
+	}
+
+	if(allowedPattern != "") {
+		packet.PatternMatcher = regexp.MustCompile(allowedPattern)
+	}
 
 	p := proxy.New(addr, port)
 	doh.Init(dns)
