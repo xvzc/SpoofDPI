@@ -43,6 +43,7 @@ wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash
 
 ## Git
 Вы также можете собрать SpoofDPI
+
 `$ git clone https://github.com/xvzc/SpoofDPI.git`  
 `$ cd SpoofDPI`  
 `$ go build ./cmd/...`  
