@@ -75,7 +75,6 @@ func ParseArgs() {
 		config.AllowedUrls = regexp.MustCompile(allowedHostsRegex)
 	}
 
-    log.Info(*allowedPattern)
 	if *allowedPattern != "" {
 		config.AllowedPattern = regexp.MustCompile(*allowedPattern)
 	}
