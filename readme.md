@@ -74,7 +74,7 @@ Run `$ spoof-dpi` and open your favorite browser with proxy option
 
 # How it works
 ### HTTP
-Since most of websites in the world now support HTTPS, SpoofDPI doesn't bypass Deep Packet Inspection for HTTP requets, However It still serves proxy connection for all HTTP requests.
+Since most of websites in the world now support HTTPS, SpoofDPI doesn't bypass Deep Packet Inspections for HTTP requets, However It still serves proxy connection for all HTTP requests.
 
 ### HTTPS
  Although TLS 1.3 encrypts every handshake process, the domain names are still shown as plaintext in the Client hello packet. 
