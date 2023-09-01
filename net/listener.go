@@ -14,5 +14,5 @@ func (l *Listener) Accept() (*Conn, error) {
 		return &Conn{}, err
 	}
 
-	return &Conn{conn: conn}, nil
+	return &Conn{*conn}, nil
 }
