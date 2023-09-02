@@ -14,50 +14,7 @@ import (
 const BUF_SIZE = 1024
 
 type Conn struct {
-	conn *net.TCPConn
-}
-
-func (c *Conn) CloseWrite() {
-	c.conn.CloseWrite()
-}
-
-func (c *Conn) CloseRead() {
-	c.conn.CloseRead()
-}
-
-func (c *Conn) Close() {
-	c.conn.Close()
-}
-
-func (c *Conn) RemoteAddr() net.Addr {
-	return c.conn.RemoteAddr()
-}
-
-func (c *Conn) LocalAddr() net.Addr {
-	return c.conn.LocalAddr()
-}
-
-func (c *Conn) Read(b []byte) (n int, err error) {
-	return c.conn.Read(b)
-}
-
-func (c *Conn) Write(b []byte) (n int, err error) {
-	return c.conn.Write(b)
-}
-
-func (c *Conn) SetReadDeadline(t time.Time) error {
-	c.conn.SetReadDeadline(t)
-	return nil
-}
-
-func (c *Conn) SetDeadLine(t time.Time) error {
-	c.conn.SetDeadline(t)
-	return nil
-}
-
-func (c *Conn) SetKeepAlive(b bool) error {
-	c.conn.SetKeepAlive(b)
-	return nil
+	net.TCPConn
 }
 
 func (conn *Conn) WriteChunks(c [][]byte) (n int, err error) {
@@ -219,7 +176,7 @@ func (from *Conn) Serve(to *Conn, proto string, fd string, td string) {
 	proto += " "
 
 	for {
-		from.conn.SetReadDeadline(time.Now().Add(2000 * time.Millisecond))
+		from.SetReadDeadline(time.Now().Add(2000 * time.Millisecond))
 		buf, err := from.ReadBytes()
 		if err != nil {
 			if err == io.EOF {

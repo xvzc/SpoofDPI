@@ -27,5 +27,5 @@ func DialTCP(network string, ip string, port string) (*Conn, error) {
 		return &Conn{}, err
 	}
 
-	return &Conn{conn: conn}, nil
+	return &Conn{*conn}, nil
 }
