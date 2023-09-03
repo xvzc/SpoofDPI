@@ -25,7 +25,7 @@ func (conn *Conn) WriteChunks(c [][]byte) (n int, err error) {
 			return 0, nil
 		}
 
-		b += total
+		total += b
 	}
 
 	return total, nil
