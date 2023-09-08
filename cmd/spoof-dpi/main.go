@@ -16,7 +16,7 @@ func main() {
 	util.ParseArgs()
     config := util.GetConfig()
 
-	p := proxy.New(*config.Addr, *config.Port)
+	p := proxy.New(config)
 	doh.Init(*config.Dns)
 	if *config.Debug {
 		log.SetLevel(log.DebugLevel)
@@ -28,10 +28,10 @@ func main() {
 		FullTimestamp: true,
 	})
 
-	if *config.Banner {
-		util.PrintColoredBanner()
-	} else {
+	if *config.NoBanner {
 		util.PrintSimpleInfo()
+	} else {
+		util.PrintColoredBanner()
 	}
 
 	if err := util.SetOsProxy(*config.Port); err != nil {

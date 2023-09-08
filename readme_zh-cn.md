@@ -57,11 +57,19 @@ You can also build your own
 
 ```
 Usage: spoof-dpi [options...]
---addr=<addr>   | default: 127.0.0.1
---dns=<addr>    | default: 8.8.8.8
---port=<port>   | default: 8080
---debug=<bool>  | default: false
---banner=<bool> | default: true
+--addr=<addr>       | default: 127.0.0.1
+--dns=<addr>        | default: 8.8.8.8
+--port=<number>     | default: 8080
+--debug=<bool>      | default: false
+--no-banner=<bool>  | default: false
+--timeout=<number>  | default: 0
+                    | Enforces specific connection timeout. Set 0 to turn off
+--url=<url>         | Can be used multiple times. If set, 
+                    | it will bypass DPI only for this url. 
+                    | Example: --url=google.com --url=github.com
+--pattern=<regex>   | If set, it will bypass DPI only for packets 
+                    | that matches this regex pattern.
+                    | Example: --pattern="google|github"
 ```
 
 > 如果你在 Chrome 浏览器使用其他 VPN 扩展比如 Hotspot Shield 请去 设置 > 扩展程序禁用它们

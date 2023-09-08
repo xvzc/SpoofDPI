@@ -1,22 +1,26 @@
 package proxy
 
 import (
+	"fmt"
 	"os"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/net"
 	"github.com/xvzc/SpoofDPI/packet"
+	"github.com/xvzc/SpoofDPI/util"
 )
 
 type Proxy struct {
-	addr string
-	port int
+	addr    string
+	port    int
+	timeout int
 }
 
-func New(addr string, port int) *Proxy {
+func New(config *util.Config) *Proxy {
 	return &Proxy{
-		addr: addr,
-		port: port,
+		addr:    *config.Addr,
+		port:    *config.Port,
+		timeout: *config.Timeout,
 	}
 }
 
@@ -35,7 +39,11 @@ func (p *Proxy) Start() {
 		os.Exit(1)
 	}
 
-	log.Println("Created a listener on :", p.Port())
+	if p.timeout > 0 {
+        log.Println(fmt.Sprintf("Connection timeout is set to %dms", p.timeout))
+    }
+
+    log.Println("Created a listener on port", p.Port())
 
 	for {
 		conn, err := l.Accept()
@@ -65,10 +73,10 @@ func (p *Proxy) Start() {
 
 			if pkt.IsConnectMethod() {
 				log.Debug("[HTTPS] Start")
-				conn.HandleHttps(pkt)
+				conn.HandleHttps(pkt, p.timeout)
 			} else {
 				log.Debug("[HTTP] Start")
-				conn.HandleHttp(pkt)
+				conn.HandleHttp(pkt, p.timeout)
 			}
 		}()
 	}

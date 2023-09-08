@@ -1,6 +1,8 @@
 #!/bin/sh
 
-docker build ./ --file ./Dockerfile.build --tag spoof-dpi:latest && \
-    docker run --rm \
-        -v $(pwd):/app spoof-dpi:latest \
-        sh make-releases.sh
+docker run --rm \
+    -it \
+    --workdir /app/ \
+    -v $(pwd):/app \
+    golang:1.17-alpine \
+    sh make-releases.sh

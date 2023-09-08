@@ -59,7 +59,7 @@ func (conn *Conn) ReadBytes() ([]byte, error) {
 	return ret, nil
 }
 
-func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
+func (lConn *Conn) HandleHttp(p *packet.HttpPacket, timeout int) {
 	p.Tidy()
 
 	ip, err := doh.Lookup(p.Domain())
@@ -93,7 +93,7 @@ func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
 
 	log.Debug("[HTTP] New connection to the server ", p.Domain(), " ", rConn.LocalAddr())
 
-	go rConn.Serve(lConn, "[HTTP]", lConn.RemoteAddr().String(), p.Domain())
+	go rConn.Serve(lConn, "[HTTP]", lConn.RemoteAddr().String(), p.Domain(), timeout)
 
 	_, err = rConn.Write(p.Raw())
 	if err != nil {
@@ -103,11 +103,11 @@ func (lConn *Conn) HandleHttp(p *packet.HttpPacket) {
 
 	log.Debug("[HTTP] Sent a request to ", p.Domain())
 
-	lConn.Serve(rConn, "[HTTP]", lConn.RemoteAddr().String(), p.Domain())
+	lConn.Serve(rConn, "[HTTP]", lConn.RemoteAddr().String(), p.Domain(), timeout)
 
 }
 
-func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
+func (lConn *Conn) HandleHttps(p *packet.HttpPacket, timeout int) {
 	ip, err := doh.Lookup(p.Domain())
 	if err != nil {
 		log.Error("[HTTPS DOH] Error looking up for domain: ", p.Domain(), " ", err)
@@ -162,21 +162,26 @@ func (lConn *Conn) HandleHttps(p *packet.HttpPacket) {
 
 	chunks := pkt.SplitInChunks()
 
-	go rConn.Serve(lConn, "[HTTPS]", rConn.RemoteAddr().String(), p.Domain())
+	go rConn.Serve(lConn, "[HTTPS]", rConn.RemoteAddr().String(), p.Domain(), timeout)
 
 	if _, err := rConn.WriteChunks(chunks); err != nil {
 		log.Debug("[HTTPS] Error writing client hello to ", p.Domain(), err)
 		return
 	}
 
-	lConn.Serve(rConn, "[HTTPS]", lConn.RemoteAddr().String(), p.Domain())
+	lConn.Serve(rConn, "[HTTPS]", lConn.RemoteAddr().String(), p.Domain(), timeout)
 }
 
-func (from *Conn) Serve(to *Conn, proto string, fd string, td string) {
+func (from *Conn) Serve(to *Conn, proto string, fd string, td string, timeout int) {
 	proto += " "
 
 	for {
-		from.SetReadDeadline(time.Now().Add(2000 * time.Millisecond))
+		if timeout > 0 {
+			from.SetReadDeadline(
+				time.Now().Add(time.Millisecond * time.Duration(timeout)),
+			)
+		}
+
 		buf, err := from.ReadBytes()
 		if err != nil {
 			if err == io.EOF {

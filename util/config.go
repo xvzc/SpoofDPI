@@ -15,7 +15,8 @@ type Config struct {
 	Port           *int
 	Dns            *string
 	Debug          *bool
-	Banner         *bool
+	NoBanner *bool
+	Timeout        *int
 	AllowedPattern *regexp.Regexp
 	AllowedUrls    *regexp.Regexp
 }
@@ -54,7 +55,8 @@ func ParseArgs() {
 	config.Port = flag.Int("port", 8080, "port")
 	config.Dns = flag.String("dns", "8.8.8.8", "DNS server")
 	config.Debug = flag.Bool("debug", false, "true | false")
-	config.Banner = flag.Bool("banner", true, "true | false")
+	config.NoBanner = flag.Bool("no-banner", false, "true | false")
+	config.Timeout = flag.Int("timeout", 0, "timeout in milliseconds")
 
 	flag.Var(&allowedHosts, "url", "Bypass DPI only on this url, can be passed multiple times")
 	allowedPattern = flag.String(
@@ -86,26 +88,26 @@ func PrintColoredBanner() {
 	pterm.DefaultBigText.WithLetters(cyan, purple).Render()
 
 	pterm.DefaultBulletList.WithItems([]pterm.BulletListItem{
-		{Level: 0, Text: "ADDR    : " + *config.Addr},
+		{Level: 0, Text: "ADDR    : " + fmt.Sprint(*config.Addr)},
 		{Level: 0, Text: "PORT    : " + fmt.Sprint(*config.Port)},
-		{Level: 0, Text: "DNS     : " + *config.Dns},
+		{Level: 0, Text: "DNS     : " + fmt.Sprint(*config.Dns)},
 		{Level: 0, Text: "DEBUG   : " + fmt.Sprint(*config.Debug)},
 	}).Render()
 
-    if allowedHosts != nil && len(allowedHosts) > 0 {
-        log.Info("White listed urls: ", allowedHosts)
-    }
+	if allowedHosts != nil && len(allowedHosts) > 0 {
+		log.Info("White listed urls: ", allowedHosts)
+	}
 
-    if *allowedPattern != "" {
-        log.Info("Regex Pattern: ", *allowedPattern)
-    }
+	if *allowedPattern != "" {
+		log.Info("Regex Pattern: ", *allowedPattern)
+	}
 }
 
 func PrintSimpleInfo() {
 	fmt.Println("")
-	fmt.Println("- ADDR  : ", *config.Addr)
-	fmt.Println("- PORT  : ", *config.Port)
-	fmt.Println("- DNS   : ", *config.Dns)
-	fmt.Println("- DEBUG : ", *config.Debug)
+	fmt.Println("- ADDR    : ", *config.Addr)
+	fmt.Println("- PORT    : ", *config.Port)
+	fmt.Println("- DNS     : ", *config.Dns)
+	fmt.Println("- DEBUG   : ", *config.Debug)
 	fmt.Println("")
 }
