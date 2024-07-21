@@ -7,7 +7,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/xvzc/SpoofDPI/doh"
+	"github.com/xvzc/SpoofDPI/dns"
 	"github.com/xvzc/SpoofDPI/packet"
 )
 
@@ -59,17 +59,15 @@ func (conn *Conn) ReadBytes() ([]byte, error) {
 	return ret, nil
 }
 
-func (lConn *Conn) HandleHttp(p *packet.HttpPacket, timeout int) {
+func (lConn *Conn) HandleHttp(p *packet.HttpPacket, timeout int, resolver *dns.DnsResolver) {
 	p.Tidy()
 
-	ip, err := doh.Lookup(p.Domain())
+	ip, err := resolver.Lookup(p.Domain())
 	if err != nil {
-		log.Error("[HTTP DOH] Error looking up for domain with ", p.Domain(), " ", err)
+		log.Error("[HTTP] Error looking up for domain with ", p.Domain(), " ", err)
 		lConn.Write([]byte(p.Version() + " 502 Bad Gateway\r\n\r\n"))
 		return
 	}
-
-	log.Debug("[DOH] Found ", ip, " with ", p.Domain())
 
 	// Create connection to server
 	var port = "80"
@@ -107,15 +105,14 @@ func (lConn *Conn) HandleHttp(p *packet.HttpPacket, timeout int) {
 
 }
 
-func (lConn *Conn) HandleHttps(p *packet.HttpPacket, timeout int) {
-	ip, err := doh.Lookup(p.Domain())
+func (lConn *Conn) HandleHttps(p *packet.HttpPacket, timeout int, resolver *dns.DnsResolver) {
+  ip, err := resolver.Lookup(p.Domain())
+
 	if err != nil {
-		log.Error("[HTTPS DOH] Error looking up for domain: ", p.Domain(), " ", err)
+		log.Error("[HTTPS] Error looking up for domain: ", p.Domain(), " ", err)
 		lConn.Write([]byte(p.Version() + " 502 Bad Gateway\r\n\r\n"))
 		return
 	}
-
-	log.Debug("[DOH] Found ", ip, " with ", p.Domain())
 
 	// Create a connection to the requested server
 	var port = "443"

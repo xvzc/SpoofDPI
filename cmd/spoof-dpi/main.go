@@ -7,7 +7,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
-	"github.com/xvzc/SpoofDPI/doh"
 	"github.com/xvzc/SpoofDPI/proxy"
 	"github.com/xvzc/SpoofDPI/util"
 )
@@ -17,7 +16,6 @@ func main() {
     config := util.GetConfig()
 
 	p := proxy.New(config)
-	doh.Init(*config.Dns)
 	if *config.Debug {
 		log.SetLevel(log.DebugLevel)
 	} else {
