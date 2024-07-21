@@ -39,11 +39,9 @@ func (p *Proxy) Start() {
 		os.Exit(1)
 	}
 
-	if p.timeout > 0 {
-        log.Println(fmt.Sprintf("Connection timeout is set to %dms", p.timeout))
-    }
+  log.Println(fmt.Sprintf("Connection timeout is set to %dms", p.timeout))
 
-    log.Println("Created a listener on port", p.Port())
+	log.Println("Created a listener on port", p.Port())
 
 	for {
 		conn, err := l.Accept()
