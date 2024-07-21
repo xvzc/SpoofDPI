@@ -176,11 +176,9 @@ func (from *Conn) Serve(to *Conn, proto string, fd string, td string, timeout in
 	proto += " "
 
 	for {
-		if timeout > 0 {
-			from.SetReadDeadline(
-				time.Now().Add(time.Millisecond * time.Duration(timeout)),
-			)
-		}
+    from.SetReadDeadline(
+      time.Now().Add(time.Millisecond * time.Duration(timeout)),
+    )
 
 		buf, err := from.ReadBytes()
 		if err != nil {
