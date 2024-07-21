@@ -59,8 +59,8 @@ func ParseArgs() {
 	config.DnsAddr = flag.String("dns-addr", "8.8.8.8", "DNS addr")
 	config.DnsPort = flag.Int("dns-port", 53, "DNS port")
 	config.EnableDoh = flag.Bool("enable-doh", false, "Enable DOH")
-	config.Debug = flag.Bool("debug", false, "true | false")
-	config.NoBanner = flag.Bool("no-banner", false, "true | false")
+	config.Debug = flag.Bool("debug", false, "Enable debug output")
+	config.NoBanner = flag.Bool("no-banner", false, "Disable banner")
 	config.Timeout = flag.Int("timeout", 2000, "timeout in milliseconds")
 
 	flag.Var(&allowedHosts, "url", "Bypass DPI only on this url, can be passed multiple times")
