@@ -5,6 +5,7 @@ import (
 	"errors"
 	"regexp"
 	"time"
+  "strconv"
 
 	"github.com/likexian/doh"
 	dohDns "github.com/likexian/doh/dns"
@@ -22,7 +23,7 @@ type DnsResolver struct {
 func NewResolver(config *util.Config) *DnsResolver {
 	return &DnsResolver{
 		host:      *config.DnsAddr,
-		port:      *config.DnsPort,
+		port:      strconv.Itoa(*config.DnsPort),
 		enableDoh: *config.EnableDoh,
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/pterm/pterm"
+	"github.com/pterm/pterm/putils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -14,7 +15,7 @@ type Config struct {
 	Addr           *string
 	Port           *int
 	DnsAddr        *string
-	DnsPort        *string
+	DnsPort        *int
 	EnableDoh      *bool
 	Debug          *bool
 	NoBanner       *bool
@@ -56,7 +57,7 @@ func ParseArgs() {
 	config.Addr = flag.String("addr", "127.0.0.1", "Listen addr")
 	config.Port = flag.Int("port", 8080, "port")
 	config.DnsAddr = flag.String("dns-addr", "8.8.8.8", "DNS addr")
-	config.DnsPort = flag.String("dns-port", "53", "DNS port")
+	config.DnsPort = flag.Int("dns-port", 53, "DNS port")
 	config.EnableDoh = flag.Bool("enable-doh", false, "Enable DOH")
 	config.Debug = flag.Bool("debug", false, "true | false")
 	config.NoBanner = flag.Bool("no-banner", false, "true | false")
@@ -87,8 +88,8 @@ func ParseArgs() {
 }
 
 func PrintColoredBanner() {
-	cyan := pterm.NewLettersFromStringWithStyle("Spoof", pterm.NewStyle(pterm.FgCyan))
-	purple := pterm.NewLettersFromStringWithStyle("DPI", pterm.NewStyle(pterm.FgLightMagenta))
+  cyan := putils.LettersFromStringWithStyle("Spoof", pterm.NewStyle(pterm.FgCyan))
+  purple := putils.LettersFromStringWithStyle("DPI", pterm.NewStyle(pterm.FgLightMagenta))
 	pterm.DefaultBigText.WithLetters(cyan, purple).Render()
 
 	pterm.DefaultBulletList.WithItems([]pterm.BulletListItem{
