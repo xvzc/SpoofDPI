@@ -22,6 +22,7 @@ type Config struct {
 	Timeout        *int
 	AllowedPattern *regexp.Regexp
 	AllowedUrls    *regexp.Regexp
+	WindowSize     *int
 }
 
 type ArrayFlags []string
@@ -43,15 +44,6 @@ func GetConfig() *Config {
 	return config
 }
 
-func (c *Config) PatternExists() bool {
-	return c.AllowedPattern != nil || c.AllowedUrls != nil
-}
-
-func (c *Config) PatternMatches(bytes []byte) bool {
-	return (c.AllowedPattern != nil && c.AllowedPattern.Match(bytes)) ||
-		(c.AllowedUrls != nil && c.AllowedUrls.Match(bytes))
-}
-
 func ParseArgs() {
 	config = &Config{}
 	config.Addr = flag.String("addr", "127.0.0.1", "Listen addr")
@@ -62,6 +54,7 @@ func ParseArgs() {
 	config.Debug = flag.Bool("debug", false, "Enable debug output")
 	config.NoBanner = flag.Bool("no-banner", false, "Disable banner")
 	config.Timeout = flag.Int("timeout", 2000, "timeout in milliseconds")
+	config.WindowSize = flag.Int("window-size", 50, "window-size for fragmented client hello")
 
 	flag.Var(&allowedHosts, "url", "Bypass DPI only on this url, can be passed multiple times")
 	allowedPattern = flag.String(
@@ -88,8 +81,8 @@ func ParseArgs() {
 }
 
 func PrintColoredBanner() {
-  cyan := putils.LettersFromStringWithStyle("Spoof", pterm.NewStyle(pterm.FgCyan))
-  purple := putils.LettersFromStringWithStyle("DPI", pterm.NewStyle(pterm.FgLightMagenta))
+	cyan := putils.LettersFromStringWithStyle("Spoof", pterm.NewStyle(pterm.FgCyan))
+	purple := putils.LettersFromStringWithStyle("DPI", pterm.NewStyle(pterm.FgLightMagenta))
 	pterm.DefaultBigText.WithLetters(cyan, purple).Render()
 
 	pterm.DefaultBulletList.WithItems([]pterm.BulletListItem{

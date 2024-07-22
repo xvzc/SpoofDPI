@@ -15,7 +15,7 @@ func main() {
 	util.ParseArgs()
     config := util.GetConfig()
 
-	p := proxy.New(config)
+	pxy := proxy.New(config)
 	if *config.Debug {
 		log.SetLevel(log.DebugLevel)
 	} else {
@@ -36,7 +36,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	go p.Start()
+	go pxy.Start()
 
 	// Handle signals
 	sigs := make(chan os.Signal, 1)
