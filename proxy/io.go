@@ -1,4 +1,4 @@
-package net
+package proxy
 
 import (
 	"errors"
@@ -11,11 +11,7 @@ import (
 
 const BUF_SIZE = 1024
 
-type Conn struct {
-	net.TCPConn
-}
-
-func (conn *Conn) WriteChunks(c [][]byte) (n int, err error) {
+func WriteChunks(conn *net.TCPConn, c [][]byte) (n int, err error) {
 	total := 0
 	for i := 0; i < len(c); i++ {
 		b, err := conn.Write(c[i])
@@ -29,7 +25,7 @@ func (conn *Conn) WriteChunks(c [][]byte) (n int, err error) {
 	return total, nil
 }
 
-func (conn *Conn) ReadBytes() ([]byte, error) {
+func ReadBytes(conn *net.TCPConn) ([]byte, error) {
 	ret := make([]byte, 0)
 	buf := make([]byte, BUF_SIZE)
 
@@ -57,15 +53,15 @@ func (conn *Conn) ReadBytes() ([]byte, error) {
 	return ret, nil
 }
 
-func (from *Conn) Serve(to *Conn, proto string, fd string, td string, timeout int) {
+func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td string, timeout int) {
 	proto += " "
 
 	for {
-    from.SetReadDeadline(
-      time.Now().Add(time.Millisecond * time.Duration(timeout)),
-    )
+		from.SetReadDeadline(
+			time.Now().Add(time.Millisecond * time.Duration(timeout)),
+		)
 
-		buf, err := from.ReadBytes()
+		buf, err := ReadBytes(from)
 		if err != nil {
 			if err == io.EOF {
 				log.Debug(proto, "Finished ", fd)

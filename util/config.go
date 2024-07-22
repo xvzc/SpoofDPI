@@ -23,6 +23,7 @@ type Config struct {
 	AllowedPattern *regexp.Regexp
 	AllowedUrls    *regexp.Regexp
 	WindowSize     *int
+	Version        *bool
 }
 
 type ArrayFlags []string
@@ -55,6 +56,7 @@ func ParseArgs() {
 	config.NoBanner = flag.Bool("no-banner", false, "Disable banner")
 	config.Timeout = flag.Int("timeout", 2000, "timeout in milliseconds")
 	config.WindowSize = flag.Int("window-size", 50, "window-size for fragmented client hello")
+	config.Version = flag.Bool("v", false, "print version")
 
 	flag.Var(&allowedHosts, "url", "Bypass DPI only on this url, can be passed multiple times")
 	allowedPattern = flag.String(
