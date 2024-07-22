@@ -8,7 +8,7 @@ import (
 	"github.com/xvzc/SpoofDPI/packet"
 )
 
-func (pxy *Proxy) HandleHttps(lConn *net.TCPConn, initPkt *packet.HttpPacket, ip string) {
+func (pxy *Proxy) handleHttps(lConn *net.TCPConn, initPkt *packet.HttpPacket, ip string) {
 	// Create a connection to the requested server
 	var port int = 443
 	var err error
@@ -57,8 +57,8 @@ func (pxy *Proxy) HandleHttps(lConn *net.TCPConn, initPkt *packet.HttpPacket, ip
 
 	chPkt := packet.NewHttpsPacket(clientHello)
 
-	lConn.SetLinger(3)
-	rConn.SetLinger(3)
+	// lConn.SetLinger(3)
+	// rConn.SetLinger(3)
 
 	go Serve(rConn, lConn, "[HTTPS]", rConn.RemoteAddr().String(), initPkt.Domain(), pxy.timeout)
 
@@ -111,7 +111,7 @@ func (pxy *Proxy) patternExists() bool {
 	return pxy.allowedPattern != nil || pxy.allowedUrls != nil
 }
 
-func (p *Proxy) patternMatches(bytes []byte) bool {
-	return (p.allowedPattern != nil && p.allowedPattern.Match(bytes)) ||
-		(p.allowedUrls != nil && p.allowedUrls.Match(bytes))
+func (pxy *Proxy) patternMatches(bytes []byte) bool {
+	return (pxy.allowedPattern != nil && pxy.allowedPattern.Match(bytes)) ||
+		(pxy.allowedUrls != nil && pxy.allowedUrls.Match(bytes))
 }

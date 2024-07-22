@@ -91,10 +91,10 @@ func (pxy *Proxy) Start() {
 
 			if pkt.IsConnectMethod() {
 				log.Debug("[PROXY] Start HTTPS")
-				pxy.HandleHttps(conn.(*net.TCPConn), pkt, ip)
+				pxy.handleHttps(conn.(*net.TCPConn), pkt, ip)
 			} else {
 				log.Debug("[PROXY] Start HTTP")
-				pxy.HandleHttp(conn.(*net.TCPConn), pkt, ip)
+				pxy.handleHttp(conn.(*net.TCPConn), pkt, ip)
 			}
 		}()
 	}
