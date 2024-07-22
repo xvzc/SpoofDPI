@@ -84,7 +84,7 @@ func (pxy *Proxy) Start() {
 
 			// Avoid recursively querying self
 			if pkt.Port() == strconv.Itoa(pxy.port) && isLoopedRequest(net.ParseIP(ip)) {
-				log.Error("[HTTP] Invalid request: final target has the same IP and port as our proxy")
+				log.Error("[PROXY] Looped request has been detected. aborting.")
 				conn.Close()
 				return
 			}

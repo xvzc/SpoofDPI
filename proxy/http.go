@@ -18,7 +18,7 @@ func (pxy *Proxy) HandleHttp(lConn *net.TCPConn, pkt *packet.HttpPacket, ip stri
 	if pkt.Port() != "" {
 		port, err = strconv.Atoi(pkt.Port())
 		if err != nil {
-			log.Debug("[HTTPS] Error while parsing port for ", pkt.Domain(), " aborting..")
+			log.Debug("[HTTP] Error while parsing port for ", pkt.Domain(), " aborting..")
 		}
 	}
 
