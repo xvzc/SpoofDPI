@@ -2,59 +2,59 @@ package proxy
 
 import (
 	"fmt"
+	"net"
 	"os"
+	"regexp"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/dns"
-	"github.com/xvzc/SpoofDPI/net"
 	"github.com/xvzc/SpoofDPI/packet"
 	"github.com/xvzc/SpoofDPI/util"
 )
 
 type Proxy struct {
-	addr    string
-	port    int
-	timeout int
-  resolver *dns.DnsResolver
+	addr           string
+	port           int
+	timeout        int
+	resolver       *dns.DnsResolver
+	windowSize     int
+	allowedPattern *regexp.Regexp
+	allowedUrls    *regexp.Regexp
 }
 
 func New(config *util.Config) *Proxy {
 	return &Proxy{
-		addr:    *config.Addr,
-		port:    *config.Port,
-		timeout: *config.Timeout,
-    resolver: dns.NewResolver(config),
+		addr:           *config.Addr,
+		port:           *config.Port,
+		timeout:        *config.Timeout,
+		windowSize:     *config.WindowSize,
+		allowedPattern: config.AllowedPattern,
+		allowedUrls:    config.AllowedUrls,
+		resolver:       dns.NewResolver(config),
 	}
 }
 
-func (p *Proxy) TcpAddr() *net.TCPAddr {
-	return net.TcpAddr(p.addr, p.port)
-}
-
-func (p *Proxy) Port() int {
-	return p.port
-}
-
-func (p *Proxy) Start() {
-	l, err := net.ListenTCP("tcp4", p.TcpAddr())
+func (pxy *Proxy) Start() {
+	l, err := net.ListenTCP("tcp4", &net.TCPAddr{IP: net.ParseIP(pxy.addr), Port: pxy.port})
 	if err != nil {
-		log.Fatal("Error creating listener: ", err)
+		log.Fatal("[PROXY] Error creating listener: ", err)
 		os.Exit(1)
 	}
 
-	log.Println(fmt.Sprintf("Connection timeout is set to %dms", p.timeout))
+	log.Println(fmt.Sprintf("[PROXY] Connection timeout is set to %dms", pxy.timeout))
 
-	log.Println("Created a listener on port", p.Port())
+	log.Println("[PROXY] Created a listener on port", pxy.port)
 
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			log.Fatal("Error accepting connection: ", err)
+			log.Fatal("[PROXY] Error accepting connection: ", err)
 			continue
 		}
 
 		go func() {
-			b, err := conn.ReadBytes()
+			b, err := ReadBytes(conn.(*net.TCPConn))
 			if err != nil {
 				return
 			}
@@ -63,22 +63,68 @@ func (p *Proxy) Start() {
 
 			pkt, err := packet.NewHttpPacket(b)
 			if err != nil {
-				log.Debug("Error while parsing request: ", string(b))
+				log.Debug("[PROXY] Error while parsing request: ", string(b))
+				conn.Close()
 				return
 			}
 
 			if !pkt.IsValidMethod() {
-				log.Debug("Unsupported method: ", pkt.Method())
+				log.Debug("[PROXY] Unsupported method: ", pkt.Method())
+				conn.Close()
+				return
+			}
+
+			ip, err := pxy.resolver.Lookup(pkt.Domain())
+			if err != nil {
+				log.Error("[PROXY] Error looking up for domain with ", pkt.Domain(), " ", err)
+				conn.Write([]byte(pkt.Version() + " 502 Bad Gateway\r\n\r\n"))
+				conn.Close()
+				return
+			}
+
+			// Avoid recursively querying self
+			if pkt.Port() == strconv.Itoa(pxy.port) && isLoopedRequest(net.ParseIP(ip)) {
+				log.Error("[PROXY] Looped request has been detected. aborting.")
+				conn.Close()
 				return
 			}
 
 			if pkt.IsConnectMethod() {
-				log.Debug("[HTTPS] Start")
-				conn.HandleHttps(pkt, p.timeout, p.resolver)
+				log.Debug("[PROXY] Start HTTPS")
+				pxy.handleHttps(conn.(*net.TCPConn), pkt, ip)
 			} else {
-				log.Debug("[HTTP] Start")
-				conn.HandleHttp(pkt, p.timeout, p.resolver)
+				log.Debug("[PROXY] Start HTTP")
+				pxy.handleHttp(conn.(*net.TCPConn), pkt, ip)
 			}
 		}()
 	}
+}
+
+func isLoopedRequest(ip net.IP) bool {
+	// we don't handle IPv6 at all it seems
+	if ip.To4() == nil {
+		return false
+	}
+
+	if ip.IsLoopback() {
+		return true
+	}
+
+	// Get list of available addresses
+	// See `ip -4 addr show`
+	addr, err := net.InterfaceAddrs() // needs AF_NETLINK on linux
+	if err != nil {
+		log.Error("[PROXY] Error while getting addresses of our network interfaces: ", err)
+		return false
+	}
+
+	for _, addr := range addr {
+		if ipnet, ok := addr.(*net.IPNet); ok {
+			if ipnet.IP.To4() != nil && ipnet.IP.To4().Equal(ip) {
+				return true
+			}
+		}
+	}
+
+	return false
 }

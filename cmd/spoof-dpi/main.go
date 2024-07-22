@@ -11,11 +11,18 @@ import (
 	"github.com/xvzc/SpoofDPI/util"
 )
 
+var VERSION = "v0.0.0(dev)"
 func main() {
 	util.ParseArgs()
-    config := util.GetConfig()
+	config := util.GetConfig()
+	if *config.Version {
+		println("spoog-dpi", VERSION)
+		println("\nA simple and fast anti-censorship tool written in Go.")
+		println("https://github.com/xvzc/SpoofDPI")
+		os.Exit(0)
+	}
 
-	p := proxy.New(config)
+	pxy := proxy.New(config)
 	if *config.Debug {
 		log.SetLevel(log.DebugLevel)
 	} else {
@@ -36,7 +43,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	go p.Start()
+	go pxy.Start()
 
 	// Handle signals
 	sigs := make(chan os.Signal, 1)
