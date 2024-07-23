@@ -89,22 +89,34 @@ func (pxy *Proxy) splitInChunks(bytes []byte, size int) [][]byte {
 	var chunks [][]byte
 	var raw []byte = bytes
 
-	for {
-		if len(raw) == 0 {
-			break
+	if pxy.windowSize > 0 {
+    log.Debug("[HTTPS] Chunking client hello.")
+
+		for {
+			if len(raw) == 0 {
+				break
+			}
+
+			// necessary check to avoid slicing beyond
+			// slice capacity
+			if len(raw) < size {
+				size = len(raw)
+			}
+
+			chunks = append(chunks, raw[0:size])
+			raw = raw[size:]
 		}
 
-		// necessary check to avoid slicing beyond
-		// slice capacity
-		if len(raw) < size {
-			size = len(raw)
-		}
-
-		chunks = append(chunks, raw[0:size])
-		raw = raw[size:]
+		return chunks
 	}
 
-	return chunks
+	if len(raw) < 1 {
+		return [][]byte{raw}
+	}
+
+  log.Debug("[HTTPS] Using legacy fragmentation.")
+
+	return [][]byte{raw[:1], raw[1:]}
 }
 
 func (pxy *Proxy) patternExists() bool {
