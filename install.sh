@@ -1,4 +1,4 @@
-#!bin/bash
+#!/bin/bash
 
 curl "https://api.github.com/repos/xvzc/SpoofDPI/releases/latest" |
     grep '"tag_name":' |

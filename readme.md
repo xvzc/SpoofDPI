@@ -16,26 +16,25 @@ To run SpoofDPI in any directory, add the line below to your `~/.bashrc || ~/.zs
 export PATH=$PATH:~/.spoof-dpi/bin
 ```
 
-### curl
-Install the latest binary with curl
-- OSX
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s darwin-amd64
 ```
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s osx
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-amd64
 ```
-- Linux
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-arm
 ```
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-arm64
 ```
-### wget
-Install the latest binary with wget
-- OSX
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mips
 ```
-wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s osx 
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mipsle
 ```
-- Linux
-```
-wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux 
-```
+
 ## Go
 You can also install SpoofDPI with **go install**  
 `$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi`  

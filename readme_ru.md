@@ -16,26 +16,25 @@ SpoofDPI будет установлен в директорию `~/.spoof-dpi/b
 export PATH=$PATH:~/.spoof-dpi/bin
 ```
 
-### curl
-Установите последний бинарник с помощью curl
-- OSX
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s darwin-amd64
 ```
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s osx
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-amd64
 ```
-- Linux
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-arm
 ```
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-arm64
 ```
-### wget
-Установите последний бинарник с помощью wget
-- OSX
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mips
 ```
-wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s osx 
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mipsle
 ```
-- Linux
-```
-wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux 
-```
+
 ## Go
 Вы также можете установить SpoofDPI с помощью **go install**  
 `$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi`  

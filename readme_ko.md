@@ -16,26 +16,25 @@ SpoofDPI는 `~/.spoof-dpi/bin` 경로에 설치됩니다.
 export PATH=$PATH:~/.spoof-dpi/bin
 ```
 
-### curl
-최신 릴리즈를 curl 명령어로 설치하기
-- OSX
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s darwin-amd64
 ```
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s osx
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-amd64
 ```
-- Linux
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-arm
 ```
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-arm64
 ```
-### wget
-최신 릴리즈를 wget 명령어로 설치하기
-- OSX
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mips
 ```
-wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s osx 
+```bash
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mipsle
 ```
-- Linux
-```
-wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux 
-```
+
 ## Go
 **go install**로 설치하기
 `$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi`  
