@@ -110,6 +110,8 @@ func (pxy *Proxy) splitInChunks(bytes []byte, size int) [][]byte {
 		return chunks
 	}
 
+  // When the given window-size <= 0
+
 	if len(raw) < 1 {
 		return [][]byte{raw}
 	}
