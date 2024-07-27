@@ -51,26 +51,31 @@ wget -O - https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash
 ```
 Usage: spoof-dpi [options...]
   -addr string
-        Listen addr (default "127.0.0.1")
+        listen address (default "127.0.0.1")
   -debug
-        Enable debug output
+        enable debug output
   -dns-addr string
-        DNS addr (default "8.8.8.8")
+        dns address (default "8.8.8.8")
   -dns-port int
-        DNS port (default 53)
+        port number for dns (default 53)
   -enable-doh
-        Enable DOH
+        enable 'dns over https'
   -no-banner
-        Disable banner
+        disable banner
   -pattern string
-        Bypass DPI only on packets matching this regex pattern
+        bypass DPI only on packets matching this regex pattern
   -port int
         port (default 8080)
   -timeout int
         timeout in milliseconds (default 2000)
   -url value
         Bypass DPI only on this url, can be passed multiple times
-
+  -v    print spoof-dpi's version. this may contain some other relevant information
+  -window-size int
+        chunk size, in number of bytes, for fragmented client hello,
+        try lower values if the default value doesn't bypass the DPI;
+        set to 0 to use old (pre v0.10.0) client hello splitting method:
+        fragmentation for the first data packet and the rest (default 50)
 ```
 > 만약 브라우저에서 Hotspot Shield와 같은 크롬 VPN 확장프로그램을 사용중이라면  
   Settings > Extension 으로 이동해 비활성화 해주시기바랍니다.

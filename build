@@ -2,7 +2,7 @@
 
 docker run --rm \
     -it \
-    --workdir /app/ \
-    -v $(pwd):/app \
+    --workdir /app/out \
+    -v ./:/app \
     golang:1.21-alpine \
-    sh make-releases.sh
+    sh /app/make-releases.sh

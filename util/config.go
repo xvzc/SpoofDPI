@@ -47,23 +47,26 @@ func GetConfig() *Config {
 
 func ParseArgs() {
 	config = &Config{}
-	config.Addr = flag.String("addr", "127.0.0.1", "Listen addr")
+	config.Addr = flag.String("addr", "127.0.0.1", "listen address")
 	config.Port = flag.Int("port", 8080, "port")
-	config.DnsAddr = flag.String("dns-addr", "8.8.8.8", "DNS addr")
-	config.DnsPort = flag.Int("dns-port", 53, "DNS port")
-	config.EnableDoh = flag.Bool("enable-doh", false, "Enable DOH")
-	config.Debug = flag.Bool("debug", false, "Enable debug output")
-	config.NoBanner = flag.Bool("no-banner", false, "Disable banner")
+	config.DnsAddr = flag.String("dns-addr", "8.8.8.8", "dns address")
+	config.DnsPort = flag.Int("dns-port", 53, "port number for dns")
+	config.EnableDoh = flag.Bool("enable-doh", false, "enable 'dns over https'")
+	config.Debug = flag.Bool("debug", false, "enable debug output")
+	config.NoBanner = flag.Bool("no-banner", false, "disable banner")
 	config.Timeout = flag.Int("timeout", 2000, "timeout in milliseconds")
-	config.WindowSize = flag.Int("window-size", 50, "window-size for fragmented client hello")
-	config.Version = flag.Bool("v", false, "print version")
-
+	config.WindowSize = flag.Int("window-size", 50, `chunk size, in number of bytes, for fragmented client hello,
+try lower values if the default value doesn't bypass the DPI;
+set to 0 to use old (pre v0.10.0) client hello splitting method:
+fragmentation for the first data packet and the rest`)
 	flag.Var(&allowedHosts, "url", "Bypass DPI only on this url, can be passed multiple times")
 	allowedPattern = flag.String(
 		"pattern",
 		"",
-		"Bypass DPI only on packets matching this regex pattern",
+		"bypass DPI only on packets matching this regex pattern",
 	)
+	config.Version = flag.Bool("v", false, "print spoof-dpi's version. this may contain some other relevant information")
+
 
 	flag.Parse()
 
