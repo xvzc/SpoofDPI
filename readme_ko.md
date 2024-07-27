@@ -15,25 +15,16 @@ SpoofDPI는 `~/.spoof-dpi/bin` 경로에 설치됩니다.
 ```
 export PATH=$PATH:~/.spoof-dpi/bin
 ```
-
+---
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s darwin-amd64
-```
-```bash
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-amd64
-```
-```bash
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-arm
-```
-```bash
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-arm64
-```
-```bash
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mips
-```
-```bash
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mipsle
 ```
+
 
 ## Go
 **go install**로 설치하기

@@ -15,23 +15,13 @@ To run SpoofDPI in any directory, add the line below to your `~/.bashrc || ~/.zs
 ```
 export PATH=$PATH:~/.spoof-dpi/bin
 ```
-
+---
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s darwin-amd64
-```
-```bash
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-amd64
-```
-```bash
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-arm
-```
-```bash
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-arm64
-```
-```bash
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mips
-```
-```bash
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mipsle
 ```
 
