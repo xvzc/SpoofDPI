@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"strconv"
 	"time"
-  "strconv"
 
 	"github.com/likexian/doh"
 	dohDns "github.com/likexian/doh/dns"
@@ -53,12 +53,12 @@ func (d *DnsResolver) Lookup(domain string) (string, error) {
 
 	for _, answer := range response.Answer {
 		if record, ok := answer.(*dns.A); ok {
-			log.Debug("[DNS] resolved dns for "+domain+": ", record.A.String())
+			log.Debug("[DNS] resolved ", domain, ": ", record.A.String())
 			return record.A.String(), nil
 		}
 	}
 
-	return "", errors.New("couldn not resolve the domain")
+	return "", errors.New("no record found")
 }
 
 func dohLookup(domain string) (string, error) {
@@ -68,7 +68,7 @@ func dohLookup(domain string) (string, error) {
 
 	rsp, err := c.Query(ctx, dohDns.Domain(domain), dohDns.TypeA)
 	if err != nil {
-	  return "", errors.New("could not resolve the domain")
+		return "", errors.New("could not resolve the domain")
 	}
 	// doh dns answer
 	answer := rsp.Answer
@@ -79,12 +79,12 @@ func dohLookup(domain string) (string, error) {
 			continue
 		}
 
-		log.Debug("[DOH] resolved dns for "+domain+": ", a.Data)
+		log.Debug("[DOH] resolved ", domain, ": ", a.Data)
 		return a.Data, nil
 	}
 
 	// close the client
 	c.Close()
 
-	return "", errors.New("couldn not resolve the domain")
+	return "", errors.New("no record found")
 }
