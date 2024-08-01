@@ -39,7 +39,7 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
 
 ## Go
 You can also install SpoofDPI with **go install**  
-`$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi`  
+`$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi@latest`  
   > Remember that $GOPATH should be set in your $PATH
 
 ## Git
