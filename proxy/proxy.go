@@ -76,7 +76,7 @@ func (pxy *Proxy) Start() {
 
 			ip, err := pxy.resolver.Lookup(pkt.Domain())
 			if err != nil {
-        log.Error("[PROXY] Error while dns lookup: ", pkt.Domain(), " ", err)
+        log.Debug("[PROXY] Error while dns lookup: ", pkt.Domain(), " ", err)
 				conn.Write([]byte(pkt.Version() + " 502 Bad Gateway\r\n\r\n"))
 				conn.Close()
 				return
