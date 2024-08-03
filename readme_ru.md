@@ -75,8 +75,8 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
   -window-size int
         chunk size, in number of bytes, for fragmented client hello,
         try lower values if the default value doesn't bypass the DPI;
-        set to 0 to use old (pre v0.10.0) client hello splitting method:
-        fragmentation for the first data packet and the rest (default 50)
+        when not given, the client hello packet will be sent in two parts:
+        fragmentation for the first data packet and the rest
 ```
 > Если Вы используете любые VPN-расширения по типу Hotspot Shield в браузере  
   Chrome, зайдите в Настройки > Расширения и отключите их.

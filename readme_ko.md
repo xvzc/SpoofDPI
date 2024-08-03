@@ -75,8 +75,8 @@ Usage: spoof-dpi [options...]
   -window-size int
         chunk size, in number of bytes, for fragmented client hello,
         try lower values if the default value doesn't bypass the DPI;
-        set to 0 to use old (pre v0.10.0) client hello splitting method:
-        fragmentation for the first data packet and the rest (default 50)
+        when not given, the client hello packet will be sent in two parts:
+        fragmentation for the first data packet and the rest
 ```
 > 만약 브라우저에서 Hotspot Shield와 같은 크롬 VPN 확장프로그램을 사용중이라면  
   Settings > Extension 으로 이동해 비활성화 해주시기바랍니다.
