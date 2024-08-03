@@ -57,9 +57,11 @@ func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td strin
 	proto += " "
 
 	for {
-		from.SetReadDeadline(
-			time.Now().Add(time.Millisecond * time.Duration(timeout)),
-		)
+    if timeout > 0 {
+      from.SetReadDeadline(
+        time.Now().Add(time.Millisecond * time.Duration(timeout)),
+      )
+    }
 
 		buf, err := ReadBytes(from)
 		if err != nil {

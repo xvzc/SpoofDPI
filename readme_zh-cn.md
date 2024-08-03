@@ -71,7 +71,7 @@ Usage: spoof-dpi [options...]
   -port int
         port (default 8080)
   -timeout int
-        timeout in milliseconds (default 2000)
+        timeout in milliseconds. no timeout when not given
   -url value
         Bypass DPI only on this url, can be passed multiple times
   -v    print spoof-dpi's version. this may contain some other relevant information

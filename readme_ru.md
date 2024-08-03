@@ -52,32 +52,31 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
 ```
 Использование: spoof-dpi [опции...]
   -addr string
-        адрес (по умолчанию "127.0.0.1")
+        listen address (default "127.0.0.1")
   -debug
-        включает режим отладки
+        enable debug output
   -dns-addr string
-        адрес DNS (по умолчанию "8.8.8.8")
+        dns address (default "8.8.8.8")
   -dns-port int
-        порт DNS сервера (по умолчанию 53)
+        port number for dns (default 53)
   -enable-doh
-        включает 'dns over https'
+        enable 'dns over https'
   -no-banner
-        выключает баннер
+        disable banner
   -pattern string
-        обходить DPI только на пакетах с указанным regex
+        bypass DPI only on packets matching this regex pattern
   -port int
-        порт (по умолчанию 8080)
+        port (default 8080)
   -timeout int
-        таймаут в миллисекундах (по умолчанию 2000)
+        timeout in milliseconds. no timeout when not given
   -url value
-        обходить DPI только на указанном URL, опцию можно указывать несколько раз
-  -v    выводит версию spoof-dpi. может содержать другую полезную информацию
+        Bypass DPI only on this url, can be passed multiple times
+  -v    print spoof-dpi's version. this may contain some other relevant information
   -window-size int
-        размер чанка в байтах для фрагментации client hello,
-        если не работает по умолчанию, можно попробовать значения меньше;
-        при 0 используется старый (до v0.10.0) метод разделения client hello:
-        фрагментация для первого дата пакета и остальных (по умолчанию 50)
-
+        chunk size, in number of bytes, for fragmented client hello,
+        try lower values if the default value doesn't bypass the DPI;
+        set to 0 to use old (pre v0.10.0) client hello splitting method:
+        fragmentation for the first data packet and the rest (default 50)
 ```
 > Если Вы используете любые VPN-расширения по типу Hotspot Shield в браузере  
   Chrome, зайдите в Настройки > Расширения и отключите их.

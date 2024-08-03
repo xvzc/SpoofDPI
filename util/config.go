@@ -54,7 +54,7 @@ func ParseArgs() {
 	config.EnableDoh = flag.Bool("enable-doh", false, "enable 'dns over https'")
 	config.Debug = flag.Bool("debug", false, "enable debug output")
 	config.NoBanner = flag.Bool("no-banner", false, "disable banner")
-	config.Timeout = flag.Int("timeout", 2000, "timeout in milliseconds")
+	config.Timeout = flag.Int("timeout", 0, "timeout in milliseconds. no timeout when not given")
 	config.WindowSize = flag.Int("window-size", 50, `chunk size, in number of bytes, for fragmented client hello,
 try lower values if the default value doesn't bypass the DPI;
 set to 0 to use old (pre v0.10.0) client hello splitting method:
@@ -66,7 +66,6 @@ fragmentation for the first data packet and the rest`)
 		"bypass DPI only on packets matching this regex pattern",
 	)
 	config.Version = flag.Bool("v", false, "print spoof-dpi's version. this may contain some other relevant information")
-
 
 	flag.Parse()
 

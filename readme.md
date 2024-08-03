@@ -68,7 +68,7 @@ Usage: spoof-dpi [options...]
   -port int
         port (default 8080)
   -timeout int
-        timeout in milliseconds (default 2000)
+        timeout in milliseconds. no timeout when not given
   -url value
         Bypass DPI only on this url, can be passed multiple times
   -v    print spoof-dpi's version. this may contain some other relevant information
@@ -77,7 +77,6 @@ Usage: spoof-dpi [options...]
         try lower values if the default value doesn't bypass the DPI;
         set to 0 to use old (pre v0.10.0) client hello splitting method:
         fragmentation for the first data packet and the rest (default 50)
-
 ```
 > If you are using any vpn extensions such as Hotspot Shield in Chrome browser,   
   go to Settings > Extensions, and disable them.

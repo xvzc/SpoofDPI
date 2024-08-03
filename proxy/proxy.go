@@ -42,7 +42,9 @@ func (pxy *Proxy) Start() {
 		os.Exit(1)
 	}
 
-	log.Println(fmt.Sprintf("[PROXY] Connection timeout is set to %dms", pxy.timeout))
+  if pxy.timeout > 0 {
+	  log.Println(fmt.Sprintf("[PROXY] Connection timeout is set to %dms", pxy.timeout))
+  }
 
 	log.Println("[PROXY] Created a listener on port", pxy.port)
 
