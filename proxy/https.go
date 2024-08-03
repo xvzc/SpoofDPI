@@ -90,8 +90,6 @@ func (pxy *Proxy) splitInChunks(bytes []byte, size int) [][]byte {
 	var raw []byte = bytes
 
 	if pxy.windowSize > 0 {
-    log.Debug("[HTTPS] Chunking client hello.")
-
 		for {
 			if len(raw) == 0 {
 				break
