@@ -70,7 +70,7 @@ func (pxy *Proxy) handleHttps(lConn *net.TCPConn, initPkt *packet.HttpPacket, ip
 		}
 	} else {
 		log.Debug("[HTTPS] Writing chunked client hello to ", initPkt.Domain())
-		chunks := pxy.splitInChunks(chPkt.Raw(), pxy.windowSize)
+		chunks := pxy.splitInChunks(chPkt.Raw())
 		if _, err := WriteChunks(rConn, chunks); err != nil {
 			log.Debug("[HTTPS] Error writing chunked client hello to ", initPkt.Domain(), err)
 			return
@@ -80,7 +80,7 @@ func (pxy *Proxy) handleHttps(lConn *net.TCPConn, initPkt *packet.HttpPacket, ip
 	Serve(lConn, rConn, "[HTTPS]", lConn.RemoteAddr().String(), initPkt.Domain(), pxy.timeout)
 }
 
-func (pxy *Proxy) splitInChunks(bytes []byte, size int) [][]byte {
+func (pxy *Proxy) splitInChunks(bytes []byte) [][]byte {
 	// If the packet matches the pattern or the URLs, we don't split it
 	if pxy.patternExists() && !pxy.patternMatches(bytes) {
 		return [][]byte{bytes}
@@ -88,8 +88,11 @@ func (pxy *Proxy) splitInChunks(bytes []byte, size int) [][]byte {
 
 	var chunks [][]byte
 	var raw []byte = bytes
+  var size = pxy.windowSize
 
-	if pxy.windowSize > 0 {
+  log.Debug("[HTTPS] window-size: ", size)
+
+	if size > 0 {
 		for {
 			if len(raw) == 0 {
 				break
