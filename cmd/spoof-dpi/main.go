@@ -39,8 +39,10 @@ func main() {
 		util.PrintColoredBanner()
 	}
 
-	if err := util.SetOsProxy(*config.Port); err != nil {
-		log.Fatal(err)
+	if *config.SystemProxy {
+		if err := util.SetOsProxy(*config.Port); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	go pxy.Start()
@@ -63,7 +65,10 @@ func main() {
 	}()
 
 	<-done
-	if err := util.UnsetOsProxy(); err != nil {
-		log.Fatal(err)
+
+	if *config.SystemProxy {
+		if err := util.UnsetOsProxy(); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
