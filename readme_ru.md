@@ -4,21 +4,24 @@
 
 Можете прочитать на других языках: [🇬🇧English](https://github.com/xvzc/SpoofDPI), [🇰🇷한국어](https://github.com/xvzc/SpoofDPI/blob/main/readme_ko.md), [🇨🇳简体中文](https://github.com/xvzc/SpoofDPI/blob/main/readme_zh-cn.md), [🇷🇺Русский](https://github.com/xvzc/SpoofDPI/blob/main/readme_ru.md), [🇯🇵日本語](https://github.com/xvzc/SpoofDPI/blob/main/readme_ja.md)
 
-Простое и быстрое ПО, созданное для обхода **Deep Packet Inspection**  
-  
+Простое и быстрое ПО, созданное для обхода **Deep Packet Inspection**
+
 ![image](https://user-images.githubusercontent.com/45588457/148035986-8b0076cc-fefb-48a1-9939-a8d9ab1d6322.png)
 
 # Установка
 ## Бинарник
-SpoofDPI будет установлен в директорию `~/.spoof-dpi/bin`.  
+SpoofDPI будет установлен в директорию `~/.spoof-dpi/bin`.
 Чтобы запустить SpoofDPI в любой директории, добавьте строку ниже в `~/.bashrc || ~/.zshrc || ...`
 ```
 export PATH=$PATH:~/.spoof-dpi/bin
 ```
 ---
 ```bash
-# OSX
+# macOS Intel
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s darwin-amd64
+
+# macOS Apple Silicon
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s darwin-arm64
 
 # linux-amd64
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-amd64
@@ -37,16 +40,16 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
 ```
 
 ## Go
-Вы также можете установить SpoofDPI с помощью **go install**  
-`$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi`  
+Вы также можете установить SpoofDPI с помощью **go install**
+`$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi`
   > Не забудьте, что $GOPATH должен быть установлен в Вашем $PATH
 
 ## Git
 Вы также можете собрать SpoofDPI
 
-`$ git clone https://github.com/xvzc/SpoofDPI.git`  
-`$ cd SpoofDPI`  
-`$ go build ./cmd/...`  
+`$ git clone https://github.com/xvzc/SpoofDPI.git`
+`$ cd SpoofDPI`
+`$ go build ./cmd/...`
 
 # Использование
 ```
@@ -78,7 +81,7 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
         when not given, the client hello packet will be sent in two parts:
         fragmentation for the first data packet and the rest
 ```
-> Если Вы используете любые VPN-расширения по типу Hotspot Shield в браузере  
+> Если Вы используете любые VPN-расширения по типу Hotspot Shield в браузере
   Chrome, зайдите в Настройки > Расширения и отключите их.
 
 ### OSX
@@ -98,5 +101,5 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
  > SpoofDPI не расшифровывает Ваши HTTPS запросы, так что нам не нужны SSL сертификаты.
 
 # Вдохновение
-[Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) от @SadeghHayeri  
+[Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) от @SadeghHayeri
 [GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) от @ValdikSS
