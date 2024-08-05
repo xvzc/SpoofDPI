@@ -55,7 +55,7 @@ func ParseArgs() {
 	config.EnableDoh = flag.Bool("enable-doh", false, "enable 'dns over https'")
 	config.Debug = flag.Bool("debug", false, "enable debug output")
 	config.NoBanner = flag.Bool("no-banner", false, "disable banner")
-	config.SystemProxy = flag.Bool("system-proxy", false, "enable system-wide proxy")
+	config.SystemProxy = flag.Bool("system-proxy", true, "enable system-wide proxy")
 	config.Timeout = flag.Int("timeout", 0, "timeout in milliseconds. no timeout when not given")
 	config.WindowSize = flag.Int("window-size", 0, `chunk size, in number of bytes, for fragmented client hello,
 try lower values if the default value doesn't bypass the DPI;
