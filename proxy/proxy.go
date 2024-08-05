@@ -1,7 +1,9 @@
 package proxy
 
 import (
+	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"os"
 	"regexp"
@@ -18,6 +20,7 @@ type Proxy struct {
 	port           int
 	timeout        int
 	resolver       *dns.DnsResolver
+	systemResolver *net.Resolver
 	windowSize     int
 	allowedPattern *regexp.Regexp
 	allowedUrls    *regexp.Regexp
@@ -32,6 +35,7 @@ func New(config *util.Config) *Proxy {
 		allowedPattern: config.AllowedPattern,
 		allowedUrls:    config.AllowedUrls,
 		resolver:       dns.NewResolver(config),
+		systemResolver: &net.Resolver{PreferGo: true},
 	}
 }
 
@@ -42,9 +46,9 @@ func (pxy *Proxy) Start() {
 		os.Exit(1)
 	}
 
-  if pxy.timeout > 0 {
-	  log.Println(fmt.Sprintf("[PROXY] Connection timeout is set to %dms", pxy.timeout))
-  }
+	if pxy.timeout > 0 {
+		log.Println(fmt.Sprintf("[PROXY] Connection timeout is set to %dms", pxy.timeout))
+	}
 
 	log.Println("[PROXY] Created a listener on port", pxy.port)
 
@@ -76,12 +80,32 @@ func (pxy *Proxy) Start() {
 				return
 			}
 
-			ip, err := pxy.resolver.Lookup(pkt.Domain())
-			if err != nil {
-        log.Debug("[PROXY] Error while dns lookup: ", pkt.Domain(), " ", err)
-				conn.Write([]byte(pkt.Version() + " 502 Bad Gateway\r\n\r\n"))
-				conn.Close()
-				return
+			var ip string
+			if pxy.patternExists() && !pxy.patternMatches([]byte(pkt.Domain())) {
+				ips, err := pxy.systemResolver.LookupIPAddr(context.Background(), pkt.Domain())
+				if err != nil {
+					log.Error("[PROXY] Error while dns lookup: ", pkt.Domain(), " ", err)
+					conn.Write([]byte(pkt.Version() + " 502 Bad Gateway\r\n\r\n"))
+					conn.Close()
+					return
+				}
+
+				if len(ips) == 0 {
+					log.Error("[PROXY] Error while dns lookup: ", pkt.Domain(), " len(ips) = ", len(ips))
+					conn.Write([]byte(pkt.Version() + " 502 Bad Gateway\r\n\r\n"))
+					conn.Close()
+					return
+				}
+
+				ip = ips[rand.Intn(len(ips))].String()
+			} else {
+				ip, err = pxy.resolver.Lookup(pkt.Domain())
+				if err != nil {
+					log.Error("[PROXY] Error while dns lookup: ", pkt.Domain(), " ", err)
+					conn.Write([]byte(pkt.Version() + " 502 Bad Gateway\r\n\r\n"))
+					conn.Close()
+					return
+				}
 			}
 
 			// Avoid recursively querying self
