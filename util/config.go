@@ -19,7 +19,7 @@ type Config struct {
 	EnableDoh      *bool
 	Debug          *bool
 	NoBanner       *bool
-	SystemProxy  *bool
+	SystemProxy    *bool
 	Timeout        *int
 	AllowedPattern *regexp.Regexp
 	AllowedUrls    *regexp.Regexp

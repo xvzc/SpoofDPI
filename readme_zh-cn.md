@@ -73,6 +73,8 @@ Usage: spoof-dpi [options...]
         bypass DPI only on packets matching this regex pattern
   -port int
         port (default 8080)
+  -system-proxy
+        enable system-wide proxy (default true)
   -timeout int
         timeout in milliseconds. no timeout when not given
   -url value
