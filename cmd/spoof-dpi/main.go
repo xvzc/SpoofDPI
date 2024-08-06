@@ -16,7 +16,7 @@ func main() {
 	util.ParseArgs()
 	config := util.GetConfig()
 	if *config.Version {
-		println("spoog-dpi", VERSION)
+		println("spoof-dpi", VERSION)
 		println("\nA simple and fast anti-censorship tool written in Go.")
 		println("https://github.com/xvzc/SpoofDPI")
 		os.Exit(0)
