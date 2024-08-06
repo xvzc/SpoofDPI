@@ -4,7 +4,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-  _ "embed"
 
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
@@ -17,7 +16,7 @@ func main() {
 	util.ParseArgs()
 	config := util.GetConfig()
 	if *config.Version {
-    version.PrintVersion()
+		version.PrintVersion()
 		os.Exit(0)
 	}
 
