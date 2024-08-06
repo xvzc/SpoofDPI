@@ -38,9 +38,10 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
 
 
 ## Go
-**go install**로 설치하기
-`$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi`  
-  > Remember that $GOPATH should be set in your $PATH
+`go install`로 설치하기
+```bash
+$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi@latest
+```
 
 ## Git
 직접 빌드하기
@@ -60,20 +61,18 @@ Usage: spoof-dpi [options...]
   -dns-port int
         port number for dns (default 53)
   -enable-doh
-        enable 'dns over https'
+        enable 'dns-over-https'
   -no-banner
         disable banner
-  -pattern string
-        bypass DPI only on packets matching this regex pattern
+  -pattern value
+        bypass DPI only on packets matching this regex pattern; can be given multiple times
   -port int
         port (default 8080)
   -system-proxy
         enable system-wide proxy (default true)
   -timeout int
-        timeout in milliseconds. no timeout when not given
-  -url value
-        Bypass DPI only on this url, can be passed multiple times
-  -v    print spoof-dpi's version. this may contain some other relevant information
+        timeout in milliseconds; no timeout when not given
+  -v    print spoof-dpi's version; this may contain some other relevant information
   -window-size int
         chunk size, in number of bytes, for fragmented client hello,
         try lower values if the default value doesn't bypass the DPI;

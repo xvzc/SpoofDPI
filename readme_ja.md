@@ -38,15 +38,18 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
 
 
 ## Go
-**go install**でインストールすることもできます  
-`$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi@latest`  
-  > $GOPATHが$PATHに設定されていることを確認してください
+`go install` でインストールすることもできます  
+```bash
+$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi@latest
+```
 
 ## Git
 自分でビルドすることもできます  
-`$ git clone https://github.com/xvzc/SpoofDPI.git`  
-`$ cd SpoofDPI`  
-`$ go build ./cmd/...`  
+```bash
+$ git clone https://github.com/xvzc/SpoofDPI.git
+$ cd SpoofDPI
+$ go build ./cmd/...
+```
 
 # 使用方法
 ```
@@ -60,20 +63,18 @@ Usage: spoof-dpi [options...]
   -dns-port int
         port number for dns (default 53)
   -enable-doh
-        enable 'dns over https'
+        enable 'dns-over-https'
   -no-banner
         disable banner
-  -pattern string
-        bypass DPI only on packets matching this regex pattern
+  -pattern value
+        bypass DPI only on packets matching this regex pattern; can be given multiple times
   -port int
         port (default 8080)
   -system-proxy
         enable system-wide proxy (default true)
   -timeout int
-        timeout in milliseconds. no timeout when not given
-  -url value
-        Bypass DPI only on this url, can be passed multiple times
-  -v    print spoof-dpi's version. this may contain some other relevant information
+        timeout in milliseconds; no timeout when not given
+  -v    print spoof-dpi's version; this may contain some other relevant information
   -window-size int
         chunk size, in number of bytes, for fragmented client hello,
         try lower values if the default value doesn't bypass the DPI;
@@ -84,11 +85,13 @@ Usage: spoof-dpi [options...]
   設定 > 拡張機能に移動して無効にしてください。
 
 ### OSX
-`$ spoof-dpi`を実行すると、自動的にプロキシが設定されます。
+`spoof-dpi`を実行すると、自動的にプロキシが設定されます。
 
 ### Linux
-`$ spoof-dpi`を実行し、プロキシオプションを使用してブラウザを開きます。  
-`google-chrome --proxy-server="http://127.0.0.1:8080"`
+`spoof-dpi`を実行し、プロキシオプションを使用してブラウザを開きます。  
+```bash
+google-chrome --proxy-server="http://127.0.0.1:8080"
+```
 
 # 仕組み
 ### HTTP

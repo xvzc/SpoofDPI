@@ -41,15 +41,18 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
 
 
 ## Go
-You can also install SpoofDPI with **go install**
-`$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi@latest`
-  > Remember that $GOPATH should be set in your $PATH
+You can also install SpoofDPI with `go install`
+```bash
+$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi@latest
+```
 
 ## Git
 You can also build your own
-`$ git clone https://github.com/xvzc/SpoofDPI.git`
-`$ cd SpoofDPI`
-`$ go build ./cmd/...`
+```bash
+$ git clone https://github.com/xvzc/SpoofDPI.git
+$ cd SpoofDPI
+$ go build ./cmd/...
+```
 
 # Usage
 ```
@@ -63,20 +66,18 @@ Usage: spoof-dpi [options...]
   -dns-port int
         port number for dns (default 53)
   -enable-doh
-        enable 'dns over https'
+        enable 'dns-over-https'
   -no-banner
         disable banner
-  -pattern string
-        bypass DPI only on packets matching this regex pattern
+  -pattern value
+        bypass DPI only on packets matching this regex pattern; can be given multiple times
   -port int
         port (default 8080)
   -system-proxy
         enable system-wide proxy (default true)
   -timeout int
-        timeout in milliseconds. no timeout when not given
-  -url value
-        Bypass DPI only on this url, can be passed multiple times
-  -v    print spoof-dpi's version. this may contain some other relevant information
+        timeout in milliseconds; no timeout when not given
+  -v    print spoof-dpi's version; this may contain some other relevant information
   -window-size int
         chunk size, in number of bytes, for fragmented client hello,
         try lower values if the default value doesn't bypass the DPI;
@@ -87,11 +88,13 @@ Usage: spoof-dpi [options...]
   go to Settings > Extensions, and disable them.
 
 ### OSX
-Run `$ spoof-dpi` and it will automatically set your proxy
+Run `spoof-dpi` and it will automatically set your proxy
 
 ### Linux
-Run `$ spoof-dpi` and open your favorite browser with proxy option
-`google-chrome --proxy-server="http://127.0.0.1:8080"`
+Run `spoof-dpi` and open your favorite browser with proxy option
+```bash
+google-chrome --proxy-server="http://127.0.0.1:8080"
+```
 
 # How it works
 ### HTTP
