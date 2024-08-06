@@ -8,7 +8,7 @@ import (
 	"github.com/xvzc/SpoofDPI/packet"
 )
 
-func (pxy *Proxy) handleHttps(lConn *net.TCPConn, initPkt *packet.HttpPacket, ip string) {
+func (pxy *Proxy) handleHttps(lConn *net.TCPConn, exploit bool, initPkt *packet.HttpPacket, ip string) {
 	// Create a connection to the requested server
 	var port int = 443
 	var err error
@@ -62,17 +62,17 @@ func (pxy *Proxy) handleHttps(lConn *net.TCPConn, initPkt *packet.HttpPacket, ip
 
 	go Serve(rConn, lConn, "[HTTPS]", rConn.RemoteAddr().String(), initPkt.Domain(), pxy.timeout)
 
-	if pxy.patternExists() && !pxy.patternMatches([]byte(initPkt.Domain())) {
-		log.Debug("[HTTPS] Writing plain client hello to ", initPkt.Domain())
-		if _, err := rConn.Write(chPkt.Raw()); err != nil {
-			log.Debug("[HTTPS] Error writing plain client hello to ", initPkt.Domain(), err)
+	if exploit {
+		log.Debug("[HTTPS] Writing chunked client hello to ", initPkt.Domain())
+		chunks := splitInChunks(chPkt.Raw(), pxy.windowSize)
+		if _, err := WriteChunks(rConn, chunks); err != nil {
+			log.Debug("[HTTPS] Error writing chunked client hello to ", initPkt.Domain(), err)
 			return
 		}
 	} else {
-		log.Debug("[HTTPS] Writing chunked client hello to ", initPkt.Domain())
-		chunks := pxy.splitInChunks(chPkt.Raw())
-		if _, err := WriteChunks(rConn, chunks); err != nil {
-			log.Debug("[HTTPS] Error writing chunked client hello to ", initPkt.Domain(), err)
+		log.Debug("[HTTPS] Writing plain client hello to ", initPkt.Domain())
+		if _, err := rConn.Write(chPkt.Raw()); err != nil {
+			log.Debug("[HTTPS] Error writing plain client hello to ", initPkt.Domain(), err)
 			return
 		}
 	}
@@ -80,17 +80,11 @@ func (pxy *Proxy) handleHttps(lConn *net.TCPConn, initPkt *packet.HttpPacket, ip
 	Serve(lConn, rConn, "[HTTPS]", lConn.RemoteAddr().String(), initPkt.Domain(), pxy.timeout)
 }
 
-func (pxy *Proxy) splitInChunks(bytes []byte) [][]byte {
-	// If the packet matches the pattern or the URLs, we don't split it
-	if pxy.patternExists() && !pxy.patternMatches(bytes) {
-		return [][]byte{bytes}
-	}
-
+func splitInChunks(bytes []byte, size int) [][]byte {
 	var chunks [][]byte
 	var raw []byte = bytes
-  var size = pxy.windowSize
 
-  log.Debug("[HTTPS] window-size: ", size)
+	log.Debug("[HTTPS] window-size: ", size)
 
 	if size > 0 {
 		for {
@@ -111,22 +105,13 @@ func (pxy *Proxy) splitInChunks(bytes []byte) [][]byte {
 		return chunks
 	}
 
-  // When the given window-size <= 0
+	// When the given window-size <= 0
 
 	if len(raw) < 1 {
 		return [][]byte{raw}
 	}
 
-  log.Debug("[HTTPS] Using legacy fragmentation.")
+	log.Debug("[HTTPS] Using legacy fragmentation.")
 
 	return [][]byte{raw[:1], raw[1:]}
-}
-
-func (pxy *Proxy) patternExists() bool {
-	return pxy.allowedPattern != nil || pxy.allowedUrls != nil
-}
-
-func (pxy *Proxy) patternMatches(bytes []byte) bool {
-	return (pxy.allowedPattern != nil && pxy.allowedPattern.Match(bytes)) ||
-		(pxy.allowedUrls != nil && pxy.allowedUrls.Match(bytes))
 }

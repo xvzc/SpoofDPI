@@ -41,7 +41,7 @@ func main() {
 
 	if *config.SystemProxy {
 		if err := util.SetOsProxy(*config.Port); err != nil {
-			log.Fatal(err)
+			log.Fatal("Error while changing proxy settings")
 		}
 	}
 

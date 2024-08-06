@@ -19,8 +19,7 @@ type Proxy struct {
 	timeout        int
 	resolver       *dns.DnsResolver
 	windowSize     int
-	allowedPattern *regexp.Regexp
-	allowedUrls    *regexp.Regexp
+	allowedPattern []*regexp.Regexp
 }
 
 func New(config *util.Config) *Proxy {
@@ -30,7 +29,6 @@ func New(config *util.Config) *Proxy {
 		timeout:        *config.Timeout,
 		windowSize:     *config.WindowSize,
 		allowedPattern: config.AllowedPattern,
-		allowedUrls:    config.AllowedUrls,
 		resolver:       dns.NewResolver(config),
 	}
 }
@@ -42,11 +40,14 @@ func (pxy *Proxy) Start() {
 		os.Exit(1)
 	}
 
-  if pxy.timeout > 0 {
-	  log.Println(fmt.Sprintf("[PROXY] Connection timeout is set to %dms", pxy.timeout))
-  }
+	if pxy.timeout > 0 {
+		log.Println(fmt.Sprintf("[PROXY] Connection timeout is set to %dms", pxy.timeout))
+	}
 
 	log.Println("[PROXY] Created a listener on port", pxy.port)
+	if len(pxy.allowedPattern) > 0 {
+    log.Println("[PROXY] Number of white-listed pattern:", len(pxy.allowedPattern))
+	}
 
 	for {
 		conn, err := l.Accept()
@@ -76,9 +77,12 @@ func (pxy *Proxy) Start() {
 				return
 			}
 
-			ip, err := pxy.resolver.Lookup(pkt.Domain())
+      matched := pxy.patternMatches([]byte(pkt.Domain()))
+      useSystemDns := !matched
+
+			ip, err := pxy.resolver.Lookup(pkt.Domain(), useSystemDns)
 			if err != nil {
-        log.Debug("[PROXY] Error while dns lookup: ", pkt.Domain(), " ", err)
+				log.Debug("[PROXY] Error while dns lookup: ", pkt.Domain(), " ", err)
 				conn.Write([]byte(pkt.Version() + " 502 Bad Gateway\r\n\r\n"))
 				conn.Close()
 				return
@@ -93,13 +97,27 @@ func (pxy *Proxy) Start() {
 
 			if pkt.IsConnectMethod() {
 				log.Debug("[PROXY] Start HTTPS")
-				pxy.handleHttps(conn.(*net.TCPConn), pkt, ip)
+				pxy.handleHttps(conn.(*net.TCPConn), matched, pkt, ip)
 			} else {
 				log.Debug("[PROXY] Start HTTP")
 				pxy.handleHttp(conn.(*net.TCPConn), pkt, ip)
 			}
 		}()
 	}
+}
+
+func (pxy *Proxy) patternMatches(bytes []byte) bool {
+	if pxy.allowedPattern == nil {
+		return true
+	}
+
+	for _, pattern := range pxy.allowedPattern {
+		if pattern.Match(bytes) {
+      return true
+    }
+	}
+
+  return false
 }
 
 func isLoopedRequest(ip net.IP) bool {
