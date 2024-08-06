@@ -17,7 +17,7 @@ func main() {
 	util.ParseArgs()
 	config := util.GetConfig()
 	if *config.Version {
-    PrintVersion()
+    version.PrintVersion()
 		os.Exit(0)
 	}
 

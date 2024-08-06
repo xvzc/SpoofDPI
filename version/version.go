@@ -2,7 +2,7 @@ package version
 
 import _ "embed"
 
-//go:embed .version
+//go:embed VERSION
 var VERSION string
 
 func PrintVersion() {
