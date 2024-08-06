@@ -4,21 +4,20 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+  _ "embed"
 
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/proxy"
 	"github.com/xvzc/SpoofDPI/util"
+	"github.com/xvzc/SpoofDPI/version"
 )
 
-var VERSION = "v0.0.0(dev)"
 func main() {
 	util.ParseArgs()
 	config := util.GetConfig()
 	if *config.Version {
-		println("spoog-dpi", VERSION)
-		println("\nA simple and fast anti-censorship tool written in Go.")
-		println("https://github.com/xvzc/SpoofDPI")
+    PrintVersion()
 		os.Exit(0)
 	}
 
