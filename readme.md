@@ -54,6 +54,13 @@ $ cd SpoofDPI
 $ go build ./cmd/...
 ```
 
+## docker
+You can use Dockerfile to build a docker image
+```shell
+docker build ./ -t spoof-dpi:latest
+```
+Use `docker run -it -p 8080:8080 --name spoof-dpi spoof-dpi:latest` to run container
+
 # Usage
 ```
 Usage: spoof-dpi [options...]
