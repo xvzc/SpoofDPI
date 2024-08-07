@@ -54,6 +54,18 @@ $ cd SpoofDPI
 $ go build ./cmd/...
 ```
 
+## Docker
+You can use Dockerfile to build a docker image
+```shell
+docker build ./ -t spoof-dpi:latest
+```
+Use `docker run -it -p 8080:8080 --name spoof-dpi spoof-dpi:latest` to run container
+> If you want to passes options(like --enable-doh --timeout=2000) through the docker, you can run command like below
+```shell
+docker run -it -p 8080:8080 spoof-dpi:latest --enable-doh
+``` 
+- check the Usage for more options
+
 # Usage
 ```
 Usage: spoof-dpi [options...]
