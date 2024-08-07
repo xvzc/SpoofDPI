@@ -37,8 +37,15 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
 
 # linux-mipsle
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mipsle
-```
 
+# FreeBSD
+pkg install spoofdpi
+# or
+cd /usr/ports/net/spoofdpi && make install
+# and
+service spoofdpi enable
+service spoofdpi start
+```
 
 ## Go
 You can also install SpoofDPI with `go install`
