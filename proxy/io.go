@@ -28,24 +28,17 @@ func ReadBytes(conn *net.TCPConn, dest []byte) ([]byte, error) {
 	return dest[:n], err
 }
 
-func readBytesInternal(in io.Reader, dest []byte) (int, error) {
-	totalRead := 0
-	for {
-		numRead, readErr := in.Read(dest[totalRead:])
-		totalRead += numRead
-		if readErr != nil {
-			switch readErr.(type) {
-			case *net.OpError:
-				return totalRead, errors.New("timed out")
-			default:
-				return totalRead, readErr
-			}
+func readBytesInternal(conn *net.TCPConn, dest []byte) (int, error) {
+	totalRead, err := conn.Read(dest)
+	if err != nil {
+		switch err.(type) {
+		case *net.OpError:
+			return totalRead, errors.New("timed out")
+		default:
+			return totalRead, err
 		}
-		if totalRead == 0 {
-			return 0, io.EOF
-		}
-		return totalRead, nil
 	}
+	return totalRead, nil
 }
 
 func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td string, timeout int, bufferSize int) {
