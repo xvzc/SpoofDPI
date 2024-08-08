@@ -24,14 +24,14 @@ type Config struct {
 	Version        *bool
 }
 
-type StringArray []string
+type StringSet map[string]struct{}
 
-func (arr *StringArray) String() string {
-	return fmt.Sprintf("%s", *arr)
+func (ps *StringSet) String() string {
+	return fmt.Sprintf("%s", *ps)
 }
 
-func (arr *StringArray) Set(value string) error {
-	*arr = append(*arr, value)
+func (ps *StringSet) Set(value string) error {
+	(*ps)[value] = struct{}{}
 	return nil
 }
 
@@ -58,7 +58,8 @@ when not given, the client hello packet will be sent in two parts:
 fragmentation for the first data packet and the rest
 `)
 	config.Version = flag.Bool("v", false, "print spoof-dpi's version; this may contain some other relevant information")
-	var allowedPattern StringArray
+
+	allowedPattern := make(StringSet)
 	flag.Var(
 		&allowedPattern,
 		"pattern",
@@ -66,7 +67,7 @@ fragmentation for the first data packet and the rest
 	)
 	flag.Parse()
 
-	for _, pattern := range allowedPattern {
+	for pattern := range allowedPattern {
 		config.AllowedPattern = append(config.AllowedPattern, regexp.MustCompile(pattern))
 	}
 }
