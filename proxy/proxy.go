@@ -59,17 +59,15 @@ func (pxy *Proxy) Start() {
 		}
 
 		go func() {
-			tmpBuf := make([]byte, pxy.bufferSize)
-			b, err := ReadBytes(conn.(*net.TCPConn), tmpBuf)
+			pkt, err := packet.NewHttpPacketFromReader(conn)
 			if err != nil {
 				return
 			}
 
-			log.Debug("[PROXY] Request from ", conn.RemoteAddr(), "\n\n", string(b))
+			log.Debug("[PROXY] Request from ", conn.RemoteAddr(), "\n\n", string(pkt.Raw()))
 
-			pkt, err := packet.NewHttpPacket(b)
 			if err != nil {
-				log.Debug("[PROXY] Error while parsing request: ", string(b))
+				log.Debug("[PROXY] Error while parsing request: ", string(pkt.Raw()))
 				conn.Close()
 				return
 			}
