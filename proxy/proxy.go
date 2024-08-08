@@ -20,6 +20,7 @@ type Proxy struct {
 	resolver       *dns.DnsResolver
 	windowSize     int
 	allowedPattern []*regexp.Regexp
+	bufferSize     int
 }
 
 func New(config *util.Config) *Proxy {
@@ -30,6 +31,7 @@ func New(config *util.Config) *Proxy {
 		windowSize:     *config.WindowSize,
 		allowedPattern: config.AllowedPattern,
 		resolver:       dns.NewResolver(config),
+		bufferSize:     *config.BufferSize,
 	}
 }
 
@@ -46,7 +48,7 @@ func (pxy *Proxy) Start() {
 
 	log.Println("[PROXY] Created a listener on port", pxy.port)
 	if len(pxy.allowedPattern) > 0 {
-    log.Println("[PROXY] Number of white-listed pattern:", len(pxy.allowedPattern))
+		log.Println("[PROXY] Number of white-listed pattern:", len(pxy.allowedPattern))
 	}
 
 	for {
@@ -57,16 +59,15 @@ func (pxy *Proxy) Start() {
 		}
 
 		go func() {
-			b, err := ReadBytes(conn.(*net.TCPConn))
+			pkt, err := packet.NewHttpPacketFromReader(conn)
 			if err != nil {
 				return
 			}
 
-			log.Debug("[PROXY] Request from ", conn.RemoteAddr(), "\n\n", string(b))
+			log.Debug("[PROXY] Request from ", conn.RemoteAddr(), "\n\n", string(pkt.Raw()))
 
-			pkt, err := packet.NewHttpPacket(b)
 			if err != nil {
-				log.Debug("[PROXY] Error while parsing request: ", string(b))
+				log.Debug("[PROXY] Error while parsing request: ", string(pkt.Raw()))
 				conn.Close()
 				return
 			}
@@ -77,8 +78,8 @@ func (pxy *Proxy) Start() {
 				return
 			}
 
-      matched := pxy.patternMatches([]byte(pkt.Domain()))
-      useSystemDns := !matched
+			matched := pxy.patternMatches([]byte(pkt.Domain()))
+			useSystemDns := !matched
 
 			ip, err := pxy.resolver.Lookup(pkt.Domain(), useSystemDns)
 			if err != nil {
@@ -113,11 +114,11 @@ func (pxy *Proxy) patternMatches(bytes []byte) bool {
 
 	for _, pattern := range pxy.allowedPattern {
 		if pattern.Match(bytes) {
-      return true
-    }
+			return true
+		}
 	}
 
-  return false
+	return false
 }
 
 func isLoopedRequest(ip net.IP) bool {

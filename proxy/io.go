@@ -9,8 +9,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const BUF_SIZE = 1024
-
 func WriteChunks(conn *net.TCPConn, c [][]byte) (n int, err error) {
 	total := 0
 	for i := 0; i < len(c); i++ {
@@ -25,45 +23,35 @@ func WriteChunks(conn *net.TCPConn, c [][]byte) (n int, err error) {
 	return total, nil
 }
 
-func ReadBytes(conn *net.TCPConn) ([]byte, error) {
-	ret := make([]byte, 0)
-	buf := make([]byte, BUF_SIZE)
-
-	for {
-		n, err := conn.Read(buf)
-		if err != nil {
-			switch err.(type) {
-			case *net.OpError:
-				return nil, errors.New("timed out")
-			default:
-				return nil, err
-			}
-		}
-		ret = append(ret, buf[:n]...)
-
-		if n < BUF_SIZE {
-			break
-		}
-	}
-
-	if len(ret) == 0 {
-		return nil, io.EOF
-	}
-
-	return ret, nil
+func ReadBytes(conn *net.TCPConn, dest []byte) ([]byte, error) {
+	n, err := readBytesInternal(conn, dest)
+	return dest[:n], err
 }
 
-func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td string, timeout int) {
+func readBytesInternal(conn *net.TCPConn, dest []byte) (int, error) {
+	totalRead, err := conn.Read(dest)
+	if err != nil {
+		switch err.(type) {
+		case *net.OpError:
+			return totalRead, errors.New("timed out")
+		default:
+			return totalRead, err
+		}
+	}
+	return totalRead, nil
+}
+
+func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td string, timeout int, bufferSize int) {
 	proto += " "
-
+	buf := make([]byte, bufferSize)
 	for {
-    if timeout > 0 {
-      from.SetReadDeadline(
-        time.Now().Add(time.Millisecond * time.Duration(timeout)),
-      )
-    }
+		if timeout > 0 {
+			from.SetReadDeadline(
+				time.Now().Add(time.Millisecond * time.Duration(timeout)),
+			)
+		}
 
-		buf, err := ReadBytes(from)
+		bytesRead, err := ReadBytes(from, buf)
 		if err != nil {
 			if err == io.EOF {
 				log.Debug(proto, "Finished ", fd)
@@ -73,7 +61,7 @@ func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td strin
 			return
 		}
 
-		if _, err := to.Write(buf); err != nil {
+		if _, err := to.Write(bytesRead); err != nil {
 			log.Debug(proto, "Error Writing to ", td)
 			return
 		}

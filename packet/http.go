@@ -2,6 +2,7 @@ package packet
 
 import (
 	"bufio"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -56,12 +57,16 @@ func ParseUrl(raw []byte) {
 
 }
 
-func NewHttpPacket(raw []byte) (*HttpPacket, error) {
-	pkt := &HttpPacket{raw: raw}
-
-	pkt.parse()
-
-	return pkt, nil
+func NewHttpPacketFromReader(rdr io.Reader) (*HttpPacket, error) {
+	sb := strings.Builder{}
+	tee := io.TeeReader(rdr, &sb)
+	p := &HttpPacket{}
+	err := parse(p, bufio.NewReader(tee))
+	if err != nil {
+		return nil, err
+	}
+	p.raw = []byte(sb.String())
+	return p, nil
 }
 
 func (p *HttpPacket) Raw() []byte {
@@ -123,8 +128,7 @@ func (p *HttpPacket) Tidy() {
 	p.raw = []byte(result)
 }
 
-func (p *HttpPacket) parse() error {
-	reader := bufio.NewReader(strings.NewReader(string(p.raw)))
+func parse(p *HttpPacket, reader *bufio.Reader) error {
 	request, err := http.ReadRequest(reader)
 	if err != nil {
 		return err
@@ -152,6 +156,5 @@ func (p *HttpPacket) parse() error {
 	}
 
 	request.Body.Close()
-
 	return nil
 }
