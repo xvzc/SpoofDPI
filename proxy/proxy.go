@@ -15,13 +15,15 @@ import (
 
 const BufferSize = 1024
 
+type patternSet = map[*regexp.Regexp]struct{}
+
 type Proxy struct {
 	addr           string
 	port           int
 	timeout        int
 	resolver       *dns.DnsResolver
 	windowSize     int
-	allowedPattern []*regexp.Regexp
+	allowedPattern patternSet
 	bufferSize     int
 }
 
@@ -110,7 +112,7 @@ func (pxy *Proxy) patternMatches(bytes []byte) bool {
 		return true
 	}
 
-	for _, pattern := range pxy.allowedPattern {
+	for pattern := range pxy.allowedPattern {
 		if pattern.Match(bytes) {
 			return true
 		}

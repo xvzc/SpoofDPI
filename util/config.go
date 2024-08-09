@@ -19,10 +19,12 @@ type Config struct {
 	NoBanner       *bool
 	SystemProxy    *bool
 	Timeout        *int
-	AllowedPattern []*regexp.Regexp
+	AllowedPattern patternSet
 	WindowSize     *int
 	Version        *bool
 }
+
+type patternSet = map[*regexp.Regexp]struct{}
 
 type StringSet map[string]struct{}
 
@@ -59,16 +61,19 @@ fragmentation for the first data packet and the rest
 `)
 	config.Version = flag.Bool("v", false, "print spoof-dpi's version; this may contain some other relevant information")
 
-	allowedPattern := make(StringSet)
+	allowedPatterns := make(StringSet)
 	flag.Var(
-		&allowedPattern,
+		&allowedPatterns,
 		"pattern",
 		"bypass DPI only on packets matching this regex pattern; can be given multiple times",
 	)
 	flag.Parse()
 
-	for pattern := range allowedPattern {
-		config.AllowedPattern = append(config.AllowedPattern, regexp.MustCompile(pattern))
+	if len(allowedPatterns) > 0 {
+		config.AllowedPattern = make(patternSet, len(allowedPatterns))
+	}
+	for pattern := range allowedPatterns {
+		config.AllowedPattern[regexp.MustCompile(pattern)] = struct{}{}
 	}
 }
 
