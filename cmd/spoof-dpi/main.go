@@ -11,7 +11,7 @@ import (
 	"github.com/xvzc/SpoofDPI/util"
 	"github.com/xvzc/SpoofDPI/version"
 )
-
+curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s darwin-arm64
 func main() {
 	util.ParseArgs()
 	config := util.GetConfig()
