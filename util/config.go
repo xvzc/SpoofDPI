@@ -1,8 +1,12 @@
 package util
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
+	"maps"
+	"os"
+	"path/filepath"
 	"regexp"
 
 	"github.com/pterm/pterm"
@@ -20,11 +24,20 @@ type Config struct {
 	SystemProxy    *bool
 	Timeout        *int
 	AllowedPattern patternSet
+	PatternFile    *string
 	WindowSize     *int
 	Version        *bool
 }
 
-type patternSet = map[*regexp.Regexp]struct{}
+type patternSet map[*regexp.Regexp]struct{}
+
+func (ps *patternSet) Merge(patterns patternSet) {
+	if *ps == nil {
+		*ps = patterns
+	} else if patterns != nil && len(patterns) > 0 {
+		maps.Copy(*ps, patterns)
+	}
+}
 
 type StringSet map[string]struct{}
 
@@ -38,6 +51,46 @@ func (ps *StringSet) Set(value string) error {
 }
 
 var config *Config
+
+func (c *Config) Load() error {
+	if *c.PatternFile != "" {
+		patternFile, err := filepath.Abs(*c.PatternFile)
+		if err != nil {
+			return fmt.Errorf("pattern file path: %w", err)
+		}
+		*c.PatternFile = patternFile
+
+		patterns, err := loadPatternsFromFile(*c.PatternFile)
+		if err != nil {
+			return fmt.Errorf("loading patterns from file: %w", err)
+		}
+		c.AllowedPattern.Merge(patterns)
+	}
+	return nil
+}
+
+func loadPatternsFromFile(path string) (patterns patternSet, err error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("opening pattern file: %w", err)
+	}
+	defer func() {
+		if e := file.Close(); e != nil && err == nil {
+			err = e
+		}
+	}()
+
+	patterns = make(patternSet)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		re := regexp.MustCompile(scanner.Text())
+		patterns[re] = struct{}{}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("reading pattern file: %w", err)
+	}
+	return patterns, nil
+}
 
 func GetConfig() *Config {
 	return config
@@ -60,6 +113,12 @@ when not given, the client hello packet will be sent in two parts:
 fragmentation for the first data packet and the rest
 `)
 	config.Version = flag.Bool("v", false, "print spoof-dpi's version; this may contain some other relevant information")
+
+	config.PatternFile = flag.String(
+		"pattern-file",
+		"",
+		"bypass DPI only on packets matching regex patterns provided in a file (one per line)",
+	)
 
 	allowedPatterns := make(StringSet)
 	flag.Var(

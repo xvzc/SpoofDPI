@@ -20,6 +20,10 @@ func main() {
 		os.Exit(0)
 	}
 
+	if err := config.Load(); err != nil {
+		log.Fatalf("loading config: %v", err)
+	}
+
 	pxy := proxy.New(config)
 	if *config.Debug {
 		log.SetLevel(log.DebugLevel)
