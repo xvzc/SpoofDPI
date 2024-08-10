@@ -13,6 +13,8 @@ import (
 	"github.com/xvzc/SpoofDPI/util"
 )
 
+const BUFFER_SIZE = 1024
+
 type Proxy struct {
 	addr           string
 	port           int
@@ -31,7 +33,7 @@ func New(config *util.Config) *Proxy {
 		windowSize:     *config.WindowSize,
 		allowedPattern: config.AllowedPattern,
 		resolver:       dns.NewResolver(config),
-		bufferSize:     *config.BufferSize,
+		bufferSize:     BUFFER_SIZE,
 	}
 }
 

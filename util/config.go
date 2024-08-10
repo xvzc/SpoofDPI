@@ -22,7 +22,6 @@ type Config struct {
 	AllowedPattern []*regexp.Regexp
 	WindowSize     *int
 	Version        *bool
-	BufferSize     *int
 }
 
 type StringArray []string
@@ -59,7 +58,6 @@ when not given, the client hello packet will be sent in two parts:
 fragmentation for the first data packet and the rest
 `)
 	config.Version = flag.Bool("v", false, "print spoof-dpi's version; this may contain some other relevant information")
-	config.BufferSize = flag.Int("buffer-size", 1024, "buffer size, in number of bytes, is the maximum amount of data that can be read at once from a remote resource")
 	var allowedPattern StringArray
 	flag.Var(
 		&allowedPattern,
