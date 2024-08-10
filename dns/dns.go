@@ -6,10 +6,7 @@ import (
 	"net"
 	"regexp"
 	"strconv"
-	"time"
 
-	"github.com/likexian/doh"
-	dohDns "github.com/likexian/doh/dns"
 	"github.com/miekg/dns"
 	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/util"
@@ -37,17 +34,17 @@ func (d *DnsResolver) Lookup(domain string, useSystemDns bool) (string, error) {
 	}
 
 	if useSystemDns {
-    log.Debug("[DNS] ", domain, " resolving with system dns")
+		log.Debug("[DNS] ", domain, " resolving with system dns")
 		return systemLookup(domain)
 	}
 
 	if d.enableDoh {
-    log.Debug("[DNS] ", domain, " resolving with dns over https")
+		log.Debug("[DNS] ", domain, " resolving with dns over https")
 		return dohLookup(domain)
 	}
 
-  log.Debug("[DNS] ", domain, " resolving with custom dns")
-  return customLookup(d.host, d.port, domain) 
+	log.Debug("[DNS] ", domain, " resolving with custom dns")
+	return customLookup(d.host, d.port, domain)
 }
 
 func customLookup(host string, port string, domain string) (string, error) {
@@ -89,28 +86,14 @@ func systemLookup(domain string) (string, error) {
 }
 
 func dohLookup(domain string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	c := doh.Use(doh.CloudflareProvider, doh.GoogleProvider)
+	log.Debug("[DoH] ", domain, " resolving with dns over https")
 
-	rsp, err := c.Query(ctx, dohDns.Domain(domain), dohDns.TypeA)
+	dnsUpstream := util.GetConfig().DnsAddr
+	client := GetDoHClient(*dnsUpstream)
+	resp, err := client.Resolve(domain, dns.TypeA)
 	if err != nil {
-		return "", errors.New("could not resolve the domain(doh)")
-	}
-	// doh dns answer
-	answer := rsp.Answer
-
-	// print all answer
-	for _, a := range answer {
-		if a.Type != 1 { // Type == 1 -> A Record
-			continue
-		}
-
-		return a.Data, nil
+		return "", errors.New("couldn not resolve the domain(doh)")
 	}
 
-	// close the client
-	c.Close()
-
-	return "", errors.New("no record found(doh)")
+	return resp[0], nil
 }
