@@ -88,20 +88,31 @@ func (d *DoHClient) doGetRequest(msg *dns.Msg) (*dns.Msg, error) {
 	return ret_msg, nil
 }
 
-func (d *DoHClient) Resolve(domain string, dnsType uint16) ([]string, error) {
-	msg := new(dns.Msg)
-	msg.SetQuestion(dns.Fqdn(domain), dnsType)
-
-	resp, err := d.doGetRequest(msg)
-	if err != nil {
-		return nil, err
-	}
-
+func (d *DoHClient) Resolve(domain string, dnsTypes []uint16) ([]string, error) {
 	var ret []string
-	for _, ans := range resp.Answer {
-		if a, ok := ans.(*dns.A); ok {
-			ret = append(ret, a.A.String())
+
+	for _, dnsType := range dnsTypes {
+		msg := new(dns.Msg)
+		msg.SetQuestion(dns.Fqdn(domain), dnsType)
+
+		resp, err := d.doGetRequest(msg)
+		if err != nil {
+			return nil, err
+		}
+
+		if resp.Rcode != dns.RcodeSuccess {
+			continue
+		}
+
+		for _, answer := range resp.Answer {
+			if t, ok := answer.(*dns.A); ok {
+				ret = append(ret, t.A.String())
+			}
+			if t, ok := answer.(*dns.AAAA); ok {
+				ret = append(ret, t.AAAA.String())
+			}
 		}
 	}
+
 	return ret, nil
 }

@@ -90,10 +90,17 @@ func dohLookup(domain string) (string, error) {
 
 	dnsUpstream := util.GetConfig().DnsAddr
 	client := GetDoHClient(*dnsUpstream)
-	resp, err := client.Resolve(domain, dns.TypeA)
-	if err != nil {
-		return "", errors.New("couldn not resolve the domain(doh)")
+	// try up to 3 times
+	for i := 0; i < 3; i++ {
+		resp, err := client.Resolve(domain, []uint16{dns.TypeA, dns.TypeAAAA})
+		if err == nil {
+			if len(resp) == 0 { // yes this happens
+				return "", errors.New("no record found(doh)")
+			}
+
+			return resp[0], nil
+		}
 	}
 
-	return resp[0], nil
+	return "", errors.New("could not resolve the domain(doh)")
 }
