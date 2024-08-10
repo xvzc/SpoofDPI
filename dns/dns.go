@@ -6,6 +6,7 @@ import (
 	"net"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/miekg/dns"
 	log "github.com/sirupsen/logrus"
@@ -86,13 +87,15 @@ func systemLookup(domain string) (string, error) {
 }
 
 func dohLookup(domain string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 	log.Debug("[DoH] ", domain, " resolving with dns over https")
 
 	dnsUpstream := util.GetConfig().DnsAddr
 	client := GetDoHClient(*dnsUpstream)
 	// try up to 3 times
 	for i := 0; i < 3; i++ {
-		resp, err := client.Resolve(domain, []uint16{dns.TypeA, dns.TypeAAAA})
+		resp, err := client.Resolve(ctx, domain, []uint16{dns.TypeA, dns.TypeAAAA})
 		if err == nil {
 			if len(resp) == 0 { // yes this happens
 				return "", errors.New("no record found(doh)")

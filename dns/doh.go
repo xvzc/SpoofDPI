@@ -2,6 +2,7 @@ package dns
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"net"
@@ -52,7 +53,7 @@ func GetDoHClient(upstream string) *DoHClient {
 	return client
 }
 
-func (d *DoHClient) doGetRequest(msg *dns.Msg) (*dns.Msg, error) {
+func (d *DoHClient) doGetRequest(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
 	pack, err := msg.Pack()
 	if err != nil {
 		return nil, err
@@ -64,6 +65,7 @@ func (d *DoHClient) doGetRequest(msg *dns.Msg) (*dns.Msg, error) {
 		return nil, err
 	}
 
+	req = req.WithContext(ctx)
 	req.Header.Set("Accept", "application/dns-message")
 
 	resp, err := d.c.Do(req)
@@ -88,14 +90,14 @@ func (d *DoHClient) doGetRequest(msg *dns.Msg) (*dns.Msg, error) {
 	return ret_msg, nil
 }
 
-func (d *DoHClient) Resolve(domain string, dnsTypes []uint16) ([]string, error) {
+func (d *DoHClient) Resolve(ctx context.Context, domain string, dnsTypes []uint16) ([]string, error) {
 	var ret []string
 
 	for _, dnsType := range dnsTypes {
 		msg := new(dns.Msg)
 		msg.SetQuestion(dns.Fqdn(domain), dnsType)
 
-		resp, err := d.doGetRequest(msg)
+		resp, err := d.doGetRequest(ctx, msg)
 		if err != nil {
 			return nil, err
 		}
