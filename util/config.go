@@ -15,6 +15,7 @@ type Config struct {
 	DnsAddr        *string
 	DnsPort        *int
 	EnableDoh      *bool
+	DNSCacheExpiry *int
 	Debug          *bool
 	NoBanner       *bool
 	SystemProxy    *bool
@@ -48,6 +49,7 @@ func ParseArgs() {
 	config.DnsAddr = flag.String("dns-addr", "8.8.8.8", "dns address")
 	config.DnsPort = flag.Int("dns-port", 53, "port number for dns")
 	config.EnableDoh = flag.Bool("enable-doh", false, "enable 'dns-over-https'")
+	config.DNSCacheExpiry = flag.Int("dns-cache-expiry", 60, "seconds to keep dns cache")
 	config.Debug = flag.Bool("debug", false, "enable debug output")
 	config.NoBanner = flag.Bool("no-banner", false, "disable banner")
 	config.SystemProxy = flag.Bool("system-proxy", true, "enable system-wide proxy")

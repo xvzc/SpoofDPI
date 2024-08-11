@@ -6,6 +6,7 @@ import (
 	"net"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/miekg/dns"
@@ -27,6 +28,8 @@ func NewResolver(config *util.Config) *DnsResolver {
 	}
 }
 
+var resolverLock = sync.Mutex{}
+
 func (d *DnsResolver) Lookup(domain string, useSystemDns bool) (string, error) {
 	ipRegex := "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
 
@@ -34,18 +37,38 @@ func (d *DnsResolver) Lookup(domain string, useSystemDns bool) (string, error) {
 		return domain, nil
 	}
 
+	resolverLock.Lock()
+	defer resolverLock.Unlock()
+
+	dnsCacheMap := GetCache()
+	if value, err := dnsCacheMap.Get(domain); err == nil {
+		log.Debug("[DNS] Served ", domain, " from cache")
+		return value, nil
+	}
+
+	var value string
+	var err error
+
+	// Non filtered
 	if useSystemDns {
 		log.Debug("[DNS] ", domain, " resolving with system dns")
-		return systemLookup(domain)
+		value, err = systemLookup(domain)
+	} else {
+		// Filtered
+		if d.enableDoh {
+			log.Debug("[DNS] ", domain, " resolving with dns over https")
+			value, err = dohLookup(d.host, domain)
+		} else {
+			log.Debug("[DNS] ", domain, " resolving with custom dns")
+			value, err = customLookup(d.host, d.port, domain)
+		}
 	}
 
-	if d.enableDoh {
-		log.Debug("[DNS] ", domain, " resolving with dns over https")
-		return dohLookup(d.host, domain)
+	if err != nil {
+		dnsCacheMap.Set(domain, value)
 	}
 
-	log.Debug("[DNS] ", domain, " resolving with custom dns")
-	return customLookup(d.host, d.port, domain)
+	return value, err
 }
 
 func customLookup(host string, port string, domain string) (string, error) {
