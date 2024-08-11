@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/miekg/dns"
@@ -20,35 +21,38 @@ type DoHClient struct {
 }
 
 var client *DoHClient
+var clientOnce sync.Once
 
 func GetDoHClient(upstream string) *DoHClient {
-	if client == nil {
-		if !strings.HasPrefix(upstream, "https://") {
-			upstream = "https://" + upstream
-		}
+	clientOnce.Do(func() {
+		if client == nil {
+			if !strings.HasPrefix(upstream, "https://") {
+				upstream = "https://" + upstream
+			}
 
-		if !strings.HasSuffix(upstream, "/dns-query") {
-			upstream = upstream + "/dns-query"
-		}
+			if !strings.HasSuffix(upstream, "/dns-query") {
+				upstream = upstream + "/dns-query"
+			}
 
-		c := &http.Client{
-			Timeout: 5 * time.Second,
-			Transport: &http.Transport{
-				DialContext: (&net.Dialer{
-					Timeout:   3 * time.Second,
-					KeepAlive: 30 * time.Second,
-				}).DialContext,
-				TLSHandshakeTimeout: 5 * time.Second,
-				MaxIdleConnsPerHost: 100,
-				MaxIdleConns:        100,
-			},
-		}
+			c := &http.Client{
+				Timeout: 5 * time.Second,
+				Transport: &http.Transport{
+					DialContext: (&net.Dialer{
+						Timeout:   3 * time.Second,
+						KeepAlive: 30 * time.Second,
+					}).DialContext,
+					TLSHandshakeTimeout: 5 * time.Second,
+					MaxIdleConnsPerHost: 100,
+					MaxIdleConns:        100,
+				},
+			}
 
-		client = &DoHClient{
-			upstream: upstream,
-			c:        c,
+			client = &DoHClient{
+				upstream: upstream,
+				c:        c,
+			}
 		}
-	}
+	})
 
 	return client
 }
