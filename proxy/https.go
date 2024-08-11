@@ -45,7 +45,7 @@ func (pxy *Proxy) handleHttps(lConn *net.TCPConn, exploit bool, initPkt *packet.
 	log.Debug("[HTTPS] Sent 200 Connection Estabalished to ", lConn.RemoteAddr())
 
 	// Read client hello
-	tmpBuffer := make([]byte, pxy.bufferSize)
+	tmpBuffer := make([]byte, 4096)
 	clientHello, err := ReadBytes(lConn, tmpBuffer)
 	if err != nil {
 		log.Debug("[HTTPS] Error reading client hello from the client", err)
