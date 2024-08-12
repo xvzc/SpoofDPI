@@ -59,7 +59,7 @@ func customLookup(host string, port string, domain string) (string, error) {
 
 	response, _, err := c.Exchange(msg, dnsServer)
 	if err != nil {
-		return "", errors.New("couldn not resolve the domain(custom)")
+		return "", errors.New("could not resolve the domain(custom)")
 	}
 
 	for _, answer := range response.Answer {
@@ -76,7 +76,7 @@ func systemLookup(domain string) (string, error) {
 	systemResolver := net.Resolver{PreferGo: true}
 	ips, err := systemResolver.LookupIPAddr(context.Background(), domain)
 	if err != nil {
-		return "", errors.New("couldn not resolve the domain(system)")
+		return "", errors.New("could not resolve the domain(system)")
 	}
 
 	for _, ip := range ips {
@@ -89,18 +89,22 @@ func systemLookup(domain string) (string, error) {
 func dohLookup(domain string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	log.Debug("[DoH] ", domain, " resolving with dns over https")
 
-	dnsUpstream := util.GetConfig().DnsAddr
-	client := GetDoHClient(*dnsUpstream)
-	resp, err := client.Resolve(ctx, domain, []uint16{dns.TypeA, dns.TypeAAAA})
-	if err == nil {
-		if len(resp) == 0 { // yes this happens
-			return "", errors.New("no record found(doh)")
-		}
+	client := GetDOHClient(*util.GetConfig().DnsAddr)
 
-		return resp[0], nil
+	msg := new(dns.Msg)
+	msg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
+
+	response, err := client.Exchange(ctx, domain, msg)
+	if err != nil {
+		return "", errors.New("could not resolve the domain(doh)")
 	}
 
-	return "", errors.New("could not resolve the domain(doh)")
+	for _, answer := range response.Answer {
+		if record, ok := answer.(*dns.A); ok {
+			return record.A.String(), nil
+		}
+	}
+
+	return "", errors.New("no record found(system)")
 }
