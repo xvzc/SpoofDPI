@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -23,17 +22,9 @@ type DOHClient struct {
 var client *DOHClient
 var clientOnce sync.Once
 
-func GetDOHClient(upstream string) *DOHClient {
+func getDOHClient(host string) *DOHClient {
 	clientOnce.Do(func() {
 		if client == nil {
-			if !strings.HasPrefix(upstream, "https://") {
-				upstream = "https://" + upstream
-			}
-
-			if !strings.HasSuffix(upstream, "/dns-query") {
-				upstream = upstream + "/dns-query"
-			}
-
 			c := &http.Client{
 				Timeout: 5 * time.Second,
 				Transport: &http.Transport{
@@ -48,7 +39,7 @@ func GetDOHClient(upstream string) *DOHClient {
 			}
 
 			client = &DOHClient{
-				upstream: upstream,
+				upstream: "https://" + host + "/dns-query",
 				client:   c,
 			}
 		}
@@ -57,7 +48,7 @@ func GetDOHClient(upstream string) *DOHClient {
 	return client
 }
 
-func (d *DOHClient) query(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
+func (d *DOHClient) dohQuery(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
 	pack, err := msg.Pack()
 	if err != nil {
 		return nil, err
@@ -97,8 +88,8 @@ func (d *DOHClient) query(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
 	return resultMsg, nil
 }
 
-func (d *DOHClient) Exchange(ctx context.Context, domain string, msg *dns.Msg) (*dns.Msg, error) {
-	res, err := d.query(ctx, msg)
+func (d *DOHClient) dohExchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
+	res, err := d.dohQuery(ctx, msg)
 	if err != nil {
 		return nil, err
 	}

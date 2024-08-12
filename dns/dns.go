@@ -41,7 +41,7 @@ func (d *DnsResolver) Lookup(domain string, useSystemDns bool) (string, error) {
 
 	if d.enableDoh {
 		log.Debug("[DNS] ", domain, " resolving with dns over https")
-		return dohLookup(domain)
+		return dohLookup(d.host, domain)
 	}
 
 	log.Debug("[DNS] ", domain, " resolving with custom dns")
@@ -86,16 +86,16 @@ func systemLookup(domain string) (string, error) {
 	return "", errors.New("no record found(system)")
 }
 
-func dohLookup(domain string) (string, error) {
+func dohLookup(host string, domain string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	client := GetDOHClient(*util.GetConfig().DnsAddr)
+	client := getDOHClient(host)
 
 	msg := new(dns.Msg)
 	msg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
 
-	response, err := client.Exchange(ctx, domain, msg)
+	response, err := client.dohExchange(ctx, msg)
 	if err != nil {
 		return "", errors.New("could not resolve the domain(doh)")
 	}
