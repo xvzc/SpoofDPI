@@ -45,12 +45,12 @@ func (pxy *Proxy) handleHttps(lConn *net.TCPConn, exploit bool, initPkt *packet.
 	log.Debug("[HTTPS] Sent 200 Connection Estabalished to ", lConn.RemoteAddr())
 
 	// Read client hello
-	hello, err := ReadClientHello(lConn)
-	if err != nil {
+	m, err := ReadTlsMessage(lConn)
+	if err != nil || !IsClientHello(m) {
 		log.Debug("[HTTPS] Error reading client hello from the client", err)
 		return
 	}
-	clientHello := hello.Raw
+	clientHello := m.Raw
 
 	log.Debug("[HTTPS] Client sent hello ", len(clientHello), "bytes")
 
