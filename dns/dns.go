@@ -106,5 +106,5 @@ func dohLookup(host string, domain string) (string, error) {
 		}
 	}
 
-	return "", errors.New("no record found(system)")
+	return "", errors.New("no record found(doh)")
 }

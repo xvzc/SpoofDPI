@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"regexp"
 	"sync"
 	"time"
 
@@ -16,36 +17,39 @@ import (
 
 type DOHClient struct {
 	upstream string
-	client   *http.Client
+	httpClient   *http.Client
 }
 
-var client *DOHClient
+var dohClient *DOHClient
 var clientOnce sync.Once
 
 func getDOHClient(host string) *DOHClient {
-	clientOnce.Do(func() {
-		if client == nil {
-			c := &http.Client{
-				Timeout: 5 * time.Second,
-				Transport: &http.Transport{
-					DialContext: (&net.Dialer{
-						Timeout:   3 * time.Second,
-						KeepAlive: 30 * time.Second,
-					}).DialContext,
-					TLSHandshakeTimeout: 5 * time.Second,
-					MaxIdleConnsPerHost: 100,
-					MaxIdleConns:        100,
-				},
-			}
+	if dohClient != nil {
+		return dohClient
+	}
 
-			client = &DOHClient{
-				upstream: "https://" + host + "/dns-query",
-				client:   c,
-			}
+	clientOnce.Do(func() {
+		h := &http.Client{
+			Timeout: 5 * time.Second,
+			Transport: &http.Transport{
+				DialContext: (&net.Dialer{
+					Timeout:   3 * time.Second,
+					KeepAlive: 30 * time.Second,
+				}).DialContext,
+				TLSHandshakeTimeout: 5 * time.Second,
+				MaxIdleConnsPerHost: 100,
+				MaxIdleConns:        100,
+			},
+		}
+
+		host = regexp.MustCompile(`^https:\/\/|\/dns-query$`).ReplaceAllString(host, "")
+		dohClient = &DOHClient{
+			upstream: "https://" + host + "/dns-query",
+			httpClient:   h,
 		}
 	})
 
-	return client
+	return dohClient
 }
 
 func (d *DOHClient) dohQuery(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
@@ -63,7 +67,7 @@ func (d *DOHClient) dohQuery(ctx context.Context, msg *dns.Msg) (*dns.Msg, error
 	req = req.WithContext(ctx)
 	req.Header.Set("Accept", "application/dns-message")
 
-	resp, err := d.client.Do(req)
+	resp, err := d.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
