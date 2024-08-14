@@ -45,11 +45,12 @@ func (pxy *Proxy) handleHttps(lConn *net.TCPConn, exploit bool, initPkt *packet.
 	log.Debug("[HTTPS] Sent 200 Connection Estabalished to ", lConn.RemoteAddr())
 
 	// Read client hello
-	clientHello, err := ReadBytes(lConn)
-	if err != nil {
+	m, err := ReadTlsMessage(lConn)
+	if err != nil || !IsClientHello(m) {
 		log.Debug("[HTTPS] Error reading client hello from the client", err)
 		return
 	}
+	clientHello := m.Raw
 
 	log.Debug("[HTTPS] Client sent hello ", len(clientHello), "bytes")
 
@@ -60,7 +61,7 @@ func (pxy *Proxy) handleHttps(lConn *net.TCPConn, exploit bool, initPkt *packet.
 	// lConn.SetLinger(3)
 	// rConn.SetLinger(3)
 
-	go Serve(rConn, lConn, "[HTTPS]", rConn.RemoteAddr().String(), initPkt.Domain(), pxy.timeout)
+	go Serve(rConn, lConn, "[HTTPS]", rConn.RemoteAddr().String(), initPkt.Domain(), pxy.timeout, pxy.bufferSize)
 
 	if exploit {
 		log.Debug("[HTTPS] Writing chunked client hello to ", initPkt.Domain())
@@ -77,7 +78,7 @@ func (pxy *Proxy) handleHttps(lConn *net.TCPConn, exploit bool, initPkt *packet.
 		}
 	}
 
-	Serve(lConn, rConn, "[HTTPS]", lConn.RemoteAddr().String(), initPkt.Domain(), pxy.timeout)
+	Serve(lConn, rConn, "[HTTPS]", lConn.RemoteAddr().String(), initPkt.Domain(), pxy.timeout, pxy.bufferSize)
 }
 
 func splitInChunks(bytes []byte, size int) [][]byte {
