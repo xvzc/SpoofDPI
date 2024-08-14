@@ -9,19 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func WriteChunks(conn *net.TCPConn, c [][]byte) (n int, err error) {
-	total := 0
-	for i := 0; i < len(c); i++ {
-		b, err := conn.Write(c[i])
-		if err != nil {
-			return 0, nil
-		}
-
-		total += b
-	}
-
-	return total, nil
-}
+const TLSHeaderLen = 5
 
 func ReadBytes(conn *net.TCPConn, dest []byte) ([]byte, error) {
 	n, err := readBytesInternal(conn, dest)

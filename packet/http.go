@@ -53,11 +53,7 @@ type HttpPacket struct {
 	version string
 }
 
-func ParseUrl(raw []byte) {
-
-}
-
-func NewHttpPacketFromReader(rdr io.Reader) (*HttpPacket, error) {
+func ReadHttpPacket(rdr io.Reader) (*HttpPacket, error) {
 	sb := strings.Builder{}
 	tee := io.TeeReader(rdr, &sb)
 	p := &HttpPacket{}
