@@ -13,7 +13,7 @@ import (
 	"github.com/xvzc/SpoofDPI/util"
 )
 
-const BUFFER_SIZE = 1024
+const BufferSize = 1024
 
 type Proxy struct {
 	addr           string
@@ -33,7 +33,7 @@ func New(config *util.Config) *Proxy {
 		windowSize:     *config.WindowSize,
 		allowedPattern: config.AllowedPattern,
 		resolver:       dns.NewResolver(config),
-		bufferSize:     BUFFER_SIZE,
+		bufferSize:     BufferSize,
 	}
 }
 
@@ -61,18 +61,14 @@ func (pxy *Proxy) Start() {
 		}
 
 		go func() {
-			pkt, err := packet.NewHttpPacketFromReader(conn)
-			if err != nil {
-				return
-			}
-
-			log.Debug("[PROXY] Request from ", conn.RemoteAddr(), "\n\n", string(pkt.Raw()))
-
+			pkt, err := packet.ReadHttpPacket(conn)
 			if err != nil {
 				log.Debug("[PROXY] Error while parsing request: ", string(pkt.Raw()))
 				conn.Close()
 				return
 			}
+
+			log.Debug("[PROXY] Request from ", conn.RemoteAddr(), "\n\n", string(pkt.Raw()))
 
 			if !pkt.IsValidMethod() {
 				log.Debug("[PROXY] Unsupported method: ", pkt.Method())
