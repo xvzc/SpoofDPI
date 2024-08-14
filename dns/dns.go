@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/likexian/doh"
-	dohDns "github.com/likexian/doh/dns"
 	"github.com/miekg/dns"
 	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/util"
@@ -37,17 +35,17 @@ func (d *DnsResolver) Lookup(domain string, useSystemDns bool) (string, error) {
 	}
 
 	if useSystemDns {
-    log.Debug("[DNS] ", domain, " resolving with system dns")
+		log.Debug("[DNS] ", domain, " resolving with system dns")
 		return systemLookup(domain)
 	}
 
 	if d.enableDoh {
-    log.Debug("[DNS] ", domain, " resolving with dns over https")
-		return dohLookup(domain)
+		log.Debug("[DNS] ", domain, " resolving with dns over https")
+		return dohLookup(d.host, domain)
 	}
 
-  log.Debug("[DNS] ", domain, " resolving with custom dns")
-  return customLookup(d.host, d.port, domain) 
+	log.Debug("[DNS] ", domain, " resolving with custom dns")
+	return customLookup(d.host, d.port, domain)
 }
 
 func customLookup(host string, port string, domain string) (string, error) {
@@ -61,7 +59,7 @@ func customLookup(host string, port string, domain string) (string, error) {
 
 	response, _, err := c.Exchange(msg, dnsServer)
 	if err != nil {
-		return "", errors.New("couldn not resolve the domain(custom)")
+		return "", errors.New("could not resolve the domain(custom)")
 	}
 
 	for _, answer := range response.Answer {
@@ -78,7 +76,7 @@ func systemLookup(domain string) (string, error) {
 	systemResolver := net.Resolver{PreferGo: true}
 	ips, err := systemResolver.LookupIPAddr(context.Background(), domain)
 	if err != nil {
-		return "", errors.New("couldn not resolve the domain(system)")
+		return "", errors.New("could not resolve the domain(system)")
 	}
 
 	for _, ip := range ips {
@@ -88,29 +86,25 @@ func systemLookup(domain string) (string, error) {
 	return "", errors.New("no record found(system)")
 }
 
-func dohLookup(domain string) (string, error) {
+func dohLookup(host string, domain string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	c := doh.Use(doh.CloudflareProvider, doh.GoogleProvider)
 
-	rsp, err := c.Query(ctx, dohDns.Domain(domain), dohDns.TypeA)
+	client := getDOHClient(host)
+
+	msg := new(dns.Msg)
+	msg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
+
+	response, err := client.dohExchange(ctx, msg)
 	if err != nil {
 		return "", errors.New("could not resolve the domain(doh)")
 	}
-	// doh dns answer
-	answer := rsp.Answer
 
-	// print all answer
-	for _, a := range answer {
-		if a.Type != 1 { // Type == 1 -> A Record
-			continue
+	for _, answer := range response.Answer {
+		if record, ok := answer.(*dns.A); ok {
+			return record.A.String(), nil
 		}
-
-		return a.Data, nil
 	}
-
-	// close the client
-	c.Close()
 
 	return "", errors.New("no record found(doh)")
 }

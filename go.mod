@@ -5,7 +5,6 @@ go 1.21
 toolchain go1.21.5
 
 require (
-	github.com/likexian/doh v0.7.1
 	github.com/miekg/dns v1.1.61
 	github.com/pterm/pterm v0.12.79
 	github.com/sirupsen/logrus v1.9.3
@@ -17,7 +16,6 @@ require (
 	atomicgo.dev/schedule v0.1.0 // indirect
 	github.com/containerd/console v1.0.3 // indirect
 	github.com/gookit/color v1.5.4 // indirect
-	github.com/likexian/gokit v0.25.15 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
