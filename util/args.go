@@ -14,6 +14,7 @@ type Args struct {
 	DnsAddr        string
 	DnsPort        uint16
 	DnsIPv4Only    bool
+	DnsCacheTTL    uint16
 	EnableDoh      bool
 	Debug          bool
 	Silent         bool
@@ -42,6 +43,7 @@ func ParseArgs() *Args {
 	uintNVar(&args.Port, "port", 8080, "port")
 	flag.StringVar(&args.DnsAddr, "dns-addr", "8.8.8.8", "dns address")
 	uintNVar(&args.DnsPort, "dns-port", 53, "port number for dns")
+	uintNVar(&args.DnsCacheTTL, "dns-cache-ttl", 300, "time-to-live in seconds for dns cache")
 	flag.BoolVar(&args.EnableDoh, "enable-doh", false, "enable 'dns-over-https'")
 	flag.BoolVar(&args.Debug, "debug", false, "enable debug output")
 	flag.BoolVar(&args.Silent, "silent", false, "do not show the banner and server information at start up")

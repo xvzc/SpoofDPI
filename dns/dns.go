@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/xvzc/SpoofDPI/dns/cache"
 	"github.com/xvzc/SpoofDPI/dns/resolver"
 	"github.com/xvzc/SpoofDPI/util"
 	"github.com/xvzc/SpoofDPI/util/log"
@@ -23,6 +24,7 @@ type Resolver interface {
 type Dns struct {
 	host          string
 	port          string
+	dnsCache      *cache.DNSCache
 	systemClient  Resolver
 	generalClient Resolver
 	dohClient     Resolver
@@ -41,6 +43,7 @@ func NewDns(config *util.Config) *Dns {
 	return &Dns{
 		host:          config.DnsAddr,
 		port:          port,
+		dnsCache:      cache.GetCache(),
 		systemClient:  resolver.NewSystemResolver(),
 		generalClient: resolver.NewGeneralResolver(net.JoinHostPort(addr, port)),
 		dohClient:     resolver.NewDOHResolver(addr),
@@ -54,6 +57,11 @@ func (d *Dns) ResolveHost(ctx context.Context, host string, enableDoh bool, useS
 
 	if ip, err := parseIpAddr(host); err == nil {
 		return ip.String(), nil
+	}
+
+	if r, ok := d.dnsCache.Get(host); ok {
+		logger.Debug().Msgf("found %s in cache", host)
+		return r, nil
 	}
 
 	clt := d.clientFactory(enableDoh, useSystemDns)
@@ -71,8 +79,11 @@ func (d *Dns) ResolveHost(ctx context.Context, host string, enableDoh bool, useS
 	}
 
 	if len(addrs) > 0 {
-		d := time.Since(t).Milliseconds()
-		logger.Debug().Msgf("resolved %s from %s in %d ms", addrs[0].String(), host, d)
+		elapsed := time.Since(t).Milliseconds()
+		logger.Debug().Msgf("resolved %s from %s in %d ms", addrs[0].String(), host, elapsed)
+
+		d.dnsCache.Set(host, addrs[0].String())
+
 		return addrs[0].String(), nil
 	}
 
