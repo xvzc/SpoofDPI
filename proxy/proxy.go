@@ -63,7 +63,7 @@ func (pxy *Proxy) Start() {
 		go func() {
 			pkt, err := packet.ReadHttpPacket(conn)
 			if err != nil {
-				log.Debug("[PROXY] Error while parsing request: ", string(pkt.Raw()))
+				log.Debug("[PROXY] Error while parsing request: ", err)
 				conn.Close()
 				return
 			}
