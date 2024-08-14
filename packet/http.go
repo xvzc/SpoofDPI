@@ -54,14 +54,11 @@ type HttpPacket struct {
 }
 
 func ReadHttpPacket(rdr io.Reader) (*HttpPacket, error) {
-	sb := strings.Builder{}
-	tee := io.TeeReader(rdr, &sb)
-	p := &HttpPacket{}
-	err := parse(p, bufio.NewReader(tee))
+	p, err := parse(rdr)
 	if err != nil {
 		return nil, err
 	}
-	p.raw = []byte(sb.String())
+
 	return p, nil
 }
 
@@ -124,11 +121,16 @@ func (p *HttpPacket) Tidy() {
 	p.raw = []byte(result)
 }
 
-func parse(p *HttpPacket, reader *bufio.Reader) error {
-	request, err := http.ReadRequest(reader)
+func parse(rdr io.Reader) (*HttpPacket, error) {
+	sb := strings.Builder{}
+	tee := io.TeeReader(rdr, &sb)
+	request, err := http.ReadRequest(bufio.NewReader(tee))
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	p := &HttpPacket{}
+	p.raw = []byte(sb.String())
 
 	p.domain, p.port, err = net.SplitHostPort(request.Host)
 	if err != nil {
@@ -152,5 +154,5 @@ func parse(p *HttpPacket, reader *bufio.Reader) error {
 	}
 
 	request.Body.Close()
-	return nil
+	return p, nil
 }
