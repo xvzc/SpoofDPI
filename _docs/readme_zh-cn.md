@@ -50,12 +50,24 @@ $ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi@latest
 ```
 
 ## Git
-You can also build your own
+你可以从源码构建可执行文件
 ```bash
 $ git clone https://github.com/xvzc/SpoofDPI.git
 $ cd SpoofDPI
 $ go build ./cmd/...
 ```
+
+## Docker
+你可以从Dockerfile构建你的docker image
+```shell
+docker build ./ -t spoof-dpi:latest
+```
+使用`docker run -it -p 8080:8080 --name spoof-dpi spoof-dpi:latest`运行容器
+> 如果你希望在运行容器服务的时候传递参数(比如--enable-doh --timeout=2000), 你可以使用以下命令格式
+```shell
+docker run -it -p 8080:8080 spoof-dpi:latest --enable-doh
+```
+- 想要了解更多的参数, 请检查Usage部分内容
 
 # 使用方法
 

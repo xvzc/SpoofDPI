@@ -10,4 +10,6 @@ WORKDIR /
 
 COPY --from=builder /go/bin/spoof-dpi .
 
+EXPOSE 8080
+
 ENTRYPOINT ["./spoof-dpi"]
