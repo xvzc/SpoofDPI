@@ -36,6 +36,7 @@ func GetCache() *DNSCache {
 			for {
 				time.Sleep(time.Duration(*util.GetConfig().DNSCacheExpiry) * time.Second)
 				dnsCache.cacheLock.Lock()
+				defer dnsCache.cacheLock.Unlock()
 				for key, value := range dnsCache.cacheMap {
 					if value.Expired() {
 						delete(dnsCache.cacheMap, key)
