@@ -27,6 +27,7 @@ jobs:
         with:
           config-name: release-template.yaml
           version: ${{ steps.read_version.outputs.version }}
+          latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -53,6 +54,7 @@ jobs:
         go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoof-dpi 
         tar -zcvf "spoof-dpi-$GOOS-$GOARCH.tar.gz" ./spoof-dpi && rm -rf ./spoof-dpi
         gh release list
+        gh --version
         # gh release upload $TAG_NAME "./spoof-dpi-$GOOS-$GOARCH.tar.gz"
 
   # build_and_publish:
