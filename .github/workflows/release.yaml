@@ -7,13 +7,12 @@ permissions:
 
 jobs:
   draft_release:
-    permissions:
-      contents: write
-      pull-requests: write
     runs-on: ubuntu-latest
     outputs:
       tag_name: ${{ steps.release.outputs.tag_name }}
-      version: ${{ steps.read_version.outputs.version }}
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
       - name: Read version
@@ -32,10 +31,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build_and_publish:
-    name: Release linux/amd64
     runs-on: ubuntu-latest
+    needs: draft_release
+    name: Release linux/amd64
     env: 
-      TAG_NAME: ${{ needs.read_version.outputs.version }}
+      TAG_NAME: ${{ needs.draft_release.outputs.tag_name }}
     steps:
     - uses: actions/checkout@v4
     - name: Setup Go
