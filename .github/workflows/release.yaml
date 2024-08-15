@@ -35,6 +35,7 @@ jobs:
     needs: draft_release
     name: Release linux/amd64
     env: 
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TAG_NAME: ${{ needs.draft_release.outputs.tag_name }}
     steps:
     - uses: actions/checkout@v4
