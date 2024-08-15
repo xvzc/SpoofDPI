@@ -16,9 +16,14 @@ jobs:
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - uses: actions/checkout@v4
-      - name: read_version
+      - name: Read version
+        id: read_version
         run: |
-          ls -al
+          echo "version=$(cat VERSION | tr -d '[:space:]')" >> $GITHUB_OUTPUT
+      - name: Print version
+        id: print_version
+        run: |
+          echo ${{ steps.read_version.outputs.version }}
       - uses: release-drafter/release-drafter@v5
         id: release
         with:
