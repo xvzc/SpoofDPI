@@ -21,16 +21,15 @@ jobs:
         run: |
           echo "version=$(cat version/VERSION | tr -d '[:space:]')" >> $GITHUB_OUTPUT
       - name: Print version
-        id: print_version
         run: |
           echo ${{ steps.read_version.outputs.version }}
-      # - uses: release-drafter/release-drafter@v5
-      #   id: release
-      #   with:
-      #     config-name: release-template.yaml
-      #     version: v1.1.1
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: release-drafter/release-drafter@v5
+        id: release
+        with:
+          config-name: release-template.yaml
+          version: ${{ steps.read_version.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # build_and_publish:
   #   needs: draft_release
