@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.read_version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - name: Read version
@@ -33,6 +34,8 @@ jobs:
   build_and_publish:
     name: Release linux/amd64
     runs-on: ubuntu-latest
+    env: 
+      TAG_NAME: ${{ needs.read_version.outputs.version }}
     steps:
     - uses: actions/checkout@v4
     - name: Setup Go
@@ -45,7 +48,6 @@ jobs:
       env: 
         GOOS: darwin
         GOARCH: amd64
-        TAG_NAME: ${{ needs.draft_release.outputs.tag_name }}
       run: |
         go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoof-dpi 
         tar -zcvf "spoof-dpi-$GOOS-$GOARCH.tar.gz" ./spoof-dpi && rm -rf ./spoof-dpi
