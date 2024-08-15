@@ -15,6 +15,10 @@ jobs:
     outputs:
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
+      - uses: actions/checkout@v4
+        id: read_version
+        run: |
+          ls -al
       - uses: release-drafter/release-drafter@v5
         id: release
         with:
