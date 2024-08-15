@@ -45,8 +45,7 @@ jobs:
       env: 
         GOOS: darwin
         GOARCH: amd64
-        env:
-          TAG_NAME: ${{ needs.draft_release.outputs.tag_name }}
+        TAG_NAME: ${{ needs.draft_release.outputs.tag_name }}
       run: |
         go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoof-dpi 
         tar -zcvf "spoof-dpi-$GOOS-$GOARCH.tar.gz" ./spoof-dpi && rm -rf ./spoof-dpi
