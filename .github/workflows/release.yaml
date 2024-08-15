@@ -118,8 +118,8 @@ jobs:
         GOOS: windows
         GOARCH: amd64
       run: |
-        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoof-dpi 
-        gh release upload $TAG_NAME "./spoof-dpi-$GOOS-$GOARCH.exe
+        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoof-dpi -o "spoof-dpi-$GOOS"-"$GOARCH.exe"
+        gh release upload $TAG_NAME "./spoof-dpi-$GOOS-$GOARCH.exe"
 
   # build_and_publish:
   #   needs: draft_release
