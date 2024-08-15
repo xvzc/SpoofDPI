@@ -22,7 +22,7 @@ jobs:
       - name: Print version
         run: |
           echo ${{ steps.read_version.outputs.version }}
-      - uses: release-drafter/release-drafter@v5
+      - uses: release-drafter/release-drafter@v6
         id: release
         with:
           config-name: release-template.yaml
