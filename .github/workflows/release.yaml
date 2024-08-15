@@ -25,6 +25,7 @@ jobs:
       - uses: release-drafter/release-drafter@v5
         id: release
         with:
+          config-name: release-template.yaml
           name: ${{ steps.read_version.outputs.version }}
           version: ${{ steps.read_version.outputs.version }}
           tag: ${{ steps.read_version.outputs.version }}
