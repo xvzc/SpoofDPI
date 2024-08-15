@@ -47,6 +47,7 @@ try lower values if the default value doesn't bypass the DPI;
 when not given, the client hello packet will be sent in two parts:
 fragmentation for the first data packet and the rest
 `)
+  args.AllowedPattern = new(StringArray)
 	args.Version = flag.Bool("v", false, "print spoof-dpi's version; this may contain some other relevant information")
 
 	flag.Var(
