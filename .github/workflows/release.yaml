@@ -31,6 +31,26 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  build_and_publish:
+    name: Release linux/amd64
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: 1.21
+    - name: Display Go version
+      run: go version
+    - name: Build linux/amd64
+      env: 
+        GOOS: darwin
+        GOARCH: amd64
+      run: |
+        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoof-dpi 
+        tar -zcvf "spoof-dpi-$GOOS-$GOARCH.tar.gz" ./spoof-dpi && rm -rf ./spoof-dpi
+        gh release upload ${{needs.draft_release.outputs.tag_name }} "spoof-dpi-$GOOS-$GOARCH.tar.gz"
+
   # build_and_publish:
   #   needs: draft_release
   #   runs-on: ubuntu-latest
