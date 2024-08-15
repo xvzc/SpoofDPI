@@ -56,9 +56,7 @@ jobs:
       run: |
         go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoof-dpi 
         tar -zcvf "spoof-dpi-$GOOS-$GOARCH.tar.gz" ./spoof-dpi && rm -rf ./spoof-dpi
-        gh release list --json name
-        gh --version
-        # gh release upload $TAG_NAME "./spoof-dpi-$GOOS-$GOARCH.tar.gz"
+        gh release upload $TAG_NAME "./spoof-dpi-$GOOS-$GOARCH.tar.gz"
 
   # build_and_publish:
   #   needs: draft_release
