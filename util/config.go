@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/pterm/pterm"
-	"github.com/pterm/pterm/putils"
+	pterm "github.com/pterm/pterm"
+	putils "github.com/pterm/pterm/putils"
 )
 
 type Config struct {

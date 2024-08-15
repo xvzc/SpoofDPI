@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/ipv4"
+	"net/ipv6"
 	"regexp"
 	"sync"
 	"time"

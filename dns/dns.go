@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strconv"
 	"time"
+	"sys/unix"
+	"go/packages"
 
 	"github.com/miekg/dns"
 	log "github.com/sirupsen/logrus"
