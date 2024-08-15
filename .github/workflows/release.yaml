@@ -1,0 +1,50 @@
+name: Release drafter
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  draft_release:
+    permissions:
+      contents: write
+      pull-requests: write
+
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: release-drafter/release-drafter@v5
+        id: release
+        with:
+          config-name: release-template.yaml
+          version: v1.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # build_and_publish:
+  #   needs: draft_release
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - name: Set up Python 3.10
+  #       uses: actions/setup-python@v3
+  #       with:
+  #         python-version: "3.10"
+  #     - name: Initialize build environment
+  #       run: |
+  #         python -m pip install -r requirements.txt
+  #     - name: Build pakage
+  #       env:
+  #         BOJ_CLI_NEXT_VERSION: ${{ needs.draft_release.outputs.tag_name }}
+  #       run: |
+  #         python setup.py sdist bdist_wheel
+  #     - name: Publish to pypi
+  #       uses: pypa/gh-action-pypi-publish@release/v1
+  #       with:
+  #         password: ${{ secrets.PYPI_API_TOKEN }}
