@@ -7,10 +7,6 @@ assignees: ''
 
 ---
 
-# Overview
-
 # Description
-
-# Due date
 
 # Additional context

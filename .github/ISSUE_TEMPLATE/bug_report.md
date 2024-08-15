@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Create a report
 title: ''
 labels: bug
 assignees: ''
@@ -10,19 +10,12 @@ assignees: ''
 # Describe the bug
 
 
-## Expected behavior
-
-
-## Actual behavior
-
-
-# How To Reproduce?
-
-
 # Client information
 
 **OS**:
 
 **Version**:
+
+**Command to run spoof-dpi**:
 
 # Additional context
