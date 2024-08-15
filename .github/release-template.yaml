@@ -10,7 +10,7 @@ categories:
   - title: '🧰 Maintenance'
     labels: 
       - 'chore'
-      - 'docs'
+      - 'documentation'
 template: |
   ## Changes
 
