@@ -1,7 +1,6 @@
 package util
 
 import (
-	"flag"
 	"fmt"
 	"regexp"
 
@@ -19,56 +18,31 @@ type Config struct {
 	NoBanner       *bool
 	SystemProxy    *bool
 	Timeout        *int
-	AllowedPattern []*regexp.Regexp
 	WindowSize     *int
-	Version        *bool
-}
-
-type StringArray []string
-
-func (arr *StringArray) String() string {
-	return fmt.Sprintf("%s", *arr)
-}
-
-func (arr *StringArray) Set(value string) error {
-	*arr = append(*arr, value)
-	return nil
+	AllowedPattern []*regexp.Regexp
 }
 
 var config *Config
 
 func GetConfig() *Config {
+  if config == nil {
+    config = new(Config)
+  }
 	return config
 }
 
-func ParseArgs() {
-	config = &Config{}
-	config.Addr = flag.String("addr", "127.0.0.1", "listen address")
-	config.Port = flag.Int("port", 8080, "port")
-	config.DnsAddr = flag.String("dns-addr", "8.8.8.8", "dns address")
-	config.DnsPort = flag.Int("dns-port", 53, "port number for dns")
-	config.EnableDoh = flag.Bool("enable-doh", false, "enable 'dns-over-https'")
-	config.Debug = flag.Bool("debug", false, "enable debug output")
-	config.NoBanner = flag.Bool("no-banner", false, "disable banner")
-	config.SystemProxy = flag.Bool("system-proxy", true, "enable system-wide proxy")
-	config.Timeout = flag.Int("timeout", 0, "timeout in milliseconds; no timeout when not given")
-	config.WindowSize = flag.Int("window-size", 0, `chunk size, in number of bytes, for fragmented client hello,
-try lower values if the default value doesn't bypass the DPI;
-when not given, the client hello packet will be sent in two parts:
-fragmentation for the first data packet and the rest
-`)
-	config.Version = flag.Bool("v", false, "print spoof-dpi's version; this may contain some other relevant information")
-	var allowedPattern StringArray
-	flag.Var(
-		&allowedPattern,
-		"pattern",
-		"bypass DPI only on packets matching this regex pattern; can be given multiple times",
-	)
-	flag.Parse()
-
-	for _, pattern := range allowedPattern {
-		config.AllowedPattern = append(config.AllowedPattern, regexp.MustCompile(pattern))
-	}
+func (c *Config) Load(args *Args) {
+  c.Addr = args.Addr
+  c.Port = args.Port
+  c.DnsAddr = args.DnsAddr
+  c.DnsPort = args.DnsPort
+  c.Debug = args.Debug
+  c.EnableDoh = args.EnableDoh
+  c.NoBanner = args.NoBanner
+  c.SystemProxy = args.SystemProxy
+  c.Timeout = args.Timeout
+  c.AllowedPattern = args.AllowedPattern
+  c.WindowSize = args.WindowSize
 }
 
 func PrintColoredBanner() {

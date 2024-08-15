@@ -40,38 +40,38 @@ func New(config *util.Config) *Proxy {
 func (pxy *Proxy) Start() {
 	l, err := net.ListenTCP("tcp4", &net.TCPAddr{IP: net.ParseIP(pxy.addr), Port: pxy.port})
 	if err != nil {
-		log.Fatal("[PROXY] Error creating listener: ", err)
+		log.Fatal("[PROXY] error creating listener: ", err)
 		os.Exit(1)
 	}
 
 	if pxy.timeout > 0 {
-		log.Println(fmt.Sprintf("[PROXY] Connection timeout is set to %dms", pxy.timeout))
+		log.Println(fmt.Sprintf("[PROXY] connection timeout is set to %dms", pxy.timeout))
 	}
 
-	log.Println("[PROXY] Created a listener on port", pxy.port)
+	log.Println("[PROXY] created a listener on port", pxy.port)
 	if len(pxy.allowedPattern) > 0 {
-		log.Println("[PROXY] Number of white-listed pattern:", len(pxy.allowedPattern))
+		log.Println("[PROXY] number of white-listed pattern:", len(pxy.allowedPattern))
 	}
 
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			log.Fatal("[PROXY] Error accepting connection: ", err)
+			log.Fatal("[PROXY] error accepting connection: ", err)
 			continue
 		}
 
 		go func() {
 			pkt, err := packet.ReadHttpPacket(conn)
 			if err != nil {
-				log.Debug("[PROXY] Error while parsing request: ", err)
+				log.Debug("[PROXY] error while parsing request: ", err)
 				conn.Close()
 				return
 			}
 
-			log.Debug("[PROXY] Request from ", conn.RemoteAddr(), "\n\n", string(pkt.Raw()))
+			log.Debug("[PROXY] request from ", conn.RemoteAddr(), "\n\n", string(pkt.Raw()))
 
 			if !pkt.IsValidMethod() {
-				log.Debug("[PROXY] Unsupported method: ", pkt.Method())
+				log.Debug("[PROXY] unsupported method: ", pkt.Method())
 				conn.Close()
 				return
 			}
@@ -81,7 +81,7 @@ func (pxy *Proxy) Start() {
 
 			ip, err := pxy.resolver.Lookup(pkt.Domain(), useSystemDns)
 			if err != nil {
-				log.Debug("[PROXY] Error while dns lookup: ", pkt.Domain(), " ", err)
+				log.Debug("[PROXY] error while dns lookup: ", pkt.Domain(), " ", err)
 				conn.Write([]byte(pkt.Version() + " 502 Bad Gateway\r\n\r\n"))
 				conn.Close()
 				return
@@ -89,16 +89,14 @@ func (pxy *Proxy) Start() {
 
 			// Avoid recursively querying self
 			if pkt.Port() == strconv.Itoa(pxy.port) && isLoopedRequest(net.ParseIP(ip)) {
-				log.Error("[PROXY] Looped request has been detected. aborting.")
+				log.Error("[PROXY] looped request has been detected. aborting.")
 				conn.Close()
 				return
 			}
 
 			if pkt.IsConnectMethod() {
-				log.Debug("[PROXY] Start HTTPS")
 				pxy.handleHttps(conn.(*net.TCPConn), matched, pkt, ip)
 			} else {
-				log.Debug("[PROXY] Start HTTP")
 				pxy.handleHttp(conn.(*net.TCPConn), pkt, ip)
 			}
 		}()
@@ -133,7 +131,7 @@ func isLoopedRequest(ip net.IP) bool {
 	// See `ip -4 addr show`
 	addr, err := net.InterfaceAddrs() // needs AF_NETLINK on linux
 	if err != nil {
-		log.Error("[PROXY] Error while getting addresses of our network interfaces: ", err)
+		log.Error("[PROXY] error while getting addresses of our network interfaces: ", err)
 		return false
 	}
 

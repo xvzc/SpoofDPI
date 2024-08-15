@@ -30,6 +30,14 @@ func readBytesInternal(conn *net.TCPConn, dest []byte) (int, error) {
 }
 
 func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td string, timeout int, bufferSize int) {
+	defer func() {
+		from.Close()
+		to.Close()
+
+    log.Debug("[HTTPS] Closing proxy connection: ", fd, " -> ", td)
+	}()
+
+
 	proto += " "
 	buf := make([]byte, bufferSize)
 	for {

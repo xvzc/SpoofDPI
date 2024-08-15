@@ -13,12 +13,14 @@ import (
 )
 
 func main() {
-	util.ParseArgs()
-	config := util.GetConfig()
-	if *config.Version {
+  args := util.ParseArgs()
+	if *args.Version {
 		version.PrintVersion()
 		os.Exit(0)
 	}
+
+	config := util.GetConfig()
+  config.Load(args)
 
 	pxy := proxy.New(config)
 	if *config.Debug {
@@ -39,7 +41,7 @@ func main() {
 
 	if *config.SystemProxy {
 		if err := util.SetOsProxy(*config.Port); err != nil {
-			log.Fatal("Error while changing proxy settings")
+			log.Fatal("error while changing proxy settings")
 		}
 	}
 
