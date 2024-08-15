@@ -1,10 +1,6 @@
 name: Release drafter
 
-on:
-  workflow_dispatch:
-    inputs:
-      version:
-        required: true
+on: workflow_dispatch
 
 permissions:
   contents: read
