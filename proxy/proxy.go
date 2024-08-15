@@ -17,7 +17,7 @@ type Proxy struct {
 	addr           string
 	port           int
 	timeout        int
-	resolver       *dns.DnsResolver
+	resolver       *dns.Resolver
 	windowSize     int
 	allowedPattern []*regexp.Regexp
 }

@@ -15,49 +15,73 @@ import (
 	"time"
 )
 
-type DnsResolver struct {
-	host      string
-	port      string
-	enableDoh bool
-}
-
-func NewResolver(config *util.Config) *DnsResolver {
-	return &DnsResolver{
-		host:      *config.DnsAddr,
-		port:      strconv.Itoa(*config.DnsPort),
-		enableDoh: *config.EnableDoh,
-	}
-}
-
 type client interface {
 	Resolve(ctx context.Context, host string) ([]net.IPAddr, error)
 	String() string
 }
 
-func (d *DnsResolver) Lookup(domain string, useSystemDns bool) (string, error) {
+type Resolver struct {
+	host         string
+	port         string
+	enableDoh    bool
+	systemClient client
+	customClient client
+}
+
+func NewResolver(config *util.Config) *Resolver {
+	addr := *config.DnsAddr
+	port := strconv.Itoa(*config.DnsPort)
+	server := net.JoinHostPort(addr, port)
+
+	var systemClient client
+	if config.AllowedPatterns != nil {
+		systemClient = NewSystemClient()
+	}
+
+	var customClient client
+	if *config.EnableDoh {
+		customClient = NewDoHClient(addr)
+	} else {
+		customClient = NewCustomClient(server)
+	}
+
+	return &Resolver{
+		host:         *config.DnsAddr,
+		port:         port,
+		enableDoh:    *config.EnableDoh,
+		systemClient: systemClient,
+		customClient: customClient,
+	}
+}
+
+func (d *Resolver) Lookup(domain string, useSystemDns bool) (string, error) {
 	if _, err := parseAddr(domain); err == nil {
 		return domain, nil
 	}
-	server := net.JoinHostPort(d.host, d.port)
 
-	var resolver client
-	if useSystemDns {
-		resolver = NewSystemClient()
-	} else if d.enableDoh {
-		resolver = NewDoHClient(d.host)
-	} else {
-		resolver = NewCustomClient(server)
-	}
-
-	log.Debugf("[DNS] Resolving %s using %s", domain, resolver)
+	clt := d.getClient(useSystemDns)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	addrs, err := resolver.Resolve(ctx, domain)
+	log.Debugf("[DNS] resolving %s using %s", domain, clt)
+	t := time.Now()
+	addrs, err := clt.Resolve(ctx, domain)
 	if err != nil {
-		return "", fmt.Errorf("%s: %w", resolver, err)
+		return "", fmt.Errorf("%s: %w", clt, err)
 	}
-	return addrs[0].String(), nil
+	lookupTime := time.Since(t).Milliseconds()
+
+	addr := addrs[0].String()
+	log.Debugf("[DNS] resolved %s to %s in %d ms", domain, addr, lookupTime)
+	return addr, nil
+}
+
+func (d *Resolver) getClient(useSystemDns bool) client {
+	if useSystemDns {
+		return d.systemClient
+	} else {
+		return d.customClient
+	}
 }
 
 type SystemClient struct {
