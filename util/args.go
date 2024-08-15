@@ -3,7 +3,6 @@ package util
 import (
 	"flag"
 	"fmt"
-	"regexp"
 )
 
 type Args struct {
@@ -16,7 +15,7 @@ type Args struct {
 	NoBanner       *bool
 	SystemProxy    *bool
 	Timeout        *int
-	AllowedPattern []*regexp.Regexp
+	AllowedPattern *StringArray
 	WindowSize     *int
 	Version        *bool
 }
@@ -33,7 +32,7 @@ func (arr *StringArray) Set(value string) error {
 }
 
 func ParseArgs() *Args {
-  args := new(Args)
+	args := new(Args)
 	args.Addr = flag.String("addr", "127.0.0.1", "listen address")
 	args.Port = flag.Int("port", 8080, "port")
 	args.DnsAddr = flag.String("dns-addr", "8.8.8.8", "dns address")
@@ -50,18 +49,13 @@ fragmentation for the first data packet and the rest
 `)
 	args.Version = flag.Bool("v", false, "print spoof-dpi's version; this may contain some other relevant information")
 
-	var allowedPattern StringArray
 	flag.Var(
-		&allowedPattern,
+		args.AllowedPattern,
 		"pattern",
 		"bypass DPI only on packets matching this regex pattern; can be given multiple times",
 	)
 
 	flag.Parse()
-
-	for _, pattern := range allowedPattern {
-		args.AllowedPattern = append(args.AllowedPattern, regexp.MustCompile(pattern))
-	}
 
 	return args
 }

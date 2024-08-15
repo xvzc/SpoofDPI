@@ -9,40 +9,50 @@ import (
 )
 
 type Config struct {
-	Addr           *string
-	Port           *int
-	DnsAddr        *string
-	DnsPort        *int
-	EnableDoh      *bool
-	Debug          *bool
-	NoBanner       *bool
-	SystemProxy    *bool
-	Timeout        *int
-	WindowSize     *int
-	AllowedPattern []*regexp.Regexp
+	Addr            *string
+	Port            *int
+	DnsAddr         *string
+	DnsPort         *int
+	EnableDoh       *bool
+	Debug           *bool
+	NoBanner        *bool
+	SystemProxy     *bool
+	Timeout         *int
+	WindowSize      *int
+	AllowedPatterns []*regexp.Regexp
 }
 
 var config *Config
 
 func GetConfig() *Config {
-  if config == nil {
-    config = new(Config)
-  }
+	if config == nil {
+		config = new(Config)
+	}
 	return config
 }
 
 func (c *Config) Load(args *Args) {
-  c.Addr = args.Addr
-  c.Port = args.Port
-  c.DnsAddr = args.DnsAddr
-  c.DnsPort = args.DnsPort
-  c.Debug = args.Debug
-  c.EnableDoh = args.EnableDoh
-  c.NoBanner = args.NoBanner
-  c.SystemProxy = args.SystemProxy
-  c.Timeout = args.Timeout
-  c.AllowedPattern = args.AllowedPattern
-  c.WindowSize = args.WindowSize
+	c.Addr = args.Addr
+	c.Port = args.Port
+	c.DnsAddr = args.DnsAddr
+	c.DnsPort = args.DnsPort
+	c.Debug = args.Debug
+	c.EnableDoh = args.EnableDoh
+	c.NoBanner = args.NoBanner
+	c.SystemProxy = args.SystemProxy
+	c.Timeout = args.Timeout
+	c.AllowedPatterns = parseAllowedPattern(args.AllowedPattern)
+	c.WindowSize = args.WindowSize
+}
+
+func parseAllowedPattern(patterns *StringArray) []*regexp.Regexp {
+	var allowedPatterns []*regexp.Regexp
+
+	for _, pattern := range *patterns {
+		allowedPatterns = append(allowedPatterns, regexp.MustCompile(pattern))
+	}
+
+	return allowedPatterns
 }
 
 func PrintColoredBanner() {

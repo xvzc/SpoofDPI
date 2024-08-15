@@ -28,7 +28,7 @@ func New(config *util.Config) *Proxy {
 		port:           *config.Port,
 		timeout:        *config.Timeout,
 		windowSize:     *config.WindowSize,
-		allowedPattern: config.AllowedPattern,
+		allowedPattern: config.AllowedPatterns,
 		resolver:       dns.NewResolver(config),
 	}
 }
