@@ -31,7 +31,7 @@ func (pxy *Proxy) handleHttp(lConn *net.TCPConn, pkt *packet.HttpPacket, ip stri
 
 	log.Debug("[HTTP] new connection to the server ", rConn.LocalAddr(), " -> ", pkt.Domain())
 
-	go Serve(rConn, lConn, "[HTTP]", pkt.Domain(), lConn.RemoteAddr().String(), pxy.timeout, pxy.bufferSize)
+	go Serve(rConn, lConn, "[HTTP]", pkt.Domain(), lConn.RemoteAddr().String(), pxy.timeout)
 
 	_, err = rConn.Write(pkt.Raw())
 	if err != nil {
@@ -41,5 +41,5 @@ func (pxy *Proxy) handleHttp(lConn *net.TCPConn, pkt *packet.HttpPacket, ip stri
 
 	log.Debug("[HTTP] sent a request to ", pkt.Domain())
 
-	go Serve(lConn, rConn, "[HTTP]", lConn.RemoteAddr().String(), pkt.Domain(), pxy.timeout, pxy.bufferSize)
+	go Serve(lConn, rConn, "[HTTP]", lConn.RemoteAddr().String(), pkt.Domain(), pxy.timeout)
 }

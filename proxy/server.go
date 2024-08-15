@@ -9,7 +9,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const TLSHeaderLen = 5
+const (
+	BufferSize   = 1024
+	TLSHeaderLen = 5
+)
 
 func ReadBytes(conn *net.TCPConn, dest []byte) ([]byte, error) {
 	n, err := readBytesInternal(conn, dest)
@@ -29,17 +32,16 @@ func readBytesInternal(conn *net.TCPConn, dest []byte) (int, error) {
 	return totalRead, nil
 }
 
-func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td string, timeout int, bufferSize int) {
+func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td string, timeout int) {
 	defer func() {
 		from.Close()
 		to.Close()
 
-    log.Debug("[HTTPS] Closing proxy connection: ", fd, " -> ", td)
+		log.Debug("[HTTPS] closing proxy connection: ", fd, " -> ", td)
 	}()
 
-
 	proto += " "
-	buf := make([]byte, bufferSize)
+	buf := make([]byte, BufferSize)
 	for {
 		if timeout > 0 {
 			from.SetReadDeadline(
@@ -50,15 +52,15 @@ func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td strin
 		bytesRead, err := ReadBytes(from, buf)
 		if err != nil {
 			if err == io.EOF {
-				log.Debug(proto, "Finished ", fd)
+				log.Debug(proto, "finished reading from", fd)
 				return
 			}
-			log.Debug(proto, "Error reading from ", fd, " ", err)
+			log.Debug(proto, "error reading from ", fd, " ", err)
 			return
 		}
 
 		if _, err := to.Write(bytesRead); err != nil {
-			log.Debug(proto, "Error Writing to ", td)
+			log.Debug(proto, "error Writing to ", td)
 			return
 		}
 	}

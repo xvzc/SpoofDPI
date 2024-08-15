@@ -39,7 +39,7 @@ func (pxy *Proxy) handleHttps(lConn *net.TCPConn, exploit bool, initPkt *packet.
 	// Read client hello
 	m, err := packet.ReadTLSMessage(lConn)
 	if err != nil || !m.IsClientHello() {
-		log.Debug("[HTTPS] error reading client hello from the client ", lConn.RemoteAddr().String(), " ", err)
+		log.Debug("[HTTPS] error reading client hello from ", lConn.RemoteAddr().String(), " ", err)
 		return
 	}
 	clientHello := m.Raw
@@ -47,7 +47,7 @@ func (pxy *Proxy) handleHttps(lConn *net.TCPConn, exploit bool, initPkt *packet.
 	log.Debug("[HTTPS] client sent hello ", len(clientHello), "bytes")
 
 	// Generate a go routine that reads from the server
-	go Serve(rConn, lConn, "[HTTPS]", initPkt.Domain(), lConn.RemoteAddr().String(), pxy.timeout, pxy.bufferSize)
+	go Serve(rConn, lConn, "[HTTPS]", initPkt.Domain(), lConn.RemoteAddr().String(), pxy.timeout)
 
 	if exploit {
 		log.Debug("[HTTPS] writing chunked client hello to ", initPkt.Domain())
@@ -64,7 +64,7 @@ func (pxy *Proxy) handleHttps(lConn *net.TCPConn, exploit bool, initPkt *packet.
 		}
 	}
 
-	go Serve(lConn, rConn, "[HTTPS]", lConn.RemoteAddr().String(), initPkt.Domain(), pxy.timeout, pxy.bufferSize)
+	go Serve(lConn, rConn, "[HTTPS]", lConn.RemoteAddr().String(), initPkt.Domain(), pxy.timeout)
 }
 
 func splitInChunks(bytes []byte, size int) [][]byte {
@@ -98,7 +98,7 @@ func splitInChunks(bytes []byte, size int) [][]byte {
 		return [][]byte{raw}
 	}
 
-	log.Debug("[HTTPS] using legacy fragmentation.")
+	log.Debug("[HTTPS] using legacy fragmentation")
 
 	return [][]byte{raw[:1], raw[1:]}
 }
