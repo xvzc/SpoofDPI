@@ -1,8 +1,16 @@
 #!/bin/bash
 
-for osarch in 'darwin/amd64' 'darwin/arm64' 'linux/amd64' 'linux/arm' 'linux/arm64' 'linux/mips' 'linux/mipsle' ; do
+nix_like=('darwin/amd64' 'darwin/arm64' 'linux/amd64' 'linux/arm' 'linux/arm64' 'linux/mips' 'linux/mipsle' )
+
+for osarch in "${nix_like[@]}"; do
     GOOS=${osarch%/*} GOARCH=${osarch#*/} go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoof-dpi &&
         tar -zcvf spoof-dpi-${osarch%/*}-${osarch#*/}.tar.gz ./spoof-dpi &&
+        rm -rf ./spoof-dpi
+done
+
+for osarch in "${nix_like[@]}"; do
+    GOOS=${osarch%/*} GOARCH=${osarch#*/} CGO_ENABLED=0 go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoof-dpi &&
+        tar -zcvf spoof-dpi-${osarch%/*}-${osarch#*/}-self-contained.tar.gz ./spoof-dpi &&
         rm -rf ./spoof-dpi
 done
 
