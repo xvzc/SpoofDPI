@@ -13,14 +13,14 @@ import (
 )
 
 func main() {
-  args := util.ParseArgs()
+	args := util.ParseArgs()
 	if *args.Version {
 		version.PrintVersion()
 		os.Exit(0)
 	}
 
 	config := util.GetConfig()
-  config.Load(args)
+	config.Load(args)
 
 	pxy := proxy.New(config)
 	if *config.Debug {

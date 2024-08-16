@@ -9,17 +9,18 @@ import (
 )
 
 type Config struct {
-	Addr            *string
-	Port            *int
-	DnsAddr         *string
-	DnsPort         *int
-	EnableDoh       *bool
-	Debug           *bool
-	NoBanner        *bool
-	SystemProxy     *bool
-	Timeout         *int
-	WindowSize      *int
-	AllowedPatterns []*regexp.Regexp
+	Addr               *string
+	Port               *int
+	DnsAddr            *string
+	DnsPort            *int
+	EnableDoh          *bool
+	Debug              *bool
+	NoBanner           *bool
+	SystemProxy        *bool
+	Timeout            *int
+	WindowSize         *int
+	AllowedPatterns    []*regexp.Regexp
+	DisallowedPatterns []*regexp.Regexp
 }
 
 var config *Config
@@ -41,18 +42,19 @@ func (c *Config) Load(args *Args) {
 	c.NoBanner = args.NoBanner
 	c.SystemProxy = args.SystemProxy
 	c.Timeout = args.Timeout
-	c.AllowedPatterns = parseAllowedPattern(args.AllowedPattern)
+	c.AllowedPatterns = parsePattern(args.AllowedPattern)
+	c.DisallowedPatterns = parsePattern(args.DisallowedPattern)
 	c.WindowSize = args.WindowSize
 }
 
-func parseAllowedPattern(patterns *StringArray) []*regexp.Regexp {
-	var allowedPatterns []*regexp.Regexp
+func parsePattern(patterns *StringArray) []*regexp.Regexp {
+	var regexps []*regexp.Regexp
 
 	for _, pattern := range *patterns {
-		allowedPatterns = append(allowedPatterns, regexp.MustCompile(pattern))
+		regexps = append(regexps, regexp.MustCompile(pattern))
 	}
 
-	return allowedPatterns
+	return regexps
 }
 
 func PrintColoredBanner() {
