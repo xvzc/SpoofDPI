@@ -68,6 +68,8 @@ Usage: spoof-dpi [options...]
         disable banner
   -pattern value
         bypass DPI only on packets matching this regex pattern; can be given multiple times
+  -antipattern value
+        never bypass DPI on packets matching this regex pattern; can be given multiple times
   -port int
         port (default 8080)
   -system-proxy
