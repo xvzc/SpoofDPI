@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strconv"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/dns"
 	"github.com/xvzc/SpoofDPI/packet"
 	"github.com/xvzc/SpoofDPI/util"

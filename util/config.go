@@ -3,9 +3,6 @@ package util
 import (
 	"fmt"
 	"regexp"
-
-	"github.com/pterm/pterm"
-	"github.com/pterm/pterm/putils"
 )
 
 type Config struct {

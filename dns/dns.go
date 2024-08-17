@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
-	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/util"
 )
 

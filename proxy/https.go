@@ -4,7 +4,6 @@ import (
 	"net"
 	"strconv"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/packet"
 )
 
