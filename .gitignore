@@ -4,3 +4,4 @@ spoof-dpi.*
 !*/spoof-dpi/
 .DS_Store
 out/**
+#.idea
