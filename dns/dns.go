@@ -9,16 +9,16 @@ import (
 
 	"github.com/miekg/dns"
 	log "github.com/sirupsen/logrus"
-	"github.com/xvzc/SpoofDPI/dns/client"
+	"github.com/xvzc/SpoofDPI/dns/resolver"
 	"github.com/xvzc/SpoofDPI/util"
 )
 
 type Dns struct {
 	host          string
 	port          string
-	systemClient  client.Client
-	generalClient client.Client
-	dohClient     client.Client
+	systemClient  client.Resolver
+	generalClient client.Resolver
+	dohClient     client.Resolver
 }
 
 func NewResolver(config *util.Config) *Dns {
@@ -61,7 +61,7 @@ func (d *Dns) ResolveHost(host string, enableDoh bool, useSystemDns bool) (strin
 	return "", fmt.Errorf("could not resolve %s using %s", host, clt)
 }
 
-func (d *Dns) clientFactory(enableDoh bool, useSystemDns bool) client.Client {
+func (d *Dns) clientFactory(enableDoh bool, useSystemDns bool) client.Resolver {
 	if useSystemDns {
 		return d.systemClient
 	}

@@ -13,20 +13,21 @@ type DNSResult struct {
 	err error
 }
 
-type GeneralClient struct {
+type GeneralResolver struct {
+	client *dns.Client
 	server string
 }
 
-func NewGeneralClient(server string) *GeneralClient {
-	return &GeneralClient{
+func NewGeneralClient(server string) *GeneralResolver {
+	return &GeneralResolver{
+		client: &dns.Client{},
 		server: server,
 	}
 }
 
-func (c *GeneralClient) Resolve(ctx context.Context, host string, qTypes []uint16) ([]net.IPAddr, error) {
+func (r *GeneralResolver) Resolve(ctx context.Context, host string, qTypes []uint16) ([]net.IPAddr, error) {
 	sendMsg := func(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
-		clt := &dns.Client{}
-		resp, _, err := clt.Exchange(msg, c.server)
+		resp, _, err := r.client.Exchange(msg, r.server)
 		return resp, err
 	}
 
@@ -35,6 +36,6 @@ func (c *GeneralClient) Resolve(ctx context.Context, host string, qTypes []uint1
 	return addrs, err
 }
 
-func (c *GeneralClient) String() string {
+func (c *GeneralResolver) String() string {
 	return fmt.Sprintf("custom client(%s)", c.server)
 }

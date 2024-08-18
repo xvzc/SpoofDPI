@@ -14,12 +14,12 @@ import (
 	"github.com/miekg/dns"
 )
 
-type DOHClient struct {
+type DOHResolver struct {
 	upstream   string
 	httpClient *http.Client
 }
 
-func NewDOHClient(host string) *DOHClient {
+func NewDOHClient(host string) *DOHResolver {
 	h := &http.Client{
 		Timeout: 5 * time.Second,
 		Transport: &http.Transport{
@@ -34,16 +34,15 @@ func NewDOHClient(host string) *DOHClient {
 	}
 
 	host = regexp.MustCompile(`^https:\/\/|\/dns-query$`).ReplaceAllString(host, "")
-	return &DOHClient{
+	return &DOHResolver{
 		upstream:   "https://" + host + "/dns-query",
 		httpClient: h,
 	}
 }
 
-func (c *DOHClient) Resolve(ctx context.Context, host string, qTypes []uint16) ([]net.IPAddr, error) {
+func (r *DOHResolver) Resolve(ctx context.Context, host string, qTypes []uint16) ([]net.IPAddr, error) {
 	sendMsg := func(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
-		clt := NewDOHClient(net.JoinHostPort(host, "443"))
-		return clt.dohExchange(ctx, msg)
+		return r.dohExchange(ctx, msg)
 	}
 
 	resultCh := lookup(ctx, host, qTypes, sendMsg)
@@ -51,17 +50,17 @@ func (c *DOHClient) Resolve(ctx context.Context, host string, qTypes []uint16) (
 	return addrs, err
 }
 
-func (c *DOHClient) String() string {
-	return fmt.Sprintf("doh client(%s)", c.upstream)
+func (r *DOHResolver) String() string {
+	return fmt.Sprintf("doh client(%s)", r.upstream)
 }
 
-func (d *DOHClient) dohQuery(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
+func (r *DOHResolver) dohQuery(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
 	pack, err := msg.Pack()
 	if err != nil {
 		return nil, err
 	}
 
-	url := fmt.Sprintf("%s?dns=%s", d.upstream, base64.RawStdEncoding.EncodeToString(pack))
+	url := fmt.Sprintf("%s?dns=%s", r.upstream, base64.RawStdEncoding.EncodeToString(pack))
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -70,7 +69,7 @@ func (d *DOHClient) dohQuery(ctx context.Context, msg *dns.Msg) (*dns.Msg, error
 	req = req.WithContext(ctx)
 	req.Header.Set("Accept", "application/dns-message")
 
-	resp, err := d.httpClient.Do(req)
+	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -95,8 +94,8 @@ func (d *DOHClient) dohQuery(ctx context.Context, msg *dns.Msg) (*dns.Msg, error
 	return resultMsg, nil
 }
 
-func (d *DOHClient) dohExchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
-	res, err := d.dohQuery(ctx, msg)
+func (r *DOHResolver) dohExchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
+	res, err := r.dohQuery(ctx, msg)
 	if err != nil {
 		return nil, err
 	}

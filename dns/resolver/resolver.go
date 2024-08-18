@@ -12,7 +12,7 @@ import (
 	"github.com/xvzc/SpoofDPI/dns/addrselect"
 )
 
-type Client interface {
+type Resolver interface {
 	Resolve(ctx context.Context, host string, qTypes []uint16) ([]net.IPAddr, error)
 	String() string
 }
