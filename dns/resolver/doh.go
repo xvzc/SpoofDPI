@@ -15,12 +15,12 @@ import (
 )
 
 type DOHResolver struct {
-	upstream   string
-	httpClient *http.Client
+	upstream string
+	client   *http.Client
 }
 
 func NewDOHClient(host string) *DOHResolver {
-	h := &http.Client{
+	c := &http.Client{
 		Timeout: 5 * time.Second,
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
@@ -35,8 +35,8 @@ func NewDOHClient(host string) *DOHResolver {
 
 	host = regexp.MustCompile(`^https:\/\/|\/dns-query$`).ReplaceAllString(host, "")
 	return &DOHResolver{
-		upstream:   "https://" + host + "/dns-query",
-		httpClient: h,
+		upstream: "https://" + host + "/dns-query",
+		client:   c,
 	}
 }
 
@@ -69,7 +69,7 @@ func (r *DOHResolver) dohQuery(ctx context.Context, msg *dns.Msg) (*dns.Msg, err
 	req = req.WithContext(ctx)
 	req.Header.Set("Accept", "application/dns-message")
 
-	resp, err := r.httpClient.Do(req)
+	resp, err := r.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
