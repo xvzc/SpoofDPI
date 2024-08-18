@@ -51,7 +51,7 @@ func (r *DOHResolver) Resolve(ctx context.Context, host string, qTypes []uint16)
 }
 
 func (r *DOHResolver) String() string {
-	return fmt.Sprintf("doh client(%s)", r.upstream)
+	return fmt.Sprintf("doh resolver(%s)", r.upstream)
 }
 
 func (r *DOHResolver) dohQuery(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {

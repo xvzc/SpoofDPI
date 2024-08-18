@@ -37,5 +37,5 @@ func (r *GeneralResolver) Resolve(ctx context.Context, host string, qTypes []uin
 }
 
 func (c *GeneralResolver) String() string {
-	return fmt.Sprintf("custom client(%s)", c.server)
+	return fmt.Sprintf("general resolver(%s)", c.server)
 }

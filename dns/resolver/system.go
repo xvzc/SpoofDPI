@@ -16,7 +16,7 @@ func NewSystemClient() *SystemResolver {
 }
 
 func (r *SystemResolver) String() string {
-	return "system client"
+	return "system resolver"
 }
 
 func (r *SystemResolver) Resolve(ctx context.Context, host string, qTypes []uint16) ([]net.IPAddr, error) {
