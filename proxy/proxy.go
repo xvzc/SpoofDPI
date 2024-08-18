@@ -17,8 +17,9 @@ type Proxy struct {
 	addr           string
 	port           int
 	timeout        int
-	resolver       *dns.Resolver
+	resolver       *dns.Dns
 	windowSize     int
+	enableDoh      bool
 	allowedPattern []*regexp.Regexp
 }
 
@@ -28,6 +29,7 @@ func New(config *util.Config) *Proxy {
 		port:           *config.Port,
 		timeout:        *config.Timeout,
 		windowSize:     *config.WindowSize,
+		enableDoh:      *config.EnableDoh,
 		allowedPattern: config.AllowedPatterns,
 		resolver:       dns.NewResolver(config),
 	}
@@ -75,7 +77,7 @@ func (pxy *Proxy) Start() {
 			matched := pxy.patternMatches([]byte(pkt.Domain()))
 			useSystemDns := !matched
 
-			ip, err := pxy.resolver.Lookup(pkt.Domain(), useSystemDns)
+			ip, err := pxy.resolver.ResolveHost(pkt.Domain(), pxy.enableDoh, useSystemDns)
 			if err != nil {
 				log.Debug("[PROXY] error while dns lookup: ", pkt.Domain(), " ", err)
 				conn.Write([]byte(pkt.Version() + " 502 Bad Gateway\r\n\r\n"))

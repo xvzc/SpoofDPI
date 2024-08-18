@@ -1,4 +1,4 @@
-package dns
+package client
 
 import (
 	"bytes"
@@ -9,47 +9,50 @@ import (
 	"net"
 	"net/http"
 	"regexp"
-	"sync"
 	"time"
 
 	"github.com/miekg/dns"
 )
 
 type DOHClient struct {
-	upstream string
-	httpClient   *http.Client
+	upstream   string
+	httpClient *http.Client
 }
 
-var dohClient *DOHClient
-var clientOnce sync.Once
-
-func getDOHClient(host string) *DOHClient {
-	if dohClient != nil {
-		return dohClient
+func NewDOHClient(host string) *DOHClient {
+	h := &http.Client{
+		Timeout: 5 * time.Second,
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout:   3 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			TLSHandshakeTimeout: 5 * time.Second,
+			MaxIdleConnsPerHost: 100,
+			MaxIdleConns:        100,
+		},
 	}
 
-	clientOnce.Do(func() {
-		h := &http.Client{
-			Timeout: 5 * time.Second,
-			Transport: &http.Transport{
-				DialContext: (&net.Dialer{
-					Timeout:   3 * time.Second,
-					KeepAlive: 30 * time.Second,
-				}).DialContext,
-				TLSHandshakeTimeout: 5 * time.Second,
-				MaxIdleConnsPerHost: 100,
-				MaxIdleConns:        100,
-			},
-		}
+	host = regexp.MustCompile(`^https:\/\/|\/dns-query$`).ReplaceAllString(host, "")
+	return &DOHClient{
+		upstream:   "https://" + host + "/dns-query",
+		httpClient: h,
+	}
+}
 
-		host = regexp.MustCompile(`^https:\/\/|\/dns-query$`).ReplaceAllString(host, "")
-		dohClient = &DOHClient{
-			upstream: "https://" + host + "/dns-query",
-			httpClient:   h,
-		}
-	})
+func (c *DOHClient) Resolve(ctx context.Context, host string, qTypes []uint16) ([]net.IPAddr, error) {
+	sendMsg := func(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
+		clt := NewDOHClient(net.JoinHostPort(host, "443"))
+		return clt.dohExchange(ctx, msg)
+	}
 
-	return dohClient
+	resultCh := lookup(ctx, host, qTypes, sendMsg)
+	addrs, err := processResults(ctx, resultCh)
+	return addrs, err
+}
+
+func (c *DOHClient) String() string {
+	return fmt.Sprintf("doh client(%s)", c.upstream)
 }
 
 func (d *DOHClient) dohQuery(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
