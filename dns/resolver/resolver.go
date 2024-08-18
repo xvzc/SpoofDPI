@@ -12,12 +12,12 @@ import (
 	"github.com/xvzc/SpoofDPI/dns/addrselect"
 )
 
+type exchangeFunc = func(ctx context.Context, msg *dns.Msg) (*dns.Msg, error)
+
 type Resolver interface {
 	Resolve(ctx context.Context, host string, qTypes []uint16) ([]net.IPAddr, error)
 	String() string
 }
-
-type exchangeFunc = func(ctx context.Context, msg *dns.Msg) (*dns.Msg, error)
 
 func recordTypeIDToName(id uint16) string {
 	switch id {
@@ -47,32 +47,31 @@ func sortAddrs(addrs []net.IPAddr) {
 	addrselect.SortByRFC6724(addrs)
 }
 
-func lookup(ctx context.Context, host string, queryTypes []uint16, sendMsg exchangeFunc) <-chan *DNSResult {
+func lookupAllTypes(ctx context.Context, host string, qTypes []uint16, exchange exchangeFunc) <-chan *DNSResult {
 	var wg sync.WaitGroup
 	resCh := make(chan *DNSResult)
 
-	lookup := func(qType uint16) {
-		defer wg.Done()
-		select {
-		case <-ctx.Done():
-			return
-		case resCh <- query(ctx, host, qType, sendMsg):
-		}
-	}
-
-	for _, queryType := range queryTypes {
+	for _, qType := range qTypes {
 		wg.Add(1)
-		go lookup(queryType)
+		go func(qType uint16) {
+			defer wg.Done()
+			select {
+			case <-ctx.Done():
+				return
+			case resCh <- lookupType(ctx, host, qType, exchange):
+			}
+		}(qType)
 	}
 
 	go func() {
 		wg.Wait()
 		close(resCh)
 	}()
+
 	return resCh
 }
 
-func query(ctx context.Context, host string, queryType uint16, exchange exchangeFunc) *DNSResult {
+func lookupType(ctx context.Context, host string, queryType uint16, exchange exchangeFunc) *DNSResult {
 	msg := newMsg(host, queryType)
 	resp, err := exchange(ctx, msg)
 	if err != nil {
@@ -103,7 +102,7 @@ func processResults(ctx context.Context, resCh <-chan *DNSResult) ([]net.IPAddr,
 	}
 	select {
 	case <-ctx.Done():
-		return nil, errors.New("cancelled")
+		return nil, errors.New("canceled")
 	default:
 		if len(addrs) == 0 {
 			return addrs, errors.Join(errs...)

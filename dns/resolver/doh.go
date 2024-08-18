@@ -41,11 +41,7 @@ func NewDOHClient(host string) *DOHResolver {
 }
 
 func (r *DOHResolver) Resolve(ctx context.Context, host string, qTypes []uint16) ([]net.IPAddr, error) {
-	sendMsg := func(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
-		return r.dohExchange(ctx, msg)
-	}
-
-	resultCh := lookup(ctx, host, qTypes, sendMsg)
+	resultCh := lookupAllTypes(ctx, host, qTypes, r.exchange)
 	addrs, err := processResults(ctx, resultCh)
 	return addrs, err
 }
@@ -54,7 +50,7 @@ func (r *DOHResolver) String() string {
 	return fmt.Sprintf("doh resolver(%s)", r.upstream)
 }
 
-func (r *DOHResolver) dohQuery(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
+func (r *DOHResolver) exchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
 	pack, err := msg.Pack()
 	if err != nil {
 		return nil, err
@@ -91,18 +87,9 @@ func (r *DOHResolver) dohQuery(ctx context.Context, msg *dns.Msg) (*dns.Msg, err
 		return nil, err
 	}
 
-	return resultMsg, nil
-}
-
-func (r *DOHResolver) dohExchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
-	res, err := r.dohQuery(ctx, msg)
-	if err != nil {
-		return nil, err
-	}
-
-	if res.Rcode != dns.RcodeSuccess {
+	if resultMsg.Rcode != dns.RcodeSuccess {
 		return nil, errors.New("doh rcode wasn't successful")
 	}
 
-	return res, nil
+	return resultMsg, nil
 }

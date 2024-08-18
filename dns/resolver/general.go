@@ -26,16 +26,16 @@ func NewGeneralClient(server string) *GeneralResolver {
 }
 
 func (r *GeneralResolver) Resolve(ctx context.Context, host string, qTypes []uint16) ([]net.IPAddr, error) {
-	sendMsg := func(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
-		resp, _, err := r.client.Exchange(msg, r.server)
-		return resp, err
-	}
-
-	resultCh := lookup(ctx, host, qTypes, sendMsg)
+	resultCh := lookupAllTypes(ctx, host, qTypes, r.exchange)
 	addrs, err := processResults(ctx, resultCh)
 	return addrs, err
 }
 
 func (c *GeneralResolver) String() string {
 	return fmt.Sprintf("general resolver(%s)", c.server)
+}
+
+func (r *GeneralResolver) exchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
+	resp, _, err := r.client.Exchange(msg, r.server)
+	return resp, err
 }
