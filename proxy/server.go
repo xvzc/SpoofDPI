@@ -40,7 +40,6 @@ func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td strin
 		log.Debugf("%s closing proxy connection: %s -> %s", proto, fd, td)
 	}()
 
-	proto += " "
 	buf := make([]byte, BufferSize)
 	for {
 		if timeout > 0 {
