@@ -26,8 +26,8 @@ func (r *GeneralResolver) Resolve(ctx context.Context, host string, qTypes []uin
 	return addrs, err
 }
 
-func (c *GeneralResolver) String() string {
-	return fmt.Sprintf("general resolver(%s)", c.server)
+func (r *GeneralResolver) String() string {
+	return fmt.Sprintf("general resolver(%s)", r.server)
 }
 
 func (r *GeneralResolver) exchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
