@@ -13,12 +13,17 @@ import (
 	"github.com/xvzc/SpoofDPI/util"
 )
 
+type Resolver interface {
+	Resolve(ctx context.Context, host string, qTypes []uint16) ([]net.IPAddr, error)
+	String() string
+}
+
 type Dns struct {
 	host          string
 	port          string
-	systemClient  client.Resolver
-	generalClient client.Resolver
-	dohClient     client.Resolver
+	systemClient  Resolver
+	generalClient Resolver
+	dohClient     Resolver
 }
 
 func NewResolver(config *util.Config) *Dns {
@@ -61,7 +66,7 @@ func (d *Dns) ResolveHost(host string, enableDoh bool, useSystemDns bool) (strin
 	return "", fmt.Errorf("could not resolve %s using %s", host, clt)
 }
 
-func (d *Dns) clientFactory(enableDoh bool, useSystemDns bool) client.Resolver {
+func (d *Dns) clientFactory(enableDoh bool, useSystemDns bool) Resolver {
 	if useSystemDns {
 		return d.systemClient
 	}

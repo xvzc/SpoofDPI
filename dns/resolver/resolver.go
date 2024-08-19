@@ -14,11 +14,6 @@ import (
 
 type exchangeFunc = func(ctx context.Context, msg *dns.Msg) (*dns.Msg, error)
 
-type Resolver interface {
-	Resolve(ctx context.Context, host string, qTypes []uint16) ([]net.IPAddr, error)
-	String() string
-}
-
 type DNSResult struct {
 	msg *dns.Msg
 	err error
