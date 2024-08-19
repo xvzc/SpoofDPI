@@ -2,5 +2,7 @@ spoof-dpi
 spoof-dpi-*
 spoof-dpi.*
 !*/spoof-dpi/
-.DS_Store
 out/**
+
+.DS_Store
+.idea/
