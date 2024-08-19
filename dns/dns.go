@@ -26,16 +26,16 @@ type Dns struct {
 	dohClient     Resolver
 }
 
-func NewResolver(config *util.Config) *Dns {
+func NewDns(config *util.Config) *Dns {
 	addr := *config.DnsAddr
 	port := strconv.Itoa(*config.DnsPort)
 
 	return &Dns{
 		host:          *config.DnsAddr,
 		port:          port,
-		systemClient:  client.NewSystemResolver(),
-		generalClient: client.NewGeneralResolver(net.JoinHostPort(addr, port)),
-		dohClient:     client.NewDOHResolver(addr),
+		systemClient:  resolver.NewSystemResolver(),
+		generalClient: resolver.NewGeneralResolver(net.JoinHostPort(addr, port)),
+		dohClient:     resolver.NewDOHResolver(addr),
 	}
 }
 

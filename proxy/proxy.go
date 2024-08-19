@@ -31,7 +31,7 @@ func New(config *util.Config) *Proxy {
 		windowSize:     *config.WindowSize,
 		enableDoh:      *config.EnableDoh,
 		allowedPattern: config.AllowedPatterns,
-		resolver:       dns.NewResolver(config),
+		resolver:       dns.NewDns(config),
 	}
 }
 
