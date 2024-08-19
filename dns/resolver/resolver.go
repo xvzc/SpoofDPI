@@ -19,6 +19,11 @@ type Resolver interface {
 	String() string
 }
 
+type DNSResult struct {
+	msg *dns.Msg
+	err error
+}
+
 func recordTypeIDToName(id uint16) string {
 	switch id {
 	case 1:

@@ -8,11 +8,6 @@ import (
 	"github.com/miekg/dns"
 )
 
-type DNSResult struct {
-	msg *dns.Msg
-	err error
-}
-
 type GeneralResolver struct {
 	client *dns.Client
 	server string
