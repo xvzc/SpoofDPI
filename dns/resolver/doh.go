@@ -19,7 +19,7 @@ type DOHResolver struct {
 	client   *http.Client
 }
 
-func NewDOHClient(host string) *DOHResolver {
+func NewDOHResolver(host string) *DOHResolver {
 	c := &http.Client{
 		Timeout: 5 * time.Second,
 		Transport: &http.Transport{

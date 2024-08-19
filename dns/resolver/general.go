@@ -18,7 +18,7 @@ type GeneralResolver struct {
 	server string
 }
 
-func NewGeneralClient(server string) *GeneralResolver {
+func NewGeneralResolver(server string) *GeneralResolver {
 	return &GeneralResolver{
 		client: &dns.Client{},
 		server: server,

@@ -28,9 +28,9 @@ func NewResolver(config *util.Config) *Dns {
 	return &Dns{
 		host:          *config.DnsAddr,
 		port:          port,
-		systemClient:  client.NewSystemClient(),
-		generalClient: client.NewGeneralClient(net.JoinHostPort(addr, port)),
-		dohClient:     client.NewDOHClient(addr),
+		systemClient:  client.NewSystemResolver(),
+		generalClient: client.NewGeneralResolver(net.JoinHostPort(addr, port)),
+		dohClient:     client.NewDOHResolver(addr),
 	}
 }
 

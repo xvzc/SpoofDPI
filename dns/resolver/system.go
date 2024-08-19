@@ -9,7 +9,7 @@ type SystemResolver struct {
 	*net.Resolver
 }
 
-func NewSystemClient() *SystemResolver {
+func NewSystemResolver() *SystemResolver {
 	return &SystemResolver{
 		&net.Resolver{PreferGo: true},
 	}
