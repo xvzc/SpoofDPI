@@ -9,6 +9,7 @@ import (
 type TLSMessageType byte
 
 const (
+	TLSMaxPayloadLen    uint16         = 16384 // 16 KB
 	TLSHeaderLen                       = 5
 	TLSInvalid          TLSMessageType = 0x0
 	TLSChangeCipherSpec TLSMessageType = 0x14
@@ -43,12 +44,11 @@ func ReadTLSMessage(r io.Reader) (*TLSMessage, error) {
 		ProtoVersion: binary.BigEndian.Uint16(rawHeader[1:3]),
 		PayloadLen:   binary.BigEndian.Uint16(rawHeader[3:5]),
 	}
-	rawLen := header.PayloadLen + TLSHeaderLen
-	if rawLen < TLSHeaderLen {
+	if header.PayloadLen > TLSMaxPayloadLen {
 		// Corrupted header? Check integer overflow
-		return nil, fmt.Errorf("invalid TLS header.Type: %x, ProtoVersion: %x, PayloadLen: %x", header.Type, header.ProtoVersion, header.PayloadLen)
+		return nil, fmt.Errorf("invalid TLS header. Type: %x, ProtoVersion: %x, PayloadLen: %x", header.Type, header.ProtoVersion, header.PayloadLen)
 	}
-	raw := make([]byte, rawLen)
+	raw := make([]byte, header.PayloadLen+TLSHeaderLen)
 	copy(raw[0:TLSHeaderLen], rawHeader[:])
 	_, err = io.ReadFull(r, raw[TLSHeaderLen:])
 	if err != nil {
