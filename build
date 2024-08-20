@@ -1,8 +1,0 @@
-#!/bin/sh
-
-docker run --rm \
-    -it \
-    --workdir /app/out \
-    -v ./:/app \
-    golang:1.21-alpine \
-    sh /app/make-releases.sh
