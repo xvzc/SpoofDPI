@@ -31,7 +31,7 @@ func GetConfig() *Config {
 	return config
 }
 
-func (c *Config) Load(args *Args) {
+func (c *Config) Load(args *Args) error {
 	c.Addr = args.Addr
 	c.Port = args.Port
 	c.DnsAddr = args.DnsAddr
@@ -41,18 +41,40 @@ func (c *Config) Load(args *Args) {
 	c.NoBanner = args.NoBanner
 	c.SystemProxy = args.SystemProxy
 	c.Timeout = args.Timeout
-	c.AllowedPatterns = parseAllowedPattern(args.AllowedPattern)
 	c.WindowSize = args.WindowSize
+
+	patterns, err := parseAllowedPattern(args.AllowedPattern, *args.PatternFile)
+	if err != nil {
+		return fmt.Errorf("parsing patterns: %w", err)
+	}
+	c.AllowedPatterns = patterns
+
+	return nil
 }
 
-func parseAllowedPattern(patterns *StringArray) []*regexp.Regexp {
-	var allowedPatterns []*regexp.Regexp
+func parseAllowedPattern(patterns *StringArray, filePath string) ([]*regexp.Regexp, error) {
+	patternSet := make(map[*regexp.Regexp]struct{})
 
-	for _, pattern := range *patterns {
-		allowedPatterns = append(allowedPatterns, regexp.MustCompile(pattern))
+	filePatterns, err := loadPatternsFromFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("loading patterns from file: %w", err)
+	}
+	for _, pattern := range filePatterns {
+		patternSet[pattern] = struct{}{}
 	}
 
-	return allowedPatterns
+	for _, rawPattern := range *patterns {
+		pattern := regexp.MustCompile(rawPattern)
+		patternSet[pattern] = struct{}{}
+	}
+
+	allowedPatterns := make([]*regexp.Regexp, len(patternSet))
+	writeI := 0
+	for pattern := range patternSet {
+		allowedPatterns[writeI] = pattern
+		writeI++
+	}
+	return allowedPatterns, nil
 }
 
 func PrintColoredBanner() {
