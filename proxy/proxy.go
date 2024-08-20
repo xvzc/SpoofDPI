@@ -17,8 +17,9 @@ type Proxy struct {
 	addr           string
 	port           int
 	timeout        int
-	resolver       *dns.DnsResolver
+	resolver       *dns.Dns
 	windowSize     int
+	enableDoh      bool
 	allowedPattern []*regexp.Regexp
 }
 
@@ -28,13 +29,14 @@ func New(config *util.Config) *Proxy {
 		port:           *config.Port,
 		timeout:        *config.Timeout,
 		windowSize:     *config.WindowSize,
+		enableDoh:      *config.EnableDoh,
 		allowedPattern: config.AllowedPatterns,
-		resolver:       dns.NewResolver(config),
+		resolver:       dns.NewDns(config),
 	}
 }
 
 func (pxy *Proxy) Start() {
-	l, err := net.ListenTCP("tcp4", &net.TCPAddr{IP: net.ParseIP(pxy.addr), Port: pxy.port})
+	l, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP(pxy.addr), Port: pxy.port})
 	if err != nil {
 		log.Fatal("[PROXY] error creating listener: ", err)
 		os.Exit(1)
@@ -75,7 +77,7 @@ func (pxy *Proxy) Start() {
 			matched := pxy.patternMatches([]byte(pkt.Domain()))
 			useSystemDns := !matched
 
-			ip, err := pxy.resolver.Lookup(pkt.Domain(), useSystemDns)
+			ip, err := pxy.resolver.ResolveHost(pkt.Domain(), pxy.enableDoh, useSystemDns)
 			if err != nil {
 				log.Debug("[PROXY] error while dns lookup: ", pkt.Domain(), " ", err)
 				conn.Write([]byte(pkt.Version() + " 502 Bad Gateway\r\n\r\n"))
@@ -114,11 +116,6 @@ func (pxy *Proxy) patternMatches(bytes []byte) bool {
 }
 
 func isLoopedRequest(ip net.IP) bool {
-	// we don't handle IPv6 at all it seems
-	if ip.To4() == nil {
-		return false
-	}
-
 	if ip.IsLoopback() {
 		return true
 	}
@@ -133,7 +130,7 @@ func isLoopedRequest(ip net.IP) bool {
 
 	for _, addr := range addr {
 		if ipnet, ok := addr.(*net.IPNet); ok {
-			if ipnet.IP.To4() != nil && ipnet.IP.To4().Equal(ip) {
+			if ipnet.IP.Equal(ip) {
 				return true
 			}
 		}
