@@ -1,4 +1,4 @@
-package integration_test
+package test
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/sirupsen/logrus"
-	"github.com/xvzc/SpoofDPI/test/integration"
 )
 
 type StdoutLogger struct {
@@ -20,9 +19,10 @@ func (*StdoutLogger) Printf(format string, args ...interface{}) {
 	fmt.Fprintf(os.Stdout, format, args...)
 }
 
+// TODO:
 func TestTest(t *testing.T) {
 	port := uint16(rand2.IntN(65536-2000) + 2000)
-	container, err := integration.SpoofDPIContainer(port, new(StdoutLogger), []string{"-debug"})
+	container, err := SpoofDPIContainer(port, new(StdoutLogger), []string{"-debug"})
 	if err != nil {
 		t.Fatal(err)
 	}

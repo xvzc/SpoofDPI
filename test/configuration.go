@@ -1,4 +1,4 @@
-package integration
+package test
 
 import (
 	"archive/tar"
@@ -169,7 +169,7 @@ type Logging interface {
 
 func SpoofDPIContainer(port uint16, log Logging, proxyRunArgs []string) (testcontainers.Container, error) {
 	ctx := context.Background()
-	projectTar, err := MakeTar("../../", FilePredicateFn(func(i FileInfo) bool {
+	projectTar, err := MakeTar("../", FilePredicateFn(func(i FileInfo) bool {
 		if i.Info.IsDir() {
 			return false
 		}
