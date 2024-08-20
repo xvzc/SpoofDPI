@@ -16,6 +16,7 @@ type Args struct {
 	SystemProxy    *bool
 	Timeout        *int
 	AllowedPattern *StringArray
+	PatternFile    *string
 	WindowSize     *int
 	Version        *bool
 }
@@ -47,14 +48,20 @@ try lower values if the default value doesn't bypass the DPI;
 when not given, the client hello packet will be sent in two parts:
 fragmentation for the first data packet and the rest
 `)
-  args.AllowedPattern = new(StringArray)
-	args.Version = flag.Bool("v", false, "print spoof-dpi's version; this may contain some other relevant information")
 
+	args.AllowedPattern = new(StringArray)
 	flag.Var(
 		args.AllowedPattern,
 		"pattern",
 		"bypass DPI only on packets matching this regex pattern; can be given multiple times",
 	)
+	args.PatternFile = flag.String(
+		"pattern-file",
+		"",
+		"bypass DPI only on packets matching regex patterns provided in a file (one per line)",
+	)
+
+	args.Version = flag.Bool("v", false, "print spoof-dpi's version; this may contain some other relevant information")
 
 	flag.Parse()
 
