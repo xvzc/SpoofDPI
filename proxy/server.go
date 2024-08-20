@@ -37,10 +37,9 @@ func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td strin
 		from.Close()
 		to.Close()
 
-		log.Debug("[HTTPS] closing proxy connection: ", fd, " -> ", td)
+		log.Debugf("%s closing proxy connection: %s -> %s", proto, fd, td)
 	}()
 
-	proto += " "
 	buf := make([]byte, BufferSize)
 	for {
 		if timeout > 0 {
@@ -52,15 +51,15 @@ func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td strin
 		bytesRead, err := ReadBytes(from, buf)
 		if err != nil {
 			if err == io.EOF {
-				log.Debug(proto, "finished reading from", fd)
+				log.Debugf("%s finished reading from %s", proto, fd)
 				return
 			}
-			log.Debug(proto, "error reading from ", fd, " ", err)
+			log.Debugf("%s error reading from %s: %s", proto, fd, err)
 			return
 		}
 
 		if _, err := to.Write(bytesRead); err != nil {
-			log.Debug(proto, "error Writing to ", td)
+			log.Debugf("%s error Writing to %s", proto, td)
 			return
 		}
 	}

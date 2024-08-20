@@ -15,7 +15,7 @@ func (pxy *Proxy) handleHttps(lConn *net.TCPConn, exploit bool, initPkt *packet.
 	if initPkt.Port() != "" {
 		port, err = strconv.Atoi(initPkt.Port())
 		if err != nil {
-			log.Debug("[HTTPS] error while parsing port for ", initPkt.Domain(), " aborting..")
+			log.Debugf("[HTTPS] error while parsing port for %s aborting..", initPkt.Domain())
 		}
 	}
 
@@ -26,40 +26,40 @@ func (pxy *Proxy) handleHttps(lConn *net.TCPConn, exploit bool, initPkt *packet.
 		return
 	}
 
-	log.Debug("[HTTPS] new connection to the server ", rConn.LocalAddr(), " -> ", initPkt.Domain())
+	log.Debugf("[HTTPS] new connection to the server %s -> %s", rConn.LocalAddr(), initPkt.Domain())
 
 	_, err = lConn.Write([]byte(initPkt.Version() + " 200 Connection Established\r\n\r\n"))
 	if err != nil {
-		log.Debug("[HTTPS] error sending 200 connection established to the client: ", err)
+		log.Debugf("[HTTPS] error sending 200 connection established to the client: %s", err)
 		return
 	}
 
-	log.Debug("[HTTPS] sent connection estabalished to ", lConn.RemoteAddr())
+	log.Debugf("[HTTPS] sent connection estabalished to %s", lConn.RemoteAddr())
 
 	// Read client hello
 	m, err := packet.ReadTLSMessage(lConn)
 	if err != nil || !m.IsClientHello() {
-		log.Debug("[HTTPS] error reading client hello from ", lConn.RemoteAddr().String(), " ", err)
+		log.Debugf("[HTTPS] error reading client hello from %s: %s", lConn.RemoteAddr().String(), err)
 		return
 	}
 	clientHello := m.Raw
 
-	log.Debug("[HTTPS] client sent hello ", len(clientHello), "bytes")
+	log.Debugf("[HTTPS] client sent hello %d bytes", len(clientHello))
 
 	// Generate a go routine that reads from the server
 	go Serve(rConn, lConn, "[HTTPS]", initPkt.Domain(), lConn.RemoteAddr().String(), pxy.timeout)
 
 	if exploit {
-		log.Debug("[HTTPS] writing chunked client hello to ", initPkt.Domain())
+		log.Debugf("[HTTPS] writing chunked client hello to %s", initPkt.Domain())
 		chunks := splitInChunks(clientHello, pxy.windowSize)
 		if _, err := writeChunks(rConn, chunks); err != nil {
-			log.Debug("[HTTPS] error writing chunked client hello to ", initPkt.Domain(), err)
+			log.Debugf("[HTTPS] error writing chunked client hello to %s: %s", initPkt.Domain(), err)
 			return
 		}
 	} else {
-		log.Debug("[HTTPS] writing plain client hello to ", initPkt.Domain())
+		log.Debugf("[HTTPS] writing plain client hello to %s", initPkt.Domain())
 		if _, err := rConn.Write(clientHello); err != nil {
-			log.Debug("[HTTPS] error writing plain client hello to ", initPkt.Domain(), err)
+      log.Debugf("[HTTPS] error writing plain client hello to %s: %s", initPkt.Domain(), err)
 			return
 		}
 	}
