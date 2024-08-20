@@ -6,18 +6,19 @@ import (
 )
 
 type Args struct {
-	Addr           *string
-	Port           *int
-	DnsAddr        *string
-	DnsPort        *int
-	EnableDoh      *bool
-	Debug          *bool
-	NoBanner       *bool
-	SystemProxy    *bool
-	Timeout        *int
-	AllowedPattern *StringArray
-	WindowSize     *int
-	Version        *bool
+	Addr              *string
+	Port              *int
+	DnsAddr           *string
+	DnsPort           *int
+	EnableDoh         *bool
+	Debug             *bool
+	NoBanner          *bool
+	SystemProxy       *bool
+	Timeout           *int
+	AllowedPattern    *StringArray
+	DisallowedPattern *StringArray
+	WindowSize        *int
+	Version           *bool
 }
 
 type StringArray []string
@@ -47,13 +48,20 @@ try lower values if the default value doesn't bypass the DPI;
 when not given, the client hello packet will be sent in two parts:
 fragmentation for the first data packet and the rest
 `)
-  args.AllowedPattern = new(StringArray)
+	args.AllowedPattern = new(StringArray)
+	args.DisallowedPattern = new(StringArray)
 	args.Version = flag.Bool("v", false, "print spoof-dpi's version; this may contain some other relevant information")
 
 	flag.Var(
 		args.AllowedPattern,
 		"pattern",
 		"bypass DPI only on packets matching this regex pattern; can be given multiple times",
+	)
+
+	flag.Var(
+		args.DisallowedPattern,
+		"antipattern",
+		"nevery bypass DPI on packets matching this regex pattern; can be given multiple times",
 	)
 
 	flag.Parse()

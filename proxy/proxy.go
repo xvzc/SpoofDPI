@@ -14,22 +14,24 @@ import (
 )
 
 type Proxy struct {
-	addr           string
-	port           int
-	timeout        int
-	resolver       *dns.DnsResolver
-	windowSize     int
-	allowedPattern []*regexp.Regexp
+	addr              string
+	port              int
+	timeout           int
+	resolver          *dns.DnsResolver
+	windowSize        int
+	allowedPattern    []*regexp.Regexp
+	disallowedPattern []*regexp.Regexp
 }
 
 func New(config *util.Config) *Proxy {
 	return &Proxy{
-		addr:           *config.Addr,
-		port:           *config.Port,
-		timeout:        *config.Timeout,
-		windowSize:     *config.WindowSize,
-		allowedPattern: config.AllowedPatterns,
-		resolver:       dns.NewResolver(config),
+		addr:              *config.Addr,
+		port:              *config.Port,
+		timeout:           *config.Timeout,
+		windowSize:        *config.WindowSize,
+		allowedPattern:    config.AllowedPatterns,
+		disallowedPattern: config.DisallowedPatterns,
+		resolver:          dns.NewResolver(config),
 	}
 }
 
@@ -47,6 +49,9 @@ func (pxy *Proxy) Start() {
 	log.Println("[PROXY] created a listener on port", pxy.port)
 	if len(pxy.allowedPattern) > 0 {
 		log.Println("[PROXY] number of white-listed pattern:", len(pxy.allowedPattern))
+	}
+	if len(pxy.disallowedPattern) > 0 {
+		log.Println("[PROXY] number of black-listed pattern:", len(pxy.disallowedPattern))
 	}
 
 	for {
@@ -100,6 +105,14 @@ func (pxy *Proxy) Start() {
 }
 
 func (pxy *Proxy) patternMatches(bytes []byte) bool {
+	if pxy.disallowedPattern != nil {
+		for _, pattern := range pxy.disallowedPattern {
+			if pattern.Match(bytes) {
+				return false
+			}
+		}
+	}
+
 	if pxy.allowedPattern == nil {
 		return true
 	}
