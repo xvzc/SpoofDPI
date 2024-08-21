@@ -33,7 +33,11 @@ func NewDOHResolver(host string) *DOHResolver {
 		},
 	}
 
-	host = regexp.MustCompile(`^https:\/\/|\/dns-query$`).ReplaceAllString(host, "")
+	host = regexp.MustCompile(`^https://|/dns-query$`).ReplaceAllString(host, "")
+	if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+		host = fmt.Sprintf("[%s]", ip)
+	}
+
 	return &DOHResolver{
 		upstream: "https://" + host + "/dns-query",
 		client:   c,
