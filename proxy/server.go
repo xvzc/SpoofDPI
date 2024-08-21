@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -14,12 +15,12 @@ const (
 	TLSHeaderLen = 5
 )
 
-func ReadBytes(conn *net.TCPConn, dest []byte) ([]byte, error) {
-	n, err := readBytesInternal(conn, dest)
+func ReadBytes(ctx context.Context, conn *net.TCPConn, dest []byte) ([]byte, error) {
+	n, err := readBytesInternal(ctx, conn, dest)
 	return dest[:n], err
 }
 
-func readBytesInternal(conn *net.TCPConn, dest []byte) (int, error) {
+func readBytesInternal(ctx context.Context, conn *net.TCPConn, dest []byte) (int, error) {
 	totalRead, err := conn.Read(dest)
 	if err != nil {
 		var opError *net.OpError
@@ -33,7 +34,7 @@ func readBytesInternal(conn *net.TCPConn, dest []byte) (int, error) {
 	return totalRead, nil
 }
 
-func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td string, timeout int) {
+func Serve(ctx context.Context, from *net.TCPConn, to *net.TCPConn, proto string, fd string, td string, timeout int) {
 	defer func() {
 		from.Close()
 		to.Close()
@@ -51,7 +52,7 @@ func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td strin
 			)
 		}
 
-		bytesRead, err := ReadBytes(from, buf)
+		bytesRead, err := ReadBytes(ctx, from, buf)
 		if err != nil {
 			if err == io.EOF {
 				log.Logger.Debug().

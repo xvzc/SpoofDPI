@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"net"
 	"os"
 	"regexp"
@@ -36,7 +37,7 @@ func New(config *util.Config) *Proxy {
 	}
 }
 
-func (pxy *Proxy) Start() {
+func (pxy *Proxy) Start(ctx context.Context) {
 	l, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP(pxy.addr), Port: pxy.port})
 	if err != nil {
 		log.Logger.Fatal().
@@ -92,7 +93,7 @@ func (pxy *Proxy) Start() {
 			matched := pxy.patternMatches([]byte(pkt.Domain()))
 			useSystemDns := !matched
 
-			ip, err := pxy.resolver.ResolveHost(pkt.Domain(), pxy.enableDoh, useSystemDns)
+			ip, err := pxy.resolver.ResolveHost(ctx, pkt.Domain(), pxy.enableDoh, useSystemDns)
 			if err != nil {
 				log.Logger.Debug().
 					Str(log.ScopeFieldName, scopeProxy).
@@ -103,7 +104,7 @@ func (pxy *Proxy) Start() {
 			}
 
 			// Avoid recursively querying self
-			if pkt.Port() == strconv.Itoa(pxy.port) && isLoopedRequest(net.ParseIP(ip)) {
+			if pkt.Port() == strconv.Itoa(pxy.port) && isLoopedRequest(ctx, net.ParseIP(ip)) {
 				log.Logger.Error().
 					Str(log.ScopeFieldName, scopeProxy).
 					Msg("looped request has been detected. aborting.")
@@ -112,9 +113,9 @@ func (pxy *Proxy) Start() {
 			}
 
 			if pkt.IsConnectMethod() {
-				pxy.handleHttps(conn.(*net.TCPConn), matched, pkt, ip)
+				pxy.handleHttps(ctx, conn.(*net.TCPConn), matched, pkt, ip)
 			} else {
-				pxy.handleHttp(conn.(*net.TCPConn), pkt, ip)
+				pxy.handleHttp(ctx, conn.(*net.TCPConn), pkt, ip)
 			}
 		}()
 	}
@@ -134,7 +135,7 @@ func (pxy *Proxy) patternMatches(bytes []byte) bool {
 	return false
 }
 
-func isLoopedRequest(ip net.IP) bool {
+func isLoopedRequest(ctx context.Context, ip net.IP) bool {
 	if ip.IsLoopback() {
 		return true
 	}

@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"net"
 	"strconv"
 
@@ -11,7 +12,7 @@ import (
 
 const protoHTTP = "HTTP"
 
-func (pxy *Proxy) handleHttp(lConn *net.TCPConn, pkt *packet.HttpRequest, ip string) {
+func (pxy *Proxy) handleHttp(ctx context.Context, lConn *net.TCPConn, pkt *packet.HttpRequest, ip string) {
 	pkt.Tidy()
 
 	// Create a connection to the requested server
@@ -39,7 +40,7 @@ func (pxy *Proxy) handleHttp(lConn *net.TCPConn, pkt *packet.HttpRequest, ip str
 		Str(log.ScopeFieldName, protoHTTP).
 		Msgf("new connection to the server %s -> %s", rConn.LocalAddr(), pkt.Domain())
 
-	go Serve(rConn, lConn, protoHTTP, pkt.Domain(), lConn.RemoteAddr().String(), pxy.timeout)
+	go Serve(ctx, rConn, lConn, protoHTTP, pkt.Domain(), lConn.RemoteAddr().String(), pxy.timeout)
 
 	_, err = rConn.Write(pkt.Raw())
 	if err != nil {
@@ -53,5 +54,5 @@ func (pxy *Proxy) handleHttp(lConn *net.TCPConn, pkt *packet.HttpRequest, ip str
 		Str(log.ScopeFieldName, protoHTTP).
 		Msgf("sent a request to %s", pkt.Domain())
 
-	go Serve(lConn, rConn, protoHTTP, lConn.RemoteAddr().String(), pkt.Domain(), pxy.timeout)
+	go Serve(ctx, lConn, rConn, protoHTTP, lConn.RemoteAddr().String(), pkt.Domain(), pxy.timeout)
 }

@@ -41,13 +41,13 @@ func NewDns(config *util.Config) *Dns {
 	}
 }
 
-func (d *Dns) ResolveHost(host string, enableDoh bool, useSystemDns bool) (string, error) {
+func (d *Dns) ResolveHost(ctx context.Context, host string, enableDoh bool, useSystemDns bool) (string, error) {
 	if ip, err := parseIpAddr(host); err == nil {
 		return ip.String(), nil
 	}
 
 	clt := d.clientFactory(enableDoh, useSystemDns)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	log.Logger.Debug().

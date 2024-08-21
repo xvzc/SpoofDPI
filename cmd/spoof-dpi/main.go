@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"github.com/xvzc/SpoofDPI/util/log"
 	"os"
 	"os/signal"
@@ -37,7 +38,7 @@ func main() {
 		}
 	}
 
-	go pxy.Start()
+	go pxy.Start(context.Background())
 
 	// Handle signals
 	sigs := make(chan os.Signal, 1)

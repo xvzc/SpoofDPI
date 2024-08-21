@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"net"
 	"strconv"
 
@@ -10,7 +11,7 @@ import (
 
 const protoHTTPS = "HTTPS"
 
-func (pxy *Proxy) handleHttps(lConn *net.TCPConn, exploit bool, initPkt *packet.HttpRequest, ip string) {
+func (pxy *Proxy) handleHttps(ctx context.Context, lConn *net.TCPConn, exploit bool, initPkt *packet.HttpRequest, ip string) {
 	// Create a connection to the requested server
 	var port int = 443
 	var err error
@@ -63,13 +64,13 @@ func (pxy *Proxy) handleHttps(lConn *net.TCPConn, exploit bool, initPkt *packet.
 		Msgf("client sent hello %d bytes", len(clientHello))
 
 	// Generate a go routine that reads from the server
-	go Serve(rConn, lConn, protoHTTPS, initPkt.Domain(), lConn.RemoteAddr().String(), pxy.timeout)
+	go Serve(ctx, rConn, lConn, protoHTTPS, initPkt.Domain(), lConn.RemoteAddr().String(), pxy.timeout)
 
 	if exploit {
 		log.Logger.Debug().
 			Str(log.ScopeFieldName, protoHTTPS).
 			Msgf("writing chunked client hello to %s", initPkt.Domain())
-		chunks := splitInChunks(clientHello, pxy.windowSize)
+		chunks := splitInChunks(ctx, clientHello, pxy.windowSize)
 		if _, err := writeChunks(rConn, chunks); err != nil {
 			log.Logger.Debug().
 				Str(log.ScopeFieldName, protoHTTPS).
@@ -88,10 +89,10 @@ func (pxy *Proxy) handleHttps(lConn *net.TCPConn, exploit bool, initPkt *packet.
 		}
 	}
 
-	go Serve(lConn, rConn, protoHTTPS, lConn.RemoteAddr().String(), initPkt.Domain(), pxy.timeout)
+	go Serve(ctx, lConn, rConn, protoHTTPS, lConn.RemoteAddr().String(), initPkt.Domain(), pxy.timeout)
 }
 
-func splitInChunks(bytes []byte, size int) [][]byte {
+func splitInChunks(ctx context.Context, bytes []byte, size int) [][]byte {
 	var chunks [][]byte
 	var raw []byte = bytes
 
