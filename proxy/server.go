@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/xvzc/SpoofDPI/util/log"
 )
 
 const (
@@ -38,7 +38,9 @@ func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td strin
 		from.Close()
 		to.Close()
 
-		log.Debugf("%s closing proxy connection: %s -> %s", proto, fd, td)
+		log.Logger.Debug().
+			Str(log.ScopeFieldName, proto).
+			Msgf("closing proxy connection: %s -> %s", fd, td)
 	}()
 
 	buf := make([]byte, BufferSize)
@@ -52,15 +54,21 @@ func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td strin
 		bytesRead, err := ReadBytes(from, buf)
 		if err != nil {
 			if err == io.EOF {
-				log.Debugf("%s finished reading from %s", proto, fd)
+				log.Logger.Debug().
+					Str(log.ScopeFieldName, proto).
+					Msgf("finished reading from %s", fd)
 				return
 			}
-			log.Debugf("%s error reading from %s: %s", proto, fd, err)
+			log.Logger.Debug().
+				Str(log.ScopeFieldName, proto).
+				Msgf("error reading from %s: %s", fd, err)
 			return
 		}
 
 		if _, err := to.Write(bytesRead); err != nil {
-			log.Debugf("%s error Writing to %s", proto, td)
+			log.Logger.Debug().
+				Str(log.ScopeFieldName, proto).
+				Msgf("error Writing to %s", td)
 			return
 		}
 	}

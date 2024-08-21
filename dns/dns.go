@@ -8,10 +8,12 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
-	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/dns/resolver"
 	"github.com/xvzc/SpoofDPI/util"
+	"github.com/xvzc/SpoofDPI/util/log"
 )
+
+const scopeDNS = "DNS"
 
 type Resolver interface {
 	Resolve(ctx context.Context, host string, qTypes []uint16) ([]net.IPAddr, error)
@@ -48,7 +50,10 @@ func (d *Dns) ResolveHost(host string, enableDoh bool, useSystemDns bool) (strin
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	log.Debugf("[DNS] resolving %s using %s", host, clt)
+	log.Logger.Debug().
+		Str(log.ScopeFieldName, scopeDNS).
+		Msgf("resolving %s using %s", host, clt)
+
 	t := time.Now()
 
 	addrs, err := clt.Resolve(ctx, host, []uint16{dns.TypeAAAA, dns.TypeA})
@@ -59,7 +64,9 @@ func (d *Dns) ResolveHost(host string, enableDoh bool, useSystemDns bool) (strin
 
 	if len(addrs) > 0 {
 		d := time.Since(t).Milliseconds()
-		log.Debugf("[DNS] resolved %s from %s in %d ms", addrs[0].String(), host, d)
+		log.Logger.Debug().
+			Str(log.ScopeFieldName, scopeDNS).
+			Msgf("resolved %s from %s in %d ms", addrs[0].String(), host, d)
 		return addrs[0].String(), nil
 	}
 
