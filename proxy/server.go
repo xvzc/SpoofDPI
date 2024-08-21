@@ -22,8 +22,9 @@ func ReadBytes(conn *net.TCPConn, dest []byte) ([]byte, error) {
 func readBytesInternal(conn *net.TCPConn, dest []byte) (int, error) {
 	totalRead, err := conn.Read(dest)
 	if err != nil {
-		switch err.(type) {
-		case *net.OpError:
+		var opError *net.OpError
+		switch {
+		case errors.As(err, &opError) && opError.Timeout():
 			return totalRead, errors.New("timed out")
 		default:
 			return totalRead, err
