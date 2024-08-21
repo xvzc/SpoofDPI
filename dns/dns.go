@@ -2,109 +2,91 @@ package dns
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"net"
-	"regexp"
 	"strconv"
 	"time"
 
 	"github.com/miekg/dns"
 	log "github.com/sirupsen/logrus"
+	"github.com/xvzc/SpoofDPI/dns/resolver"
 	"github.com/xvzc/SpoofDPI/util"
 )
 
-type DnsResolver struct {
-	host      string
-	port      string
-	enableDoh bool
+type Resolver interface {
+	Resolve(ctx context.Context, host string, qTypes []uint16) ([]net.IPAddr, error)
+	String() string
 }
 
-func NewResolver(config *util.Config) *DnsResolver {
-	return &DnsResolver{
-		host:      *config.DnsAddr,
-		port:      strconv.Itoa(*config.DnsPort),
-		enableDoh: *config.EnableDoh,
+type Dns struct {
+	host          string
+	port          string
+	systemClient  Resolver
+	generalClient Resolver
+	dohClient     Resolver
+}
+
+func NewDns(config *util.Config) *Dns {
+	addr := *config.DnsAddr
+	port := strconv.Itoa(*config.DnsPort)
+
+	return &Dns{
+		host:          *config.DnsAddr,
+		port:          port,
+		systemClient:  resolver.NewSystemResolver(),
+		generalClient: resolver.NewGeneralResolver(net.JoinHostPort(addr, port)),
+		dohClient:     resolver.NewDOHResolver(addr),
 	}
 }
 
-func (d *DnsResolver) Lookup(domain string, useSystemDns bool) (string, error) {
-	ipRegex := "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
-
-	if r, _ := regexp.MatchString(ipRegex, domain); r {
-		return domain, nil
-	}
-
-	if useSystemDns {
-		log.Debug("[DNS] ", domain, " resolving with system dns")
-		return systemLookup(domain)
-	}
-
-	if d.enableDoh {
-		log.Debug("[DNS] ", domain, " resolving with dns over https")
-		return dohLookup(d.host, domain)
-	}
-
-	log.Debug("[DNS] ", domain, " resolving with custom dns")
-	return customLookup(d.host, d.port, domain)
-}
-
-func customLookup(host string, port string, domain string) (string, error) {
-
-	dnsServer := host + ":" + port
-
-	msg := new(dns.Msg)
-	msg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
-
-	c := new(dns.Client)
-
-	response, _, err := c.Exchange(msg, dnsServer)
-	if err != nil {
-		return "", errors.New("could not resolve the domain(custom)")
-	}
-
-	for _, answer := range response.Answer {
-		if record, ok := answer.(*dns.A); ok {
-			return record.A.String(), nil
-		}
-	}
-
-	return "", errors.New("no record found(custom)")
-
-}
-
-func systemLookup(domain string) (string, error) {
-	systemResolver := net.Resolver{PreferGo: true}
-	ips, err := systemResolver.LookupIPAddr(context.Background(), domain)
-	if err != nil {
-		return "", errors.New("could not resolve the domain(system)")
-	}
-
-	for _, ip := range ips {
+func (d *Dns) ResolveHost(host string, enableDoh bool, useSystemDns bool) (string, error) {
+	if ip, err := parseIpAddr(host); err == nil {
 		return ip.String(), nil
 	}
 
-	return "", errors.New("no record found(system)")
-}
-
-func dohLookup(host string, domain string) (string, error) {
+	clt := d.clientFactory(enableDoh, useSystemDns)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	client := getDOHClient(host)
+	log.Debugf("[DNS] resolving %s using %s", host, clt)
+	t := time.Now()
 
-	msg := new(dns.Msg)
-	msg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
-
-	response, err := client.dohExchange(ctx, msg)
+	addrs, err := clt.Resolve(ctx, host, []uint16{dns.TypeAAAA, dns.TypeA})
+	// addrs, err := clt.Resolve(ctx, host, []uint16{dns.TypeAAAA})
 	if err != nil {
-		return "", errors.New("could not resolve the domain(doh)")
+		return "", fmt.Errorf("%s: %w", clt, err)
 	}
 
-	for _, answer := range response.Answer {
-		if record, ok := answer.(*dns.A); ok {
-			return record.A.String(), nil
-		}
+	if len(addrs) > 0 {
+		d := time.Since(t).Milliseconds()
+		log.Debugf("[DNS] resolved %s from %s in %d ms", addrs[0].String(), host, d)
+		return addrs[0].String(), nil
 	}
 
-	return "", errors.New("no record found(doh)")
+	return "", fmt.Errorf("could not resolve %s using %s", host, clt)
+}
+
+func (d *Dns) clientFactory(enableDoh bool, useSystemDns bool) Resolver {
+	if useSystemDns {
+		return d.systemClient
+	}
+
+	if enableDoh {
+		return d.dohClient
+	}
+
+	return d.generalClient
+}
+
+func parseIpAddr(addr string) (*net.IPAddr, error) {
+	ip := net.ParseIP(addr)
+	if ip == nil {
+		return nil, fmt.Errorf("%s is not an ip address", addr)
+	}
+
+	ipAddr := &net.IPAddr{
+		IP: ip,
+	}
+
+	return ipAddr, nil
 }

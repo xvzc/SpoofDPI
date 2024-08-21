@@ -2,6 +2,3 @@ name-template: '$RESOLVED_VERSION'
 template: |
   ## Changes
 
-  $CHANGES
-
-  $CONTRIBUTORS

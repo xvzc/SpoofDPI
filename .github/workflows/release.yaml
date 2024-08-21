@@ -41,6 +41,7 @@ jobs:
     env: 
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TAG_NAME: ${{ needs.draft_release.outputs.tag_name }}
+      CGO_ENABLED: 0
     steps:
     - uses: actions/checkout@v4
     - name: Setup Go

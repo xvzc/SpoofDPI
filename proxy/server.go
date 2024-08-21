@@ -22,8 +22,9 @@ func ReadBytes(conn *net.TCPConn, dest []byte) ([]byte, error) {
 func readBytesInternal(conn *net.TCPConn, dest []byte) (int, error) {
 	totalRead, err := conn.Read(dest)
 	if err != nil {
-		switch err.(type) {
-		case *net.OpError:
+		var opError *net.OpError
+		switch {
+		case errors.As(err, &opError) && opError.Timeout():
 			return totalRead, errors.New("timed out")
 		default:
 			return totalRead, err
@@ -37,10 +38,9 @@ func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td strin
 		from.Close()
 		to.Close()
 
-		log.Debug("[HTTPS] closing proxy connection: ", fd, " -> ", td)
+		log.Debugf("%s closing proxy connection: %s -> %s", proto, fd, td)
 	}()
 
-	proto += " "
 	buf := make([]byte, BufferSize)
 	for {
 		if timeout > 0 {
@@ -52,15 +52,15 @@ func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td strin
 		bytesRead, err := ReadBytes(from, buf)
 		if err != nil {
 			if err == io.EOF {
-				log.Debug(proto, "finished reading from", fd)
+				log.Debugf("%s finished reading from %s", proto, fd)
 				return
 			}
-			log.Debug(proto, "error reading from ", fd, " ", err)
+			log.Debugf("%s error reading from %s: %s", proto, fd, err)
 			return
 		}
 
 		if _, err := to.Write(bytesRead); err != nil {
-			log.Debug(proto, "error Writing to ", td)
+			log.Debugf("%s error Writing to %s", proto, td)
 			return
 		}
 	}
