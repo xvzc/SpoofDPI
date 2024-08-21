@@ -19,17 +19,15 @@ func SetOsProxy(port int) error {
 
 	network, err := getDefaultNetwork()
 	if err != nil {
-		return fmt.Errorf("failed to get network interfaces, stdout: %s: %w", string(network), err)
+		return fmt.Errorf("failed to get network interfaces: %w", err)
 	}
-
 
 	args := fmt.Sprintf("'%s' 127.0.0.1 %d", network, port)
 
-	out, err = exec.Command("sh", "-c", "networksetup -setwebproxy "+args).Output()
+	out, err := exec.Command("sh", "-c", "networksetup -setwebproxy "+args).Output()
 	if err != nil {
 		return fmt.Errorf("failed to set web proxy, stdout: %s: %w", string(out), err)
 	}
-
 
 	out, err = exec.Command("sh", "-c", "networksetup -setsecurewebproxy "+args).Output()
 	if err != nil {
@@ -46,10 +44,10 @@ func UnsetOsProxy() error {
 
 	network, err := getDefaultNetwork()
 	if err != nil {
-		return fmt.Errorf("failed to get network interfaces, stdout: %s: %w", string(network), err)
+		return fmt.Errorf("failed to get network interfaces: %w", err)
 	}
 
-	out, err = exec.Command("sh", "-c", "networksetup -setwebproxystate "+"'"+network+"'"+" off").Output()
+	out, err := exec.Command("sh", "-c", "networksetup -setwebproxystate "+"'"+network+"'"+" off").Output()
 	if err != nil {
 		return fmt.Errorf("failed to set web proxy, stdout: %s: %w", string(out), err)
 	}
@@ -65,8 +63,9 @@ func UnsetOsProxy() error {
 func getDefaultNetwork() (string, error) {
 	network, err := exec.Command("sh", "-c", getDefaultNetworkCMD).Output()
 	if err != nil {
-		return "", err
-	} else if len(network) == 0 {
+		return "", fmt.Errorf("failed to get default network, stdout: %s: %w", string(network), err)
+	}
+	if len(network) == 0 {
 		return "", errors.New("no available networks")
 	}
 	return strings.TrimSpace(string(network)), nil
