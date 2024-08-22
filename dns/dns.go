@@ -42,6 +42,9 @@ func NewDns(config *util.Config) *Dns {
 }
 
 func (d *Dns) ResolveHost(ctx context.Context, host string, enableDoh bool, useSystemDns bool) (string, error) {
+	ctx = util.GetCtxWithScope(ctx, scopeDNS)
+	logger := log.GetCtxLogger(ctx)
+
 	if ip, err := parseIpAddr(host); err == nil {
 		return ip.String(), nil
 	}
@@ -50,9 +53,7 @@ func (d *Dns) ResolveHost(ctx context.Context, host string, enableDoh bool, useS
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	log.Logger.Debug().
-		Str(log.ScopeFieldName, scopeDNS).
-		Msgf("resolving %s using %s", host, clt)
+	logger.Debug().Msgf("resolving %s using %s", host, clt)
 
 	t := time.Now()
 
@@ -64,9 +65,7 @@ func (d *Dns) ResolveHost(ctx context.Context, host string, enableDoh bool, useS
 
 	if len(addrs) > 0 {
 		d := time.Since(t).Milliseconds()
-		log.Logger.Debug().
-			Str(log.ScopeFieldName, scopeDNS).
-			Msgf("resolved %s from %s in %d ms", addrs[0].String(), host, d)
+		logger.Debug().Msgf("resolved %s from %s in %d ms", addrs[0].String(), host, d)
 		return addrs[0].String(), nil
 	}
 

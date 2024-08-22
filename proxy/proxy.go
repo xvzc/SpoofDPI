@@ -38,54 +38,43 @@ func New(config *util.Config) *Proxy {
 }
 
 func (pxy *Proxy) Start(ctx context.Context) {
+	ctx = util.GetCtxWithScope(ctx, scopeProxy)
+	logger := log.GetCtxLogger(ctx)
+
 	l, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP(pxy.addr), Port: pxy.port})
 	if err != nil {
-		log.Logger.Fatal().
-			Str(log.ScopeFieldName, scopeProxy).
-			Msgf("error creating listener: %s", err)
+		logger.Fatal().Msgf("error creating listener: %s", err)
 		os.Exit(1)
 	}
 
 	if pxy.timeout > 0 {
-		log.Logger.Debug().
-			Str(log.ScopeFieldName, scopeProxy).
-			Msgf("connection timeout is set to %d ms", pxy.timeout)
+		logger.Debug().Msgf("connection timeout is set to %d ms", pxy.timeout)
 	}
 
-	log.Logger.Info().Msgf("created a listener on port %d", pxy.port)
+	logger.Info().Msgf("created a listener on port %d", pxy.port)
 	if len(pxy.allowedPattern) > 0 {
-		log.Logger.Debug().
-			Str(log.ScopeFieldName, scopeProxy).
-			Msgf("number of white-listed pattern: %d", len(pxy.allowedPattern))
+		logger.Debug().Msgf("number of white-listed pattern: %d", len(pxy.allowedPattern))
 	}
 
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			log.Logger.Fatal().
-				Str(log.ScopeFieldName, scopeProxy).
-				Msgf("error accepting connection: %s", err)
+			logger.Fatal().Msgf("error accepting connection: %s", err)
 			continue
 		}
 
 		go func() {
 			pkt, err := packet.ReadHttpRequest(conn)
 			if err != nil {
-				log.Logger.Debug().
-					Str(log.ScopeFieldName, scopeProxy).
-					Msgf("error while parsing request: %s", err)
+				logger.Debug().Msgf("error while parsing request: %s", err)
 				conn.Close()
 				return
 			}
 
-			log.Logger.Debug().
-				Str(log.ScopeFieldName, scopeProxy).
-				Msgf("request from %s\n\n%s", conn.RemoteAddr(), pkt.Raw())
+			logger.Debug().Msgf("request from %s\n\n%s", conn.RemoteAddr(), pkt.Raw())
 
 			if !pkt.IsValidMethod() {
-				log.Logger.Debug().
-					Str(log.ScopeFieldName, scopeProxy).
-					Msgf("unsupported method: %s", pkt.Method())
+				logger.Debug().Msgf("unsupported method: %s", pkt.Method())
 				conn.Close()
 				return
 			}
@@ -95,9 +84,7 @@ func (pxy *Proxy) Start(ctx context.Context) {
 
 			ip, err := pxy.resolver.ResolveHost(ctx, pkt.Domain(), pxy.enableDoh, useSystemDns)
 			if err != nil {
-				log.Logger.Debug().
-					Str(log.ScopeFieldName, scopeProxy).
-					Msgf("error while dns lookup: %s %s", pkt.Domain(), err)
+				logger.Debug().Msgf("error while dns lookup: %s %s", pkt.Domain(), err)
 				conn.Write([]byte(pkt.Version() + " 502 Bad Gateway\r\n\r\n"))
 				conn.Close()
 				return
@@ -105,9 +92,7 @@ func (pxy *Proxy) Start(ctx context.Context) {
 
 			// Avoid recursively querying self
 			if pkt.Port() == strconv.Itoa(pxy.port) && isLoopedRequest(ctx, net.ParseIP(ip)) {
-				log.Logger.Error().
-					Str(log.ScopeFieldName, scopeProxy).
-					Msg("looped request has been detected. aborting.")
+				logger.Error().Msg("looped request has been detected. aborting.")
 				conn.Close()
 				return
 			}
@@ -140,13 +125,13 @@ func isLoopedRequest(ctx context.Context, ip net.IP) bool {
 		return true
 	}
 
+	logger := log.GetCtxLogger(ctx)
+
 	// Get list of available addresses
 	// See `ip -4 addr show`
 	addr, err := net.InterfaceAddrs() // needs AF_NETLINK on linux
 	if err != nil {
-		log.Logger.Error().
-			Str(log.ScopeFieldName, scopeProxy).
-			Msgf("error while getting addresses of our network interfaces: %s", err)
+		logger.Error().Msgf("error while getting addresses of our network interfaces: %s", err)
 		return false
 	}
 

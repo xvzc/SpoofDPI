@@ -23,6 +23,8 @@ func main() {
 	config.Load(args)
 
 	log.InitLogger(config)
+	ctx := util.GetCtxWithScope(context.Background(), "MAIN")
+	logger := log.GetCtxLogger(ctx)
 
 	pxy := proxy.New(config)
 
@@ -34,7 +36,7 @@ func main() {
 
 	if *config.SystemProxy {
 		if err := util.SetOsProxy(*config.Port); err != nil {
-			log.Logger.Fatal().Msgf("error while changing proxy settings: %s", err)
+			logger.Fatal().Msgf("error while changing proxy settings: %s", err)
 		}
 	}
 
@@ -61,7 +63,7 @@ func main() {
 
 	if *config.SystemProxy {
 		if err := util.UnsetOsProxy(); err != nil {
-			log.Logger.Fatal().Msgf("%s", err)
+			logger.Fatal().Msgf("%s", err)
 		}
 	}
 }

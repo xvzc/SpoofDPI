@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"github.com/xvzc/SpoofDPI/util"
 	"net"
 	"strconv"
 
@@ -12,79 +13,60 @@ import (
 const protoHTTPS = "HTTPS"
 
 func (pxy *Proxy) handleHttps(ctx context.Context, lConn *net.TCPConn, exploit bool, initPkt *packet.HttpRequest, ip string) {
+	ctx = util.GetCtxWithScope(ctx, protoHTTPS)
+	logger := log.GetCtxLogger(ctx)
+
 	// Create a connection to the requested server
 	var port int = 443
 	var err error
 	if initPkt.Port() != "" {
 		port, err = strconv.Atoi(initPkt.Port())
 		if err != nil {
-			log.Logger.Debug().
-				Str(log.ScopeFieldName, protoHTTPS).
-				Msgf("error parsing port for %s aborting..", initPkt.Domain())
+			logger.Debug().Msgf("error parsing port for %s aborting..", initPkt.Domain())
 		}
 	}
 
 	rConn, err := net.DialTCP("tcp", nil, &net.TCPAddr{IP: net.ParseIP(ip), Port: port})
 	if err != nil {
 		lConn.Close()
-		log.Logger.Debug().
-			Str(log.ScopeFieldName, protoHTTPS).
-			Msgf("%s", err)
+		logger.Debug().Msgf("%s", err)
 		return
 	}
 
-	log.Logger.Debug().
-		Str(log.ScopeFieldName, protoHTTPS).
-		Msgf("new connection to the server %s -> %s", rConn.LocalAddr(), initPkt.Domain())
+	logger.Debug().Msgf("new connection to the server %s -> %s", rConn.LocalAddr(), initPkt.Domain())
 
 	_, err = lConn.Write([]byte(initPkt.Version() + " 200 Connection Established\r\n\r\n"))
 	if err != nil {
-		log.Logger.Debug().
-			Str(log.ScopeFieldName, protoHTTPS).
-			Msgf("error sending 200 connection established to the client: %s", err)
+		logger.Debug().Msgf("error sending 200 connection established to the client: %s", err)
 		return
 	}
 
-	log.Logger.Debug().
-		Str(log.ScopeFieldName, protoHTTPS).
-		Msgf("sent connection estabalished to %s", lConn.RemoteAddr())
+	logger.Debug().Msgf("sent connection estabalished to %s", lConn.RemoteAddr())
 
 	// Read client hello
 	m, err := packet.ReadTLSMessage(lConn)
 	if err != nil || !m.IsClientHello() {
-		log.Logger.Debug().
-			Str(log.ScopeFieldName, protoHTTPS).
-			Msgf("error reading client hello from %s: %s", lConn.RemoteAddr().String(), err)
+		logger.Debug().Msgf("error reading client hello from %s: %s", lConn.RemoteAddr().String(), err)
 		return
 	}
 	clientHello := m.Raw
 
-	log.Logger.Debug().
-		Str(log.ScopeFieldName, protoHTTPS).
-		Msgf("client sent hello %d bytes", len(clientHello))
+	logger.Debug().Msgf("client sent hello %d bytes", len(clientHello))
 
 	// Generate a go routine that reads from the server
 	go Serve(ctx, rConn, lConn, protoHTTPS, initPkt.Domain(), lConn.RemoteAddr().String(), pxy.timeout)
 
 	if exploit {
-		log.Logger.Debug().
-			Str(log.ScopeFieldName, protoHTTPS).
-			Msgf("writing chunked client hello to %s", initPkt.Domain())
+		logger.Debug().Msgf("writing chunked client hello to %s", initPkt.Domain())
 		chunks := splitInChunks(ctx, clientHello, pxy.windowSize)
 		if _, err := writeChunks(rConn, chunks); err != nil {
-			log.Logger.Debug().
-				Str(log.ScopeFieldName, protoHTTPS).
-				Msgf("error writing chunked client hello to %s: %s", initPkt.Domain(), err)
+			logger.Debug().Msgf("error writing chunked client hello to %s: %s", initPkt.Domain(), err)
 			return
 		}
 	} else {
-		log.Logger.Debug().
-			Str(log.ScopeFieldName, protoHTTPS).
-			Msgf("writing plain client hello to %s", initPkt.Domain())
+		logger.Debug().Msgf("writing plain client hello to %s", initPkt.Domain())
 		if _, err := rConn.Write(clientHello); err != nil {
-			log.Logger.Debug().
-				Str(log.ScopeFieldName, protoHTTPS).
-				Msgf("error writing plain client hello to %s: %s", initPkt.Domain(), err)
+			logger.Debug().Msgf("error writing plain client hello to %s: %s", initPkt.Domain(), err)
 			return
 		}
 	}
@@ -93,12 +75,12 @@ func (pxy *Proxy) handleHttps(ctx context.Context, lConn *net.TCPConn, exploit b
 }
 
 func splitInChunks(ctx context.Context, bytes []byte, size int) [][]byte {
+	logger := log.GetCtxLogger(ctx)
+
 	var chunks [][]byte
 	var raw []byte = bytes
 
-	log.Logger.Debug().
-		Str(log.ScopeFieldName, protoHTTPS).
-		Msgf("window-size: %d", size)
+	logger.Debug().Msgf("window-size: %d", size)
 
 	if size > 0 {
 		for {
@@ -125,9 +107,7 @@ func splitInChunks(ctx context.Context, bytes []byte, size int) [][]byte {
 		return [][]byte{raw}
 	}
 
-	log.Logger.Debug().
-		Str(log.ScopeFieldName, protoHTTPS).
-		Msg("using legacy fragmentation")
+	logger.Debug().Msg("using legacy fragmentation")
 
 	return [][]byte{raw[:1], raw[1:]}
 }

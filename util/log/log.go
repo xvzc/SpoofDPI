@@ -1,6 +1,7 @@
 package log
 
 import (
+	"context"
 	"fmt"
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/util"
@@ -8,15 +9,19 @@ import (
 	"time"
 )
 
-const ScopeFieldName = "scope"
+const scopeFieldName = "scope"
 
-var Logger zerolog.Logger
+var logger zerolog.Logger
+
+func GetCtxLogger(ctx context.Context) zerolog.Logger {
+	return logger.With().Ctx(ctx).Logger()
+}
 
 func InitLogger(cfg *util.Config) {
 	partsOrder := []string{
 		zerolog.TimestampFieldName,
 		zerolog.LevelFieldName,
-		ScopeFieldName,
+		scopeFieldName,
 		zerolog.MessageFieldName,
 	}
 
@@ -28,22 +33,30 @@ func InitLogger(cfg *util.Config) {
 			formatScopeValue(m)
 			return nil
 		},
-		FieldsExclude: []string{ScopeFieldName},
+		FieldsExclude: []string{scopeFieldName},
 	}
 
-	Logger = zerolog.New(consoleWriter)
+	logger = zerolog.New(consoleWriter).Hook(scopeHook{})
 	if *cfg.Debug {
-		Logger = Logger.Level(zerolog.DebugLevel)
+		logger = logger.Level(zerolog.DebugLevel)
 	} else {
-		Logger = Logger.Level(zerolog.InfoLevel)
+		logger = logger.Level(zerolog.InfoLevel)
 	}
-	Logger = Logger.With().Timestamp().Logger()
+	logger = logger.With().Timestamp().Logger()
 }
 
 func formatScopeValue(vs map[string]any) {
-	if scope, ok := vs[ScopeFieldName].(string); ok {
-		vs[ScopeFieldName] = fmt.Sprintf("[%s]", scope)
+	if scope, ok := vs[scopeFieldName].(string); ok {
+		vs[scopeFieldName] = fmt.Sprintf("[%s]", scope)
 	} else {
-		vs[ScopeFieldName] = ""
+		vs[scopeFieldName] = ""
+	}
+}
+
+type scopeHook struct{}
+
+func (h scopeHook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
+	if scope, ok := util.GetScopeFromCtx(e.GetCtx()); ok {
+		e.Str(scopeFieldName, scope)
 	}
 }

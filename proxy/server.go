@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"errors"
+	"github.com/xvzc/SpoofDPI/util"
 	"io"
 	"net"
 	"time"
@@ -35,13 +36,14 @@ func readBytesInternal(ctx context.Context, conn *net.TCPConn, dest []byte) (int
 }
 
 func Serve(ctx context.Context, from *net.TCPConn, to *net.TCPConn, proto string, fd string, td string, timeout int) {
+	ctx = util.GetCtxWithScope(ctx, proto)
+	logger := log.GetCtxLogger(ctx)
+
 	defer func() {
 		from.Close()
 		to.Close()
 
-		log.Logger.Debug().
-			Str(log.ScopeFieldName, proto).
-			Msgf("closing proxy connection: %s -> %s", fd, td)
+		logger.Debug().Msgf("closing proxy connection: %s -> %s", fd, td)
 	}()
 
 	buf := make([]byte, BufferSize)
@@ -55,21 +57,15 @@ func Serve(ctx context.Context, from *net.TCPConn, to *net.TCPConn, proto string
 		bytesRead, err := ReadBytes(ctx, from, buf)
 		if err != nil {
 			if err == io.EOF {
-				log.Logger.Debug().
-					Str(log.ScopeFieldName, proto).
-					Msgf("finished reading from %s", fd)
+				logger.Debug().Msgf("finished reading from %s", fd)
 				return
 			}
-			log.Logger.Debug().
-				Str(log.ScopeFieldName, proto).
-				Msgf("error reading from %s: %s", fd, err)
+			logger.Debug().Msgf("error reading from %s: %s", fd, err)
 			return
 		}
 
 		if _, err := to.Write(bytesRead); err != nil {
-			log.Logger.Debug().
-				Str(log.ScopeFieldName, proto).
-				Msgf("error Writing to %s", td)
+			logger.Debug().Msgf("error Writing to %s", td)
 			return
 		}
 	}
