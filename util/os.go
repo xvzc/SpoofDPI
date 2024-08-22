@@ -19,7 +19,7 @@ func SetOsProxy(port int) error {
 
 	network, err := getDefaultNetwork()
 	if err != nil {
-		return fmt.Errorf("failed to get network interfaces: %w", err)
+		return fmt.Errorf("failed to get default network: %w", err)
 	}
 
 	args := fmt.Sprintf("'%s' 127.0.0.1 %d", network, port)
@@ -44,7 +44,7 @@ func UnsetOsProxy() error {
 
 	network, err := getDefaultNetwork()
 	if err != nil {
-		return fmt.Errorf("failed to get network interfaces: %w", err)
+		return fmt.Errorf("failed to get default network: %w", err)
 	}
 
 	out, err := exec.Command("sh", "-c", "networksetup -setwebproxystate "+"'"+network+"'"+" off").Output()
