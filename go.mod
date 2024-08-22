@@ -7,7 +7,7 @@ toolchain go1.21.5
 require (
 	github.com/miekg/dns v1.1.61
 	github.com/pterm/pterm v0.12.79
-	github.com/sirupsen/logrus v1.9.3
+	github.com/rs/zerolog v1.33.0
 )
 
 require (
@@ -17,6 +17,8 @@ require (
 	github.com/containerd/console v1.0.3 // indirect
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect

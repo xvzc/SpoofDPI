@@ -1,77 +1,86 @@
 package proxy
 
 import (
+	"context"
+	"github.com/xvzc/SpoofDPI/util"
 	"net"
 	"strconv"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/packet"
+	"github.com/xvzc/SpoofDPI/util/log"
 )
 
-func (pxy *Proxy) handleHttps(lConn *net.TCPConn, exploit bool, initPkt *packet.HttpRequest, ip string) {
+const protoHTTPS = "HTTPS"
+
+func (pxy *Proxy) handleHttps(ctx context.Context, lConn *net.TCPConn, exploit bool, initPkt *packet.HttpRequest, ip string) {
+	ctx = util.GetCtxWithScope(ctx, protoHTTPS)
+	logger := log.GetCtxLogger(ctx)
+
 	// Create a connection to the requested server
 	var port int = 443
 	var err error
 	if initPkt.Port() != "" {
 		port, err = strconv.Atoi(initPkt.Port())
 		if err != nil {
-			log.Debugf("[HTTPS] error parsing port for %s aborting..", initPkt.Domain())
+			logger.Debug().Msgf("error parsing port for %s aborting..", initPkt.Domain())
 		}
 	}
 
 	rConn, err := net.DialTCP("tcp", nil, &net.TCPAddr{IP: net.ParseIP(ip), Port: port})
 	if err != nil {
 		lConn.Close()
-		log.Debug("[HTTPS] ", err)
+		logger.Debug().Msgf("%s", err)
 		return
 	}
 
-	log.Debugf("[HTTPS] new connection to the server %s -> %s", rConn.LocalAddr(), initPkt.Domain())
+	logger.Debug().Msgf("new connection to the server %s -> %s", rConn.LocalAddr(), initPkt.Domain())
 
 	_, err = lConn.Write([]byte(initPkt.Version() + " 200 Connection Established\r\n\r\n"))
 	if err != nil {
-		log.Debugf("[HTTPS] error sending 200 connection established to the client: %s", err)
+		logger.Debug().Msgf("error sending 200 connection established to the client: %s", err)
 		return
 	}
 
-	log.Debugf("[HTTPS] sent connection estabalished to %s", lConn.RemoteAddr())
+	logger.Debug().Msgf("sent connection estabalished to %s", lConn.RemoteAddr())
 
 	// Read client hello
 	m, err := packet.ReadTLSMessage(lConn)
 	if err != nil || !m.IsClientHello() {
-		log.Debugf("[HTTPS] error reading client hello from %s: %s", lConn.RemoteAddr().String(), err)
+		logger.Debug().Msgf("error reading client hello from %s: %s", lConn.RemoteAddr().String(), err)
 		return
 	}
 	clientHello := m.Raw
 
-	log.Debugf("[HTTPS] client sent hello %d bytes", len(clientHello))
+	logger.Debug().Msgf("client sent hello %d bytes", len(clientHello))
 
 	// Generate a go routine that reads from the server
-	go Serve(rConn, lConn, "[HTTPS]", initPkt.Domain(), lConn.RemoteAddr().String(), pxy.timeout)
+	go Serve(ctx, rConn, lConn, protoHTTPS, initPkt.Domain(), lConn.RemoteAddr().String(), pxy.timeout)
 
 	if exploit {
-		log.Debugf("[HTTPS] writing chunked client hello to %s", initPkt.Domain())
-		chunks := splitInChunks(clientHello, pxy.windowSize)
+		logger.Debug().Msgf("writing chunked client hello to %s", initPkt.Domain())
+		chunks := splitInChunks(ctx, clientHello, pxy.windowSize)
 		if _, err := writeChunks(rConn, chunks); err != nil {
-			log.Debugf("[HTTPS] error writing chunked client hello to %s: %s", initPkt.Domain(), err)
+			logger.Debug().Msgf("error writing chunked client hello to %s: %s", initPkt.Domain(), err)
 			return
 		}
 	} else {
-		log.Debugf("[HTTPS] writing plain client hello to %s", initPkt.Domain())
+		logger.Debug().Msgf("writing plain client hello to %s", initPkt.Domain())
 		if _, err := rConn.Write(clientHello); err != nil {
-			log.Debugf("[HTTPS] error writing plain client hello to %s: %s", initPkt.Domain(), err)
+			logger.Debug().Msgf("error writing plain client hello to %s: %s", initPkt.Domain(), err)
 			return
 		}
 	}
 
-	go Serve(lConn, rConn, "[HTTPS]", lConn.RemoteAddr().String(), initPkt.Domain(), pxy.timeout)
+	go Serve(ctx, lConn, rConn, protoHTTPS, lConn.RemoteAddr().String(), initPkt.Domain(), pxy.timeout)
 }
 
-func splitInChunks(bytes []byte, size int) [][]byte {
+func splitInChunks(ctx context.Context, bytes []byte, size int) [][]byte {
+	logger := log.GetCtxLogger(ctx)
+
 	var chunks [][]byte
 	var raw []byte = bytes
 
-	log.Debugf("[HTTPS] window-size: %d", size)
+	logger.Debug().Msgf("window-size: %d", size)
 
 	if size > 0 {
 		for {
@@ -98,7 +107,7 @@ func splitInChunks(bytes []byte, size int) [][]byte {
 		return [][]byte{raw}
 	}
 
-	log.Debug("[HTTPS] using legacy fragmentation")
+	logger.Debug().Msg("using legacy fragmentation")
 
 	return [][]byte{raw[:1], raw[1:]}
 }

@@ -1,12 +1,12 @@
 package main
 
 import (
+	"context"
+	"github.com/xvzc/SpoofDPI/util/log"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/proxy"
 	"github.com/xvzc/SpoofDPI/util"
 	"github.com/xvzc/SpoofDPI/version"
@@ -22,16 +22,11 @@ func main() {
 	config := util.GetConfig()
 	config.Load(args)
 
-	pxy := proxy.New(config)
-	if *config.Debug {
-		log.SetLevel(log.DebugLevel)
-	} else {
-		log.SetLevel(log.InfoLevel)
-	}
+	log.InitLogger(config)
+	ctx := util.GetCtxWithScope(context.Background(), "MAIN")
+	logger := log.GetCtxLogger(ctx)
 
-	log.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp: true,
-	})
+	pxy := proxy.New(config)
 
 	if *config.NoBanner {
 		util.PrintSimpleInfo()
@@ -41,11 +36,11 @@ func main() {
 
 	if *config.SystemProxy {
 		if err := util.SetOsProxy(*config.Port); err != nil {
-			log.Fatalf("error while changing proxy settings: %s", err)
+			logger.Fatal().Msgf("error while changing proxy settings: %s", err)
 		}
 	}
 
-	go pxy.Start()
+	go pxy.Start(context.Background())
 
 	// Handle signals
 	sigs := make(chan os.Signal, 1)
@@ -68,7 +63,7 @@ func main() {
 
 	if *config.SystemProxy {
 		if err := util.UnsetOsProxy(); err != nil {
-			log.Fatal(err)
+			logger.Fatal().Msgf("%s", err)
 		}
 	}
 }

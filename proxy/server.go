@@ -1,12 +1,14 @@
 package proxy
 
 import (
+	"context"
 	"errors"
+	"github.com/xvzc/SpoofDPI/util"
 	"io"
 	"net"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/xvzc/SpoofDPI/util/log"
 )
 
 const (
@@ -14,12 +16,12 @@ const (
 	TLSHeaderLen = 5
 )
 
-func ReadBytes(conn *net.TCPConn, dest []byte) ([]byte, error) {
-	n, err := readBytesInternal(conn, dest)
+func ReadBytes(ctx context.Context, conn *net.TCPConn, dest []byte) ([]byte, error) {
+	n, err := readBytesInternal(ctx, conn, dest)
 	return dest[:n], err
 }
 
-func readBytesInternal(conn *net.TCPConn, dest []byte) (int, error) {
+func readBytesInternal(ctx context.Context, conn *net.TCPConn, dest []byte) (int, error) {
 	totalRead, err := conn.Read(dest)
 	if err != nil {
 		var opError *net.OpError
@@ -33,12 +35,15 @@ func readBytesInternal(conn *net.TCPConn, dest []byte) (int, error) {
 	return totalRead, nil
 }
 
-func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td string, timeout int) {
+func Serve(ctx context.Context, from *net.TCPConn, to *net.TCPConn, proto string, fd string, td string, timeout int) {
+	ctx = util.GetCtxWithScope(ctx, proto)
+	logger := log.GetCtxLogger(ctx)
+
 	defer func() {
 		from.Close()
 		to.Close()
 
-		log.Debugf("%s closing proxy connection: %s -> %s", proto, fd, td)
+		logger.Debug().Msgf("closing proxy connection: %s -> %s", fd, td)
 	}()
 
 	buf := make([]byte, BufferSize)
@@ -49,18 +54,18 @@ func Serve(from *net.TCPConn, to *net.TCPConn, proto string, fd string, td strin
 			)
 		}
 
-		bytesRead, err := ReadBytes(from, buf)
+		bytesRead, err := ReadBytes(ctx, from, buf)
 		if err != nil {
 			if err == io.EOF {
-				log.Debugf("%s finished reading from %s", proto, fd)
+				logger.Debug().Msgf("finished reading from %s", fd)
 				return
 			}
-			log.Debugf("%s error reading from %s: %s", proto, fd, err)
+			logger.Debug().Msgf("error reading from %s: %s", fd, err)
 			return
 		}
 
 		if _, err := to.Write(bytesRead); err != nil {
-			log.Debugf("%s error Writing to %s", proto, td)
+			logger.Debug().Msgf("error Writing to %s", td)
 			return
 		}
 	}

@@ -1,17 +1,19 @@
 package proxy
 
 import (
-	"fmt"
+	"context"
 	"net"
 	"os"
 	"regexp"
 	"strconv"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/dns"
 	"github.com/xvzc/SpoofDPI/packet"
 	"github.com/xvzc/SpoofDPI/util"
+	"github.com/xvzc/SpoofDPI/util/log"
 )
+
+const scopeProxy = "PROXY"
 
 type Proxy struct {
 	addr           string
@@ -35,41 +37,46 @@ func New(config *util.Config) *Proxy {
 	}
 }
 
-func (pxy *Proxy) Start() {
+func (pxy *Proxy) Start(ctx context.Context) {
+	ctx = util.GetCtxWithScope(ctx, scopeProxy)
+	logger := log.GetCtxLogger(ctx)
+
 	l, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP(pxy.addr), Port: pxy.port})
 	if err != nil {
-		log.Fatal("[PROXY] error creating listener: ", err)
+		logger.Fatal().Msgf("error creating listener: %s", err)
 		os.Exit(1)
 	}
 
 	if pxy.timeout > 0 {
-		log.Println(fmt.Sprintf("[PROXY] connection timeout is set to %dms", pxy.timeout))
+		logger.Debug().Msgf("connection timeout is set to %d ms", pxy.timeout)
 	}
 
-	log.Println("[PROXY] created a listener on port", pxy.port)
+	logger.Info().Msgf("created a listener on port %d", pxy.port)
 	if len(pxy.allowedPattern) > 0 {
-		log.Println("[PROXY] number of white-listed pattern:", len(pxy.allowedPattern))
+		logger.Debug().Msgf("number of white-listed pattern: %d", len(pxy.allowedPattern))
 	}
 
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			log.Fatal("[PROXY] error accepting connection: ", err)
+			logger.Fatal().Msgf("error accepting connection: %s", err)
 			continue
 		}
 
 		go func() {
+			ctx := util.GetCtxWithTraceId(ctx)
+
 			pkt, err := packet.ReadHttpRequest(conn)
 			if err != nil {
-				log.Debug("[PROXY] error while parsing request: ", err)
+				logger.Debug().Msgf("error while parsing request: %s", err)
 				conn.Close()
 				return
 			}
 
-			log.Debug("[PROXY] request from ", conn.RemoteAddr(), "\n\n", string(pkt.Raw()))
+			logger.Debug().Msgf("request from %s\n\n%s", conn.RemoteAddr(), pkt.Raw())
 
 			if !pkt.IsValidMethod() {
-				log.Debug("[PROXY] unsupported method: ", pkt.Method())
+				logger.Debug().Msgf("unsupported method: %s", pkt.Method())
 				conn.Close()
 				return
 			}
@@ -77,25 +84,25 @@ func (pxy *Proxy) Start() {
 			matched := pxy.patternMatches([]byte(pkt.Domain()))
 			useSystemDns := !matched
 
-			ip, err := pxy.resolver.ResolveHost(pkt.Domain(), pxy.enableDoh, useSystemDns)
+			ip, err := pxy.resolver.ResolveHost(ctx, pkt.Domain(), pxy.enableDoh, useSystemDns)
 			if err != nil {
-				log.Debug("[PROXY] error while dns lookup: ", pkt.Domain(), " ", err)
+				logger.Debug().Msgf("error while dns lookup: %s %s", pkt.Domain(), err)
 				conn.Write([]byte(pkt.Version() + " 502 Bad Gateway\r\n\r\n"))
 				conn.Close()
 				return
 			}
 
 			// Avoid recursively querying self
-			if pkt.Port() == strconv.Itoa(pxy.port) && isLoopedRequest(net.ParseIP(ip)) {
-				log.Error("[PROXY] looped request has been detected. aborting.")
+			if pkt.Port() == strconv.Itoa(pxy.port) && isLoopedRequest(ctx, net.ParseIP(ip)) {
+				logger.Error().Msg("looped request has been detected. aborting.")
 				conn.Close()
 				return
 			}
 
 			if pkt.IsConnectMethod() {
-				pxy.handleHttps(conn.(*net.TCPConn), matched, pkt, ip)
+				pxy.handleHttps(ctx, conn.(*net.TCPConn), matched, pkt, ip)
 			} else {
-				pxy.handleHttp(conn.(*net.TCPConn), pkt, ip)
+				pxy.handleHttp(ctx, conn.(*net.TCPConn), pkt, ip)
 			}
 		}()
 	}
@@ -115,16 +122,18 @@ func (pxy *Proxy) patternMatches(bytes []byte) bool {
 	return false
 }
 
-func isLoopedRequest(ip net.IP) bool {
+func isLoopedRequest(ctx context.Context, ip net.IP) bool {
 	if ip.IsLoopback() {
 		return true
 	}
+
+	logger := log.GetCtxLogger(ctx)
 
 	// Get list of available addresses
 	// See `ip -4 addr show`
 	addr, err := net.InterfaceAddrs() // needs AF_NETLINK on linux
 	if err != nil {
-		log.Error("[PROXY] error while getting addresses of our network interfaces: ", err)
+		logger.Error().Msgf("error while getting addresses of our network interfaces: %s", err)
 		return false
 	}
 
