@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"github.com/xvzc/SpoofDPI/util/log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/xvzc/SpoofDPI/util/log"
 
 	"github.com/xvzc/SpoofDPI/proxy"
 	"github.com/xvzc/SpoofDPI/util"
@@ -14,7 +15,7 @@ import (
 
 func main() {
 	args := util.ParseArgs()
-	if *args.Version {
+	if args.Version {
 		version.PrintVersion()
 		os.Exit(0)
 	}
@@ -28,14 +29,14 @@ func main() {
 
 	pxy := proxy.New(config)
 
-	if *config.NoBanner {
+	if config.NoBanner {
 		util.PrintSimpleInfo()
 	} else {
 		util.PrintColoredBanner()
 	}
 
-	if *config.SystemProxy {
-		if err := util.SetOsProxy(*config.Port); err != nil {
+	if config.SystemProxy {
+		if err := util.SetOsProxy(config.Port); err != nil {
 			logger.Fatal().Msgf("error while changing proxy settings: %s", err)
 		}
 		defer func() {

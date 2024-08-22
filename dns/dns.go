@@ -29,11 +29,11 @@ type Dns struct {
 }
 
 func NewDns(config *util.Config) *Dns {
-	addr := *config.DnsAddr
-	port := strconv.Itoa(*config.DnsPort)
+	addr := config.DnsAddr
+	port := strconv.Itoa(config.DnsPort)
 
 	return &Dns{
-		host:          *config.DnsAddr,
+		host:          config.DnsAddr,
 		port:          port,
 		systemClient:  resolver.NewSystemResolver(),
 		generalClient: resolver.NewGeneralResolver(net.JoinHostPort(addr, port)),

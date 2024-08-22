@@ -9,16 +9,16 @@ import (
 )
 
 type Config struct {
-	Addr            *string
-	Port            *int
-	DnsAddr         *string
-	DnsPort         *int
-	EnableDoh       *bool
-	Debug           *bool
-	NoBanner        *bool
-	SystemProxy     *bool
-	Timeout         *int
-	WindowSize      *int
+	Addr            string
+	Port            int
+	DnsAddr         string
+	DnsPort         int
+	EnableDoh       bool
+	Debug           bool
+	NoBanner        bool
+	SystemProxy     bool
+	Timeout         int
+	WindowSize      int
 	AllowedPatterns []*regexp.Regexp
 }
 
@@ -45,10 +45,10 @@ func (c *Config) Load(args *Args) {
 	c.WindowSize = args.WindowSize
 }
 
-func parseAllowedPattern(patterns *StringArray) []*regexp.Regexp {
+func parseAllowedPattern(patterns StringArray) []*regexp.Regexp {
 	var allowedPatterns []*regexp.Regexp
 
-	for _, pattern := range *patterns {
+	for _, pattern := range patterns {
 		allowedPatterns = append(allowedPatterns, regexp.MustCompile(pattern))
 	}
 
@@ -61,18 +61,18 @@ func PrintColoredBanner() {
 	pterm.DefaultBigText.WithLetters(cyan, purple).Render()
 
 	pterm.DefaultBulletList.WithItems([]pterm.BulletListItem{
-		{Level: 0, Text: "ADDR    : " + fmt.Sprint(*config.Addr)},
-		{Level: 0, Text: "PORT    : " + fmt.Sprint(*config.Port)},
-		{Level: 0, Text: "DNS     : " + fmt.Sprint(*config.DnsAddr)},
-		{Level: 0, Text: "DEBUG   : " + fmt.Sprint(*config.Debug)},
+		{Level: 0, Text: "ADDR    : " + fmt.Sprint(config.Addr)},
+		{Level: 0, Text: "PORT    : " + fmt.Sprint(config.Port)},
+		{Level: 0, Text: "DNS     : " + fmt.Sprint(config.DnsAddr)},
+		{Level: 0, Text: "DEBUG   : " + fmt.Sprint(config.Debug)},
 	}).Render()
 }
 
 func PrintSimpleInfo() {
 	fmt.Println("")
-	fmt.Println("- ADDR    : ", *config.Addr)
-	fmt.Println("- PORT    : ", *config.Port)
-	fmt.Println("- DNS     : ", *config.DnsAddr)
-	fmt.Println("- DEBUG   : ", *config.Debug)
+	fmt.Println("- ADDR    : ", config.Addr)
+	fmt.Println("- PORT    : ", config.Port)
+	fmt.Println("- DNS     : ", config.DnsAddr)
+	fmt.Println("- DEBUG   : ", config.Debug)
 	fmt.Println("")
 }

@@ -3,10 +3,11 @@ package log
 import (
 	"context"
 	"fmt"
-	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/util"
 	"os"
 	"time"
+
+	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/util"
 )
 
 const (
@@ -42,7 +43,7 @@ func InitLogger(cfg *util.Config) {
 	}
 
 	logger = zerolog.New(consoleWriter).Hook(ctxHook{})
-	if *cfg.Debug {
+	if cfg.Debug {
 		logger = logger.Level(zerolog.DebugLevel)
 	} else {
 		logger = logger.Level(zerolog.InfoLevel)
