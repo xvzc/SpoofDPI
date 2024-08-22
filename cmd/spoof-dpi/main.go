@@ -38,6 +38,11 @@ func main() {
 		if err := util.SetOsProxy(*config.Port); err != nil {
 			logger.Fatal().Msgf("error while changing proxy settings: %s", err)
 		}
+		defer func() {
+			if err := util.UnsetOsProxy(); err != nil {
+				logger.Fatal().Msgf("error while disabling proxy: %s", err)
+			}
+		}()
 	}
 
 	go pxy.Start(context.Background())
@@ -60,10 +65,4 @@ func main() {
 	}()
 
 	<-done
-
-	if *config.SystemProxy {
-		if err := util.UnsetOsProxy(); err != nil {
-			logger.Fatal().Msgf("%s", err)
-		}
-	}
 }
