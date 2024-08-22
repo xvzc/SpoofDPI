@@ -9,7 +9,10 @@ import (
 	"time"
 )
 
-const scopeFieldName = "scope"
+const (
+	scopeFieldName   = "scope"
+	traceIdFieldName = "trace_id"
+)
 
 var logger zerolog.Logger
 
@@ -21,6 +24,7 @@ func InitLogger(cfg *util.Config) {
 	partsOrder := []string{
 		zerolog.TimestampFieldName,
 		zerolog.LevelFieldName,
+		traceIdFieldName,
 		scopeFieldName,
 		zerolog.MessageFieldName,
 	}
@@ -30,13 +34,14 @@ func InitLogger(cfg *util.Config) {
 		TimeFormat: time.RFC3339,
 		PartsOrder: partsOrder,
 		FormatPrepare: func(m map[string]any) error {
-			formatScopeValue(m)
+			formatFieldValue[string](m, "%s", traceIdFieldName)
+			formatFieldValue[string](m, "[%s]", scopeFieldName)
 			return nil
 		},
-		FieldsExclude: []string{scopeFieldName},
+		FieldsExclude: []string{traceIdFieldName, scopeFieldName},
 	}
 
-	logger = zerolog.New(consoleWriter).Hook(scopeHook{})
+	logger = zerolog.New(consoleWriter).Hook(ctxHook{})
 	if *cfg.Debug {
 		logger = logger.Level(zerolog.DebugLevel)
 	} else {
@@ -45,18 +50,21 @@ func InitLogger(cfg *util.Config) {
 	logger = logger.With().Timestamp().Logger()
 }
 
-func formatScopeValue(vs map[string]any) {
-	if scope, ok := vs[scopeFieldName].(string); ok {
-		vs[scopeFieldName] = fmt.Sprintf("[%s]", scope)
+func formatFieldValue[T any](vs map[string]any, format string, field string) {
+	if v, ok := vs[field].(T); ok {
+		vs[field] = fmt.Sprintf(format, v)
 	} else {
-		vs[scopeFieldName] = ""
+		vs[field] = ""
 	}
 }
 
-type scopeHook struct{}
+type ctxHook struct{}
 
-func (h scopeHook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
+func (h ctxHook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	if scope, ok := util.GetScopeFromCtx(e.GetCtx()); ok {
 		e.Str(scopeFieldName, scope)
+	}
+	if traceId, ok := util.GetTraceIdFromCtx(e.GetCtx()); ok {
+		e.Str(traceIdFieldName, traceId)
 	}
 }
