@@ -8,7 +8,7 @@ import (
 	"github.com/xvzc/SpoofDPI/packet"
 )
 
-func (pxy *Proxy) handleHttps(lConn *net.TCPConn, exploit bool, initPkt *packet.HttpPacket, ip string) {
+func (pxy *Proxy) handleHttps(lConn *net.TCPConn, exploit bool, initPkt *packet.HttpRequest, ip string) {
 	// Create a connection to the requested server
 	var port int = 443
 	var err error

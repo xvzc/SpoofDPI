@@ -9,7 +9,7 @@ import (
 	"github.com/xvzc/SpoofDPI/packet"
 )
 
-func (pxy *Proxy) handleHttp(lConn *net.TCPConn, pkt *packet.HttpPacket, ip string) {
+func (pxy *Proxy) handleHttp(lConn *net.TCPConn, pkt *packet.HttpRequest, ip string) {
 	pkt.Tidy()
 
 	// Create a connection to the requested server
