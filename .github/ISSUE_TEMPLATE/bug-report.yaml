@@ -8,7 +8,7 @@ body:
         # NOTE
         - Please speak English, this is the language all maintainers can speak and write.
         - Make sure you are using the latest release and
-        - take a moment to check that your issue hasn't been reported before.
+        - Take a moment to check that your issue hasn't been reported before.
 
   - type: input
     id: version
