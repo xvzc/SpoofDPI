@@ -27,11 +27,11 @@ type Proxy struct {
 
 func New(config *util.Config) *Proxy {
 	return &Proxy{
-		addr:           *config.Addr,
-		port:           *config.Port,
-		timeout:        *config.Timeout,
-		windowSize:     *config.WindowSize,
-		enableDoh:      *config.EnableDoh,
+		addr:           config.Addr,
+		port:           config.Port,
+		timeout:        config.Timeout,
+		windowSize:     config.WindowSize,
+		enableDoh:      config.EnableDoh,
 		allowedPattern: config.AllowedPatterns,
 		resolver:       dns.NewDns(config),
 	}
