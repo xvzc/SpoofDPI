@@ -48,12 +48,12 @@ func (pxy *Proxy) Start(ctx context.Context) {
 	}
 
 	if pxy.timeout > 0 {
-		logger.Debug().Msgf("connection timeout is set to %d ms", pxy.timeout)
+		logger.Info().Msgf("connection timeout is set to %d ms", pxy.timeout)
 	}
 
 	logger.Info().Msgf("created a listener on port %d", pxy.port)
 	if len(pxy.allowedPattern) > 0 {
-		logger.Debug().Msgf("number of white-listed pattern: %d", len(pxy.allowedPattern))
+		logger.Info().Msgf("number of white-listed pattern: %d", len(pxy.allowedPattern))
 	}
 
 	for {
