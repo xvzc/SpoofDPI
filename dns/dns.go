@@ -53,7 +53,7 @@ func (d *Dns) ResolveHost(ctx context.Context, host string, enableDoh bool, useS
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	logger.Info().Msgf("resolving %s using %s", host, clt)
+	logger.Debug().Msgf("resolving %s using %s", host, clt)
 
 	t := time.Now()
 
