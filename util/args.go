@@ -6,18 +6,19 @@ import (
 )
 
 type Args struct {
-	Addr           string
-	Port           int
-	DnsAddr        string
-	DnsPort        int
-	EnableDoh      bool
-	Debug          bool
-	NoBanner       bool
-	SystemProxy    bool
-	Timeout        int
-	AllowedPattern StringArray
-	WindowSize     int
-	Version        bool
+	Addr             string
+	Port             int
+	DnsAddr          string
+	DnsPort          int
+	EnableDoh        bool
+	Debug            bool
+	NoBanner         bool
+	SystemProxy      bool
+	Timeout          int
+	AllowedPattern   StringArray
+	UnallowedPattern StringArray
+	WindowSize       int
+	Version          bool
 }
 
 type StringArray []string
@@ -53,6 +54,11 @@ fragmentation for the first data packet and the rest
 		&args.AllowedPattern,
 		"pattern",
 		"bypass DPI only on packets matching this regex pattern; can be given multiple times",
+	)
+	flag.Var(
+		&args.UnallowedPattern,
+		"anti-pattern",
+		"bypass DPI on all packets except matching this regex pattern; can be given multiple times",
 	)
 
 	flag.Parse()

@@ -16,24 +16,26 @@ import (
 const scopeProxy = "PROXY"
 
 type Proxy struct {
-	addr           string
-	port           int
-	timeout        int
-	resolver       *dns.Dns
-	windowSize     int
-	enableDoh      bool
-	allowedPattern []*regexp.Regexp
+	addr             string
+	port             int
+	timeout          int
+	resolver         *dns.Dns
+	windowSize       int
+	enableDoh        bool
+	allowedPattern   []*regexp.Regexp
+	unallowedPattern []*regexp.Regexp
 }
 
 func New(config *util.Config) *Proxy {
 	return &Proxy{
-		addr:           config.Addr,
-		port:           config.Port,
-		timeout:        config.Timeout,
-		windowSize:     config.WindowSize,
-		enableDoh:      config.EnableDoh,
-		allowedPattern: config.AllowedPatterns,
-		resolver:       dns.NewDns(config),
+		addr:             config.Addr,
+		port:             config.Port,
+		timeout:          config.Timeout,
+		windowSize:       config.WindowSize,
+		enableDoh:        config.EnableDoh,
+		allowedPattern:   config.AllowedPatterns,
+		unallowedPattern: config.UnallowedPatterns,
+		resolver:         dns.NewDns(config),
 	}
 }
 
@@ -109,17 +111,27 @@ func (pxy *Proxy) Start(ctx context.Context) {
 }
 
 func (pxy *Proxy) patternMatches(bytes []byte) bool {
-	if pxy.allowedPattern == nil {
+	if pxy.allowedPattern == nil && pxy.unallowedPattern == nil {
 		return true
 	}
 
-	for _, pattern := range pxy.allowedPattern {
+	if pxy.unallowedPattern == nil {
+		for _, pattern := range pxy.allowedPattern {
+			if pattern.Match(bytes) {
+				return true
+			}
+		}
+		return false
+
+	}
+
+	for _, pattern := range pxy.unallowedPattern {
 		if pattern.Match(bytes) {
-			return true
+			return false
 		}
 	}
 
-	return false
+	return true
 }
 
 func isLoopedRequest(ctx context.Context, ip net.IP) bool {
