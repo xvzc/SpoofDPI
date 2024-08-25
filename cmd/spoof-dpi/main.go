@@ -29,10 +29,10 @@ func main() {
 
 	pxy := proxy.New(config)
 
-	if config.NoBanner {
-		util.PrintSimpleInfo()
-	} else {
+	if config.Banner {
 		util.PrintColoredBanner()
+	} else {
+		util.PrintSimpleInfo()
 	}
 
 	if config.SystemProxy {

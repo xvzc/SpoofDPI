@@ -59,6 +59,8 @@ $ go build ./cmd/...
 Usage: spoof-dpi [options...]
   -addr string
         listen address (default "127.0.0.1")
+  -banner
+        enable banner (default true)
   -debug
         enable debug output
   -dns-addr string
@@ -67,8 +69,6 @@ Usage: spoof-dpi [options...]
         port number for dns (default 53)
   -enable-doh
         enable 'dns-over-https'
-  -no-banner
-        disable banner
   -pattern value
         bypass DPI only on packets matching this regex pattern; can be given multiple times
   -port int
