@@ -44,7 +44,7 @@ var validMethod = map[string]struct{}{
 	"UNLINK":      {},
 }
 
-type HttpPacket struct {
+type HttpRequest struct {
 	raw     []byte
 	method  string
 	domain  string
@@ -53,7 +53,7 @@ type HttpPacket struct {
 	version string
 }
 
-func ReadHttpPacket(rdr io.Reader) (*HttpPacket, error) {
+func ReadHttpRequest(rdr io.Reader) (*HttpRequest, error) {
 	p, err := parse(rdr)
 	if err != nil {
 		return nil, err
@@ -62,26 +62,26 @@ func ReadHttpPacket(rdr io.Reader) (*HttpPacket, error) {
 	return p, nil
 }
 
-func (p *HttpPacket) Raw() []byte {
+func (p *HttpRequest) Raw() []byte {
 	return p.raw
 }
-func (p *HttpPacket) Method() string {
+func (p *HttpRequest) Method() string {
 	return p.method
 }
 
-func (p *HttpPacket) Domain() string {
+func (p *HttpRequest) Domain() string {
 	return p.domain
 }
 
-func (p *HttpPacket) Port() string {
+func (p *HttpRequest) Port() string {
 	return p.port
 }
 
-func (p *HttpPacket) Version() string {
+func (p *HttpRequest) Version() string {
 	return p.version
 }
 
-func (p *HttpPacket) IsValidMethod() bool {
+func (p *HttpRequest) IsValidMethod() bool {
 	if _, exists := validMethod[p.Method()]; exists {
 		return true
 	}
@@ -89,11 +89,11 @@ func (p *HttpPacket) IsValidMethod() bool {
 	return false
 }
 
-func (p *HttpPacket) IsConnectMethod() bool {
+func (p *HttpRequest) IsConnectMethod() bool {
 	return p.Method() == "CONNECT"
 }
 
-func (p *HttpPacket) Tidy() {
+func (p *HttpRequest) Tidy() {
 	s := string(p.raw)
 
 	lines := strings.Split(s, "\r\n")
@@ -121,7 +121,7 @@ func (p *HttpPacket) Tidy() {
 	p.raw = []byte(result)
 }
 
-func parse(rdr io.Reader) (*HttpPacket, error) {
+func parse(rdr io.Reader) (*HttpRequest, error) {
 	sb := strings.Builder{}
 	tee := io.TeeReader(rdr, &sb)
 	request, err := http.ReadRequest(bufio.NewReader(tee))
@@ -129,7 +129,7 @@ func parse(rdr io.Reader) (*HttpPacket, error) {
 		return nil, err
 	}
 
-	p := &HttpPacket{}
+	p := &HttpRequest{}
 	p.raw = []byte(sb.String())
 
 	p.domain, p.port, err = net.SplitHostPort(request.Host)

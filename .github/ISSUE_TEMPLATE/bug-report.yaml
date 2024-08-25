@@ -1,0 +1,48 @@
+name: Bug Report
+description: Found something you weren't expecting? Report it here!
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # NOTE
+        - Please speak English, this is the language all maintainers can speak and write.
+        - Please take a moment to check that your issue hasn't been reported before.
+        - Make sure you are using the latest release.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: |
+        Version of SpoofDPI that you are currently using
+        This can be shown by running "spoof-dpi -v" in terminal
+    validations:
+      required: true
+
+  - type: input
+    id: os-ver
+    attributes:
+      label: Operating System
+      description: The operating system and version you are using
+    validations:
+      required: true
+
+  - type: textarea
+    id: run-info
+    attributes:
+      label: How are you running SpoofDPI?
+      description: |
+        Please provide information of how you are running SpoofDPI. 
+        This may include command line options that you used to run SpoofDPI, or the way how you installed SpoofDPI, and some more details.
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: |
+        Please provide a description of your issue here
+    validations:
+      required: true

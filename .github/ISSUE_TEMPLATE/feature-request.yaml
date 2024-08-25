@@ -1,0 +1,20 @@
+name: Feature Request
+description: Suggest an idea for this project
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # NOTE
+        - Please speak English, this is the language all maintainers can speak and write.
+        - Please take a moment to check that your issue hasn't been reported before.
+        - Make sure you are using the latest release.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: |
+        Please provide the description of your feature request here
+    validations:
+      required: true

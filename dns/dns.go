@@ -8,10 +8,12 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
-	log "github.com/sirupsen/logrus"
 	"github.com/xvzc/SpoofDPI/dns/resolver"
 	"github.com/xvzc/SpoofDPI/util"
+	"github.com/xvzc/SpoofDPI/util/log"
 )
+
+const scopeDNS = "DNS"
 
 type Resolver interface {
 	Resolve(ctx context.Context, host string, qTypes []uint16) ([]net.IPAddr, error)
@@ -27,11 +29,11 @@ type Dns struct {
 }
 
 func NewDns(config *util.Config) *Dns {
-	addr := *config.DnsAddr
-	port := strconv.Itoa(*config.DnsPort)
+	addr := config.DnsAddr
+	port := strconv.Itoa(config.DnsPort)
 
 	return &Dns{
-		host:          *config.DnsAddr,
+		host:          config.DnsAddr,
 		port:          port,
 		systemClient:  resolver.NewSystemResolver(),
 		generalClient: resolver.NewGeneralResolver(net.JoinHostPort(addr, port)),
@@ -39,16 +41,20 @@ func NewDns(config *util.Config) *Dns {
 	}
 }
 
-func (d *Dns) ResolveHost(host string, enableDoh bool, useSystemDns bool) (string, error) {
+func (d *Dns) ResolveHost(ctx context.Context, host string, enableDoh bool, useSystemDns bool) (string, error) {
+	ctx = util.GetCtxWithScope(ctx, scopeDNS)
+	logger := log.GetCtxLogger(ctx)
+
 	if ip, err := parseIpAddr(host); err == nil {
 		return ip.String(), nil
 	}
 
 	clt := d.clientFactory(enableDoh, useSystemDns)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	log.Debugf("[DNS] resolving %s using %s", host, clt)
+	logger.Debug().Msgf("resolving %s using %s", host, clt)
+
 	t := time.Now()
 
 	addrs, err := clt.Resolve(ctx, host, []uint16{dns.TypeAAAA, dns.TypeA})
@@ -59,7 +65,7 @@ func (d *Dns) ResolveHost(host string, enableDoh bool, useSystemDns bool) (strin
 
 	if len(addrs) > 0 {
 		d := time.Since(t).Milliseconds()
-		log.Debugf("[DNS] resolved %s from %s in %d ms", addrs[0].String(), host, d)
+		logger.Debug().Msgf("resolved %s from %s in %d ms", addrs[0].String(), host, d)
 		return addrs[0].String(), nil
 	}
 

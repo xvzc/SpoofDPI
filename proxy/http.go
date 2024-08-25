@@ -1,15 +1,22 @@
 package proxy
 
 import (
+	"context"
+	"github.com/xvzc/SpoofDPI/util"
 	"net"
 	"strconv"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/xvzc/SpoofDPI/util/log"
 
 	"github.com/xvzc/SpoofDPI/packet"
 )
 
-func (pxy *Proxy) handleHttp(lConn *net.TCPConn, pkt *packet.HttpPacket, ip string) {
+const protoHTTP = "HTTP"
+
+func (pxy *Proxy) handleHttp(ctx context.Context, lConn *net.TCPConn, pkt *packet.HttpRequest, ip string) {
+	ctx = util.GetCtxWithScope(ctx, protoHTTP)
+	logger := log.GetCtxLogger(ctx)
+
 	pkt.Tidy()
 
 	// Create a connection to the requested server
@@ -18,28 +25,28 @@ func (pxy *Proxy) handleHttp(lConn *net.TCPConn, pkt *packet.HttpPacket, ip stri
 	if pkt.Port() != "" {
 		port, err = strconv.Atoi(pkt.Port())
 		if err != nil {
-			log.Debugf("[HTTP] error while parsing port for %s aborting..", pkt.Domain())
+			logger.Debug().Msgf("error while parsing port for %s aborting..", pkt.Domain())
 		}
 	}
 
 	rConn, err := net.DialTCP("tcp", nil, &net.TCPAddr{IP: net.ParseIP(ip), Port: port})
 	if err != nil {
 		lConn.Close()
-		log.Debug("[HTTP] ", err)
+		logger.Debug().Msgf("%s", err)
 		return
 	}
 
-	log.Debugf("[HTTP] new connection to the server %s -> %s", rConn.LocalAddr(), pkt.Domain())
+	logger.Debug().Msgf("new connection to the server %s -> %s", rConn.LocalAddr(), pkt.Domain())
 
-	go Serve(rConn, lConn, "[HTTP]", pkt.Domain(), lConn.RemoteAddr().String(), pxy.timeout)
+	go Serve(ctx, rConn, lConn, protoHTTP, pkt.Domain(), lConn.RemoteAddr().String(), pxy.timeout)
 
 	_, err = rConn.Write(pkt.Raw())
 	if err != nil {
-		log.Debugf("[HTTP] error sending request to %s: %s", pkt.Domain(), err)
+		logger.Debug().Msgf("error sending request to %s: %s", pkt.Domain(), err)
 		return
 	}
 
-	log.Debugf("[HTTP] sent a request to %s", pkt.Domain())
+	logger.Debug().Msgf("sent a request to %s", pkt.Domain())
 
-	go Serve(lConn, rConn, "[HTTP]", lConn.RemoteAddr().String(), pkt.Domain(), pxy.timeout)
+	go Serve(ctx, lConn, rConn, protoHTTP, lConn.RemoteAddr().String(), pkt.Domain(), pxy.timeout)
 }
