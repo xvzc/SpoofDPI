@@ -12,7 +12,7 @@ type Args struct {
 	DnsPort        int
 	EnableDoh      bool
 	Debug          bool
-	NoBanner       bool
+	Banner         bool
 	SystemProxy    bool
 	Timeout        int
 	AllowedPattern StringArray
@@ -40,7 +40,7 @@ func ParseArgs() *Args {
 	flag.IntVar(&args.DnsPort, "dns-port", 53, "port number for dns")
 	flag.BoolVar(&args.EnableDoh, "enable-doh", false, "enable 'dns-over-https'")
 	flag.BoolVar(&args.Debug, "debug", false, "enable debug output")
-	flag.BoolVar(&args.NoBanner, "no-banner", false, "disable banner")
+	flag.BoolVar(&args.Banner, "banner", true, "enable banner")
 	flag.BoolVar(&args.SystemProxy, "system-proxy", true, "enable system-wide proxy")
 	flag.IntVar(&args.Timeout, "timeout", 0, "timeout in milliseconds; no timeout when not given")
 	flag.IntVar(&args.WindowSize, "window-size", 0, `chunk size, in number of bytes, for fragmented client hello,
