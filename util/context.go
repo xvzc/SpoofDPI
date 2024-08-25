@@ -47,7 +47,7 @@ func generateTraceId() string {
 			r += 0x27
 		}
 		sb.WriteByte(r + 0x30)
-		if i&3 == 3 && i != 31 {
+		if i&7 == 7 && i != 31 {
 			sb.WriteByte(0x2D)
 		}
 	}
