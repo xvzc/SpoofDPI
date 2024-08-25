@@ -1,7 +1,6 @@
 package util
 
 import (
-	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -43,14 +42,15 @@ func UnsetOsProxy() error {
 }
 
 func getDefaultNetwork() (string, error) {
-	network, err := exec.Command("sh", "-c", getDefaultNetworkCMD).Output()
+	cmd := exec.Command("sh", "-c", getDefaultNetworkCMD)
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("failed to get default network, stdout: %s: %w", string(network), err)
+		return "", fmt.Errorf("%s: %s", cmd.String(), out)
 	}
-	if len(network) == 0 {
-		return "", errors.New("no available networks")
+	if len(out) == 0 {
+		return "", fmt.Errorf("%s: no available networks", cmd.String())
 	}
-	return strings.TrimSpace(string(network)), nil
+	return strings.TrimSpace(string(out)), nil
 }
 
 func getProxyTypes() []string {

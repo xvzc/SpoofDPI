@@ -34,12 +34,9 @@ func main() {
 	} else {
 		util.PrintSimpleInfo()
 	}
-
-
 	if config.SystemProxy {
 		if err := util.SetOsProxy(uint16(config.Port)); err != nil {
 			logger.Fatal().Msgf("error while changing proxy settings: %s", err)
-
 		}
 		defer func() {
 			if err := util.UnsetOsProxy(); err != nil {
@@ -68,9 +65,4 @@ func main() {
 	}()
 
 	<-done
-	if *config.SystemProxy {
-		if err := util.UnsetOsProxy(); err != nil {
-			log.Fatalf("error while unsetting os proxy: %v", err)
-		}
-	}
 }
