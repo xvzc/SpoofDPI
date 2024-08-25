@@ -67,7 +67,7 @@ func PrintColoredBanner() {
 		{Level: 0, Text: "DEBUG   : " + fmt.Sprint(config.Debug)},
 	}).Render()
 
-  	pterm.DefaultBasicText.Println("Press 'CTRL + c to quit'")
+  	pterm.DefaultBasicText.Println("Press 'CTRL + c' to quit")
 }
 
 func PrintSimpleInfo() {
