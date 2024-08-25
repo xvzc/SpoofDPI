@@ -34,7 +34,7 @@ func GetTraceIdFromCtx(ctx context.Context) (string, bool) {
 
 func generateTraceId() string {
 	sb := strings.Builder{}
-	sb.Grow(22)
+	sb.Grow(35)
 
 	var q uint64
 	var r uint8
