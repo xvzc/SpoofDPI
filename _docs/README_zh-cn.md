@@ -10,52 +10,8 @@
 
 ![image](https://user-images.githubusercontent.com/45588457/148035986-8b0076cc-fefb-48a1-9939-a8d9ab1d6322.png)
 
-# 安装
-## Binary
-
-SpoofDPI 会被安装在 `~/.spoof-dpi/bin`
-要在其他目录下运行，请给 `~/.bashrc || ~/.zshrc || ...` 添加
-
-```
-export PATH=$PATH:~/.spoof-dpi/bin
-```
----
-```bash
-# macOS Intel
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s darwin-amd64
-
-# macOS Apple Silicon
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s darwin-arm64
-
-# linux-amd64
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-amd64
-
-# linux-arm
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-arm
-
-# linux-arm64
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-arm64
-
-# linux-mips
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mips
-
-# linux-mipsle
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mipsle
-```
-
-## Go
-也可以用 `go install` 安装
-```bash
-$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi@latest
-```
-
-## Git
-You can also build your own
-```bash
-$ git clone https://github.com/xvzc/SpoofDPI.git
-$ cd SpoofDPI
-$ go build ./cmd/...
-```
+# Installation
+See the installation guide for SpoofDPI [here](https://github.com/xvzc/SpoofDPI/blob/main/_docs/INSTALL.md).
 
 # 使用方法
 
@@ -111,5 +67,5 @@ google-chrome --proxy-server="http://127.0.0.1:8080"
 
 # 启发
 
-[Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) by @SadeghHayeri
+[Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) by @SadeghHayeri  
 [GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) by @ValdikSS

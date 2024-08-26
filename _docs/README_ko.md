@@ -8,46 +8,8 @@ DPI(Deep Packet Inspection) 우회를 위해 고안된 소프트웨어
   
 ![image](https://user-images.githubusercontent.com/45588457/148035986-8b0076cc-fefb-48a1-9939-a8d9ab1d6322.png)
 
-# 설치
-## Binary
-SpoofDPI는 `~/.spoof-dpi/bin` 경로에 설치됩니다.  
-모든 경로에서 SpoofDPI를 실행 가능하도록 하기위해서 아래 라인을  `~/.bashrc || ~/.zshrc || ...`에 추가해주세요.
-```
-export PATH=$PATH:~/.spoof-dpi/bin
-```
----
-```bash
-# OSX
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s darwin-amd64
-
-# linux-amd64
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-amd64
-
-# linux-arm
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-arm
-
-# linux-arm64
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-arm64
-
-# linux-mips
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mips
-
-# linux-mipsle
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mipsle
-```
-
-
-## Go
-`go install`로 설치하기
-```bash
-$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi@latest
-```
-
-## Git
-직접 빌드하기
-`$ git clone https://github.com/xvzc/SpoofDPI.git`  
-`$ cd SpoofDPI`  
-`$ go build ./cmd/...`  
+# Installation
+SpoofDPI의 설치과정은 [여기](https://github.com/xvzc/SpoofDPI/blob/main/_docs/INSTALL.md)를 참고바랍니다.
 
 # 사용법
 ```
