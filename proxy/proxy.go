@@ -65,6 +65,7 @@ func (pxy *Proxy) Start(ctx context.Context) {
 
 		go func() {
 			ctx := util.GetCtxWithTraceId(ctx)
+			logger := log.GetCtxLogger(ctx)
 
 			pkt, err := packet.ReadHttpRequest(conn)
 			if err != nil {
