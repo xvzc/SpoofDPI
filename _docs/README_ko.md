@@ -8,6 +8,9 @@ DPI(Deep Packet Inspection) 우회를 위해 고안된 소프트웨어
   
 ![image](https://user-images.githubusercontent.com/45588457/148035986-8b0076cc-fefb-48a1-9939-a8d9ab1d6322.png)
 
+# Installation
+SpoofDPI의 설치과정은 [여기](https://github.com/xvzc/SpoofDPI/blob/main/_docs/INSTALL.md)를 참고바랍니다.
+
 # 사용법
 ```
 Usage: spoof-dpi [options...]
