@@ -8,49 +8,6 @@
   
 ![image](https://user-images.githubusercontent.com/45588457/148035986-8b0076cc-fefb-48a1-9939-a8d9ab1d6322.png)
 
-# インストール
-## バイナリ
-SpoofDPIは`~/.spoof-dpi/bin`にインストールされます。  
-任意のディレクトリでSpoofDPIを実行するには、以下の行を`~/.bashrc || ~/.zshrc || ...`に追加してください。
-```
-export PATH=$PATH:~/.spoof-dpi/bin
-```
----
-```bash
-# OSX
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s darwin-amd64
-
-# linux-amd64
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-amd64
-
-# linux-arm
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-arm
-
-# linux-arm64
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-arm64
-
-# linux-mips
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mips
-
-# linux-mipsle
-curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mipsle
-```
-
-
-## Go
-`go install` でインストールすることもできます  
-```bash
-$ go install github.com/xvzc/SpoofDPI/cmd/spoof-dpi@latest
-```
-
-## Git
-自分でビルドすることもできます  
-```bash
-$ git clone https://github.com/xvzc/SpoofDPI.git
-$ cd SpoofDPI
-$ go build ./cmd/...
-```
-
 # 使用方法
 ```
 Usage: spoof-dpi [options...]
