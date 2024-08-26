@@ -4,11 +4,12 @@
 
 Read in other Languages: [🇬🇧English](https://github.com/xvzc/SpoofDPI), [🇰🇷한국어](https://github.com/xvzc/SpoofDPI/blob/main/_docs/README_ko.md), [🇨🇳简体中文](https://github.com/xvzc/SpoofDPI/blob/main/_docs/README_zh-cn.md), [🇷🇺Русский](https://github.com/xvzc/SpoofDPI/blob/main/_docs/README_ru.md), [🇯🇵日本語](https://github.com/xvzc/SpoofDPI/blob/main/_docs/README_ja.md)
 
-A simple and fast software designed to bypass **Deep Packet Inspection**
+A simple and fast software designed to bypass **Deep Packet Inspection**.
 
 ![image](https://user-images.githubusercontent.com/45588457/148035986-8b0076cc-fefb-48a1-9939-a8d9ab1d6322.png)
 
-[Installation guide](https://github.com/xvzc/SpoofDPI/blob/main/_docs/INSTALL.md)
+# Installation
+See [INSATLL.md](https://github.com/xvzc/SpoofDPI/blob/main/_docs/INSTALL.md).
 
 # Usage
 ```
