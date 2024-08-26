@@ -9,7 +9,7 @@ A simple and fast software designed to bypass **Deep Packet Inspection**.
 ![image](https://user-images.githubusercontent.com/45588457/148035986-8b0076cc-fefb-48a1-9939-a8d9ab1d6322.png)
 
 # Installation
-See [INSTALL.md](https://github.com/xvzc/SpoofDPI/blob/main/_docs/INSTALL.md).
+See the installation guide [here](https://github.com/xvzc/SpoofDPI/blob/main/_docs/INSTALL.md).
 
 # Usage
 ```
