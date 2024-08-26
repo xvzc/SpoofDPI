@@ -1,7 +1,6 @@
 package util
 
 import (
-	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -23,7 +22,7 @@ func SetOsProxy(port uint16) error {
 
 	network, err := getDefaultNetwork()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get default network: %w", err)
 	}
 
 	return setProxy(getProxyTypes(), network, "127.0.0.1", port)
@@ -36,20 +35,22 @@ func UnsetOsProxy() error {
 
 	network, err := getDefaultNetwork()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get default network: %w", err)
 	}
 
 	return unsetProxy(getProxyTypes(), network)
 }
 
 func getDefaultNetwork() (string, error) {
-	network, err := exec.Command("sh", "-c", getDefaultNetworkCMD).Output()
+	cmd := exec.Command("sh", "-c", getDefaultNetworkCMD)
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", err
-	} else if len(network) == 0 {
-		return "", errors.New("no available networks")
+		return "", fmt.Errorf("%s: %s", cmd.String(), out)
 	}
-	return strings.TrimSpace(string(network)), nil
+	if len(out) == 0 {
+		return "", fmt.Errorf("%s: no available networks", cmd.String())
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func getProxyTypes() []string {
