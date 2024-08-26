@@ -13,7 +13,13 @@ const (
 	getDefaultNetworkCMD = "networksetup -listnetworkserviceorder | grep" +
 		" `(route -n get default | grep 'interface' || route -n get -inet6 default | grep 'interface') | cut -d ':' -f2`" +
 		" -B 1 | head -n 1 | cut -d ' ' -f 2-"
-	darwinOS = "darwin"
+	darwinOS                     = "darwin"
+	permissionErrorHelpTextMacOS = "By default SpoofDPI tries to set itself up as a system-wide proxy server.\n" +
+		"Doing so may require root access on machines with\n" +
+		"'Settings > Privacy & Security > Advanced > Require" +
+		" an administrator password to access system-wide settings' enabled.\n" +
+		"If you do not want SpoofDPI to act as a system-wide proxy, provide" +
+		" -system-proxy=false."
 )
 
 func SetOsProxy(port uint16) error {
@@ -84,7 +90,21 @@ func networkSetup(args []string) error {
 	cmd := exec.Command("networksetup", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("%s: %s", cmd.String(), out)
+		msg := string(out)
+		if isMacOSPermissionError(err) {
+			msg += permissionErrorHelpTextMacOS
+		}
+		return fmt.Errorf("%s: %s", cmd.String(), msg)
 	}
 	return nil
+}
+
+func isMacOSPermissionError(err error) bool {
+	if runtime.GOOS != darwinOS {
+		return false
+	}
+
+	var exitErr *exec.ExitError
+	ok := errors.As(err, &exitErr)
+	return ok && exitErr.ExitCode() == 14
 }
