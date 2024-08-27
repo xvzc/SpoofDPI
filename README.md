@@ -13,7 +13,7 @@ See the installation guide for SpoofDPI [here](https://github.com/xvzc/SpoofDPI/
 
 # Usage
 ```
-Usage: spoof-dpi [options...]
+Usage: spoofdpi [options...]
   -addr string
         listen address (default "127.0.0.1")
   -banner
@@ -34,7 +34,7 @@ Usage: spoof-dpi [options...]
         enable system-wide proxy (default true)
   -timeout int
         timeout in milliseconds; no timeout when not given
-  -v    print spoof-dpi's version; this may contain some other relevant information
+  -v    print spoofdpi's version; this may contain some other relevant information
   -window-size int
         chunk size, in number of bytes, for fragmented client hello,
         try lower values if the default value doesn't bypass the DPI;
@@ -45,10 +45,10 @@ Usage: spoof-dpi [options...]
   go to Settings > Extensions, and disable them.
 
 ### OSX
-Run `spoof-dpi` and it will automatically set your proxy
+Run `spoofdpi` and it will automatically set your proxy
 
 ### Linux
-Run `spoof-dpi` and open your favorite browser with proxy option
+Run `spoofdpi` and open your favorite browser with proxy option
 ```bash
 google-chrome --proxy-server="http://127.0.0.1:8080"
 ```
