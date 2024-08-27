@@ -13,7 +13,7 @@ See the installation guide for SpoofDPI [here](https://github.com/xvzc/SpoofDPI/
 
 # 使用方法
 ```
-Usage: spoof-dpi [options...]
+Usage: spoofdpi [options...]
   -addr string
         listen address (default "127.0.0.1")
   -banner
@@ -34,7 +34,7 @@ Usage: spoof-dpi [options...]
         enable system-wide proxy (default true)
   -timeout int
         timeout in milliseconds; no timeout when not given
-  -v    print spoof-dpi's version; this may contain some other relevant information
+  -v    print spoofdpi's version; this may contain some other relevant information
   -window-size int
         chunk size, in number of bytes, for fragmented client hello,
         try lower values if the default value doesn't bypass the DPI;
@@ -45,10 +45,10 @@ Usage: spoof-dpi [options...]
   設定 > 拡張機能に移動して無効にしてください。
 
 ### OSX
-`spoof-dpi`を実行すると、自動的にプロキシが設定されます。
+`spoofdpi`を実行すると、自動的にプロキシが設定されます。
 
 ### Linux
-`spoof-dpi`を実行し、プロキシオプションを使用してブラウザを開きます。  
+`spoofdpi`を実行し、プロキシオプションを使用してブラウザを開きます。  
 ```bash
 google-chrome --proxy-server="http://127.0.0.1:8080"
 ```

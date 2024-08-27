@@ -56,69 +56,69 @@ jobs:
         GOOS: darwin
         GOARCH: amd64
       run: |
-        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoof-dpi 
-        tar -zcvf "spoof-dpi-$GOOS-$GOARCH.tar.gz" ./spoof-dpi && rm -rf ./spoof-dpi
-        gh release upload $TAG_NAME "./spoof-dpi-$GOOS-$GOARCH.tar.gz"
+        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoofdpi 
+        tar -zcvf "spoofdpi-$GOOS-$GOARCH.tar.gz" ./spoofdpi && rm -rf ./spoofdpi
+        gh release upload $TAG_NAME "./spoofdpi-$GOOS-$GOARCH.tar.gz"
 
     - name: darwin/arm64
       env: 
         GOOS: darwin
         GOARCH: arm64
       run: |
-        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoof-dpi 
-        tar -zcvf "spoof-dpi-$GOOS-$GOARCH.tar.gz" ./spoof-dpi && rm -rf ./spoof-dpi
-        gh release upload $TAG_NAME "./spoof-dpi-$GOOS-$GOARCH.tar.gz"
+        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoofdpi 
+        tar -zcvf "spoofdpi-$GOOS-$GOARCH.tar.gz" ./spoofdpi && rm -rf ./spoofdpi
+        gh release upload $TAG_NAME "./spoofdpi-$GOOS-$GOARCH.tar.gz"
 
     - name: linux/amd64
       env: 
         GOOS: linux
         GOARCH: amd64
       run: |
-        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoof-dpi 
-        tar -zcvf "spoof-dpi-$GOOS-$GOARCH.tar.gz" ./spoof-dpi && rm -rf ./spoof-dpi
-        gh release upload $TAG_NAME "./spoof-dpi-$GOOS-$GOARCH.tar.gz"
+        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoofdpi 
+        tar -zcvf "spoofdpi-$GOOS-$GOARCH.tar.gz" ./spoofdpi && rm -rf ./spoofdpi
+        gh release upload $TAG_NAME "./spoofdpi-$GOOS-$GOARCH.tar.gz"
 
     - name: linux/arm
       env: 
         GOOS: linux
         GOARCH: arm
       run: |
-        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoof-dpi 
-        tar -zcvf "spoof-dpi-$GOOS-$GOARCH.tar.gz" ./spoof-dpi && rm -rf ./spoof-dpi
-        gh release upload $TAG_NAME "./spoof-dpi-$GOOS-$GOARCH.tar.gz"
+        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoofdpi 
+        tar -zcvf "spoofdpi-$GOOS-$GOARCH.tar.gz" ./spoofdpi && rm -rf ./spoofdpi
+        gh release upload $TAG_NAME "./spoofdpi-$GOOS-$GOARCH.tar.gz"
 
     - name: linux/arm64
       env: 
         GOOS: linux
         GOARCH: arm64
       run: |
-        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoof-dpi 
-        tar -zcvf "spoof-dpi-$GOOS-$GOARCH.tar.gz" ./spoof-dpi && rm -rf ./spoof-dpi
-        gh release upload $TAG_NAME "./spoof-dpi-$GOOS-$GOARCH.tar.gz"
+        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoofdpi 
+        tar -zcvf "spoofdpi-$GOOS-$GOARCH.tar.gz" ./spoofdpi && rm -rf ./spoofdpi
+        gh release upload $TAG_NAME "./spoofdpi-$GOOS-$GOARCH.tar.gz"
 
     - name: linux/mips
       env: 
         GOOS: linux
         GOARCH: mips
       run: |
-        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoof-dpi 
-        tar -zcvf "spoof-dpi-$GOOS-$GOARCH.tar.gz" ./spoof-dpi && rm -rf ./spoof-dpi
-        gh release upload $TAG_NAME "./spoof-dpi-$GOOS-$GOARCH.tar.gz"
+        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoofdpi 
+        tar -zcvf "spoofdpi-$GOOS-$GOARCH.tar.gz" ./spoofdpi && rm -rf ./spoofdpi
+        gh release upload $TAG_NAME "./spoofdpi-$GOOS-$GOARCH.tar.gz"
 
     - name: linux/mipsle
       env: 
         GOOS: linux
         GOARCH: mipsle
       run: |
-        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoof-dpi 
-        tar -zcvf "spoof-dpi-$GOOS-$GOARCH.tar.gz" ./spoof-dpi && rm -rf ./spoof-dpi
-        gh release upload $TAG_NAME "./spoof-dpi-$GOOS-$GOARCH.tar.gz"
+        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoofdpi 
+        tar -zcvf "spoofdpi-$GOOS-$GOARCH.tar.gz" ./spoofdpi && rm -rf ./spoofdpi
+        gh release upload $TAG_NAME "./spoofdpi-$GOOS-$GOARCH.tar.gz"
 
     - name: windows/amd64
       env: 
         GOOS: windows
         GOARCH: amd64
       run: |
-        go build -ldflags="-w -s" -o "spoof-dpi-$GOOS-$GOARCH.exe" github.com/xvzc/SpoofDPI/cmd/spoof-dpi
-        gh release upload $TAG_NAME "./spoof-dpi-$GOOS-$GOARCH.exe"
+        go build -ldflags="-w -s" -o "spoofdpi-$GOOS-$GOARCH.exe" github.com/xvzc/SpoofDPI/cmd/spoofdpi
+        gh release upload $TAG_NAME "./spoofdpi-$GOOS-$GOARCH.exe"
 

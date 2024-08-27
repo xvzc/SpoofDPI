@@ -13,7 +13,7 @@ SpoofDPI의 설치과정은 [여기](https://github.com/xvzc/SpoofDPI/blob/main/
 
 # 사용법
 ```
-Usage: spoof-dpi [options...]
+Usage: spoofdpi [options...]
   -addr string
         listen address (default "127.0.0.1")
   -banner
@@ -34,7 +34,7 @@ Usage: spoof-dpi [options...]
         enable system-wide proxy (default true)
   -timeout int
         timeout in milliseconds; no timeout when not given
-  -v    print spoof-dpi's version; this may contain some other relevant information
+  -v    print spoofdpi's version; this may contain some other relevant information
   -window-size int
         chunk size, in number of bytes, for fragmented client hello,
         try lower values if the default value doesn't bypass the DPI;
@@ -44,10 +44,10 @@ Usage: spoof-dpi [options...]
 > 만약 브라우저에서 Hotspot Shield와 같은 크롬 VPN 확장프로그램을 사용중이라면  
   Settings > Extension 으로 이동해 비활성화 해주시기바랍니다.
 ### OSX
-터미널에서 `$ spoof-dpi`를 실행합니다. Proxy 설정은 자동으로 수행됩니다.
+터미널에서 `$ spoofdpi`를 실행합니다. Proxy 설정은 자동으로 수행됩니다.
 
 ### Linux
-터미널에서 `$ spoof-dpi`를 실행하고, 프록시 옵션과 함께 브라우저를 실행합니다.  
+터미널에서 `$ spoofdpi`를 실행하고, 프록시 옵션과 함께 브라우저를 실행합니다.  
 `google-chrome --proxy-server="http://127.0.0.1:8080"`
 
 # 원리

@@ -16,7 +16,7 @@ See the installation guide for SpoofDPI [here](https://github.com/xvzc/SpoofDPI/
 # 使用方法
 
 ```
-Usage: spoof-dpi [options...]
+Usage: spoofdpi [options...]
   -addr string
         listen address (default "127.0.0.1")
   -banner
@@ -37,7 +37,7 @@ Usage: spoof-dpi [options...]
         enable system-wide proxy (default true)
   -timeout int
         timeout in milliseconds; no timeout when not given
-  -v    print spoof-dpi's version; this may contain some other relevant information
+  -v    print spoofdpi's version; this may contain some other relevant information
   -window-size int
         chunk size, in number of bytes, for fragmented client hello,
         try lower values if the default value doesn't bypass the DPI;
@@ -48,10 +48,10 @@ Usage: spoof-dpi [options...]
 > 如果你在 Chrome 浏览器使用其他 VPN 扩展比如 Hotspot Shield 请去 设置 > 扩展程序禁用它们
 
 ### OSX
-运行 `spoof-dpi` ，然后它会自动设置自身为代理
+运行 `spoofdpi` ，然后它会自动设置自身为代理
 
 ### Linux
-运行 `spoof-dpi` 然后加上代理参数运行你的浏览器
+运行 `spoofdpi` 然后加上代理参数运行你的浏览器
 ```bash
 google-chrome --proxy-server="http://127.0.0.1:8080"
 ```

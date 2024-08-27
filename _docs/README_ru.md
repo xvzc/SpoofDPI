@@ -13,7 +13,7 @@ See the installation guide for SpoofDPI [here](https://github.com/xvzc/SpoofDPI/
 
 # Использование
 ```
-Usage: spoof-dpi [опции...]
+Usage: spoofdpi [опции...]
   -addr string
         listen address (default "127.0.0.1")
   -banner
@@ -34,7 +34,7 @@ Usage: spoof-dpi [опции...]
         enable system-wide proxy (default true)
   -timeout int
         timeout in milliseconds; no timeout when not given
-  -v    print spoof-dpi's version; this may contain some other relevant information
+  -v    print spoofdpi's version; this may contain some other relevant information
   -window-size int
         chunk size, in number of bytes, for fragmented client hello,
         try lower values if the default value doesn't bypass the DPI;
@@ -45,10 +45,10 @@ Usage: spoof-dpi [опции...]
   Chrome, зайдите в Настройки > Расширения и отключите их.
 
 ### OSX
-Пропишите `spoof-dpi` и прокси автоматически установится
+Пропишите `spoofdpi` и прокси автоматически установится
 
 ### Linux
-Пропишите `spoof-dpi` и откройте Chrome с параметром прокси
+Пропишите `spoofdpi` и откройте Chrome с параметром прокси
 ```bash
 google-chrome --proxy-server="http://127.0.0.1:8080"
 ```
