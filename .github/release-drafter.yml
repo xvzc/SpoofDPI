@@ -1,4 +1,6 @@
 name-template: '$RESOLVED_VERSION'
+change-template: '* $TITLE (#$NUMBER) by @$AUTHOR'
+change-title-escapes: '\<*_&#@`'
 template: |
   ## Changes
-
+  $CHANGES
