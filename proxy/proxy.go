@@ -73,22 +73,24 @@ func (pxy *Proxy) Start(ctx context.Context) {
 		}
 
 		if pxy.transparent {
-			fd := sysFd(conn)
-			addr, err := syscall.GetsockoptIPv6Mreq(fd, syscall.IPPROTO_IP, 80)
-			if err != nil {
-				logger.Error().Msgf("Get SO_ORIGINAL_DST error: %v", err)
-				continue
-			}
+			go func() {
+				fd := sysFd(conn)
+				addr, err := syscall.GetsockoptIPv6Mreq(fd, syscall.IPPROTO_IP, 80)
+				if err != nil {
+					logger.Error().Msgf("Get SO_ORIGINAL_DST error: %v", err)
+					return
+				}
 
-			port := int(addr.Multiaddr[2])<<8 + int(addr.Multiaddr[3])
-			ip := fmt.Sprintf("%d.%d.%d.%d",
-				addr.Multiaddr[4],
-				addr.Multiaddr[5],
-				addr.Multiaddr[6],
-				addr.Multiaddr[7],
-			)
-			pkt := packet.New(ip, strconv.Itoa(port))
-			pxy.handleHttps(ctx, conn.(*net.TCPConn), true, pkt, ip)
+				port := int(addr.Multiaddr[2])<<8 + int(addr.Multiaddr[3])
+				ip := fmt.Sprintf("%d.%d.%d.%d",
+					addr.Multiaddr[4],
+					addr.Multiaddr[5],
+					addr.Multiaddr[6],
+					addr.Multiaddr[7],
+				)
+				pkt := packet.New(ip, strconv.Itoa(port))
+				pxy.handleHttps(ctx, conn.(*net.TCPConn), true, pkt, ip)
+			}()
 			continue
 		}
 
