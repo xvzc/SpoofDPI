@@ -80,14 +80,14 @@ func (pxy *Proxy) Start(ctx context.Context) {
 				continue
 			}
 
-			//port := int(addr.Multiaddr[2])<<8 + int(addr.Multiaddr[3])
+			port := int(addr.Multiaddr[2])<<8 + int(addr.Multiaddr[3])
 			ip := fmt.Sprintf("%d.%d.%d.%d",
 				addr.Multiaddr[4],
 				addr.Multiaddr[5],
 				addr.Multiaddr[6],
 				addr.Multiaddr[7],
 			)
-			pkt := &packet.HttpRequest{}
+			pkt := packet.New(ip, strconv.Itoa(port))
 			pxy.handleHttps(ctx, conn.(*net.TCPConn), true, pkt, ip)
 			continue
 		}

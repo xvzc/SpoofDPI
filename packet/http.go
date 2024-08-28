@@ -62,6 +62,10 @@ func ReadHttpRequest(rdr io.Reader) (*HttpRequest, error) {
 	return p, nil
 }
 
+func New(domain string, port string) *HttpRequest {
+	return &HttpRequest{domain: domain, port: port}
+}
+
 func (p *HttpRequest) Raw() []byte {
 	return p.raw
 }
