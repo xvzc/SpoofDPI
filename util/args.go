@@ -14,6 +14,7 @@ type Args struct {
 	Debug          bool
 	Banner         bool
 	SystemProxy    bool
+	Transparent    bool
 	Timeout        int
 	AllowedPattern StringArray
 	WindowSize     int
@@ -42,6 +43,7 @@ func ParseArgs() *Args {
 	flag.BoolVar(&args.Debug, "debug", false, "enable debug output")
 	flag.BoolVar(&args.Banner, "banner", true, "enable banner")
 	flag.BoolVar(&args.SystemProxy, "system-proxy", true, "enable system-wide proxy")
+	flag.BoolVar(&args.Transparent, "transparent", false, "run as transparent proxy")
 	flag.IntVar(&args.Timeout, "timeout", 0, "timeout in milliseconds; no timeout when not given")
 	flag.IntVar(&args.WindowSize, "window-size", 0, `chunk size, in number of bytes, for fragmented client hello,
 try lower values if the default value doesn't bypass the DPI;

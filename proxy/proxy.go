@@ -2,10 +2,13 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
+	"reflect"
 	"regexp"
 	"strconv"
+	"syscall"
 
 	"github.com/xvzc/SpoofDPI/dns"
 	"github.com/xvzc/SpoofDPI/packet"
@@ -22,6 +25,7 @@ type Proxy struct {
 	resolver       *dns.Dns
 	windowSize     int
 	enableDoh      bool
+	transparent    bool
 	allowedPattern []*regexp.Regexp
 }
 
@@ -32,6 +36,7 @@ func New(config *util.Config) *Proxy {
 		timeout:        config.Timeout,
 		windowSize:     config.WindowSize,
 		enableDoh:      config.EnableDoh,
+		transparent:    config.Transparent,
 		allowedPattern: config.AllowedPatterns,
 		resolver:       dns.NewDns(config),
 	}
@@ -51,6 +56,10 @@ func (pxy *Proxy) Start(ctx context.Context) {
 		logger.Info().Msgf("connection timeout is set to %d ms", pxy.timeout)
 	}
 
+	if pxy.transparent {
+		logger.Info().Msg("running as transparent proxy")
+	}
+
 	logger.Info().Msgf("created a listener on port %d", pxy.port)
 	if len(pxy.allowedPattern) > 0 {
 		logger.Info().Msgf("number of white-listed pattern: %d", len(pxy.allowedPattern))
@@ -60,6 +69,26 @@ func (pxy *Proxy) Start(ctx context.Context) {
 		conn, err := l.Accept()
 		if err != nil {
 			logger.Fatal().Msgf("error accepting connection: %s", err)
+			continue
+		}
+
+		if pxy.transparent {
+			fd := sysFd(conn)
+			addr, err := syscall.GetsockoptIPv6Mreq(fd, syscall.IPPROTO_IP, 80)
+			if err != nil {
+				logger.Error().Msgf("Get SO_ORIGINAL_DST error: %v", err)
+				continue
+			}
+
+			//port := int(addr.Multiaddr[2])<<8 + int(addr.Multiaddr[3])
+			ip := fmt.Sprintf("%d.%d.%d.%d",
+				addr.Multiaddr[4],
+				addr.Multiaddr[5],
+				addr.Multiaddr[6],
+				addr.Multiaddr[7],
+			)
+			pkt := &packet.HttpRequest{}
+			pxy.handleHttps(ctx, conn.(*net.TCPConn), true, pkt, ip)
 			continue
 		}
 
@@ -120,6 +149,12 @@ func (pxy *Proxy) patternMatches(bytes []byte) bool {
 	}
 
 	return false
+}
+
+func sysFd(c net.Conn) int {
+	ce := reflect.ValueOf(c).Elem()
+	pfd := ce.FieldByName("conn").FieldByName("fd").Elem().FieldByName("pfd")
+	return int(pfd.FieldByName("Sysfd").Int())
 }
 
 func isLoopedRequest(ctx context.Context, ip net.IP) bool {

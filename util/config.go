@@ -15,8 +15,9 @@ type Config struct {
 	DnsPort         int
 	EnableDoh       bool
 	Debug           bool
-	Banner        bool
+	Banner          bool
 	SystemProxy     bool
+	Transparent     bool
 	Timeout         int
 	WindowSize      int
 	AllowedPatterns []*regexp.Regexp
@@ -40,6 +41,7 @@ func (c *Config) Load(args *Args) {
 	c.EnableDoh = args.EnableDoh
 	c.Banner = args.Banner
 	c.SystemProxy = args.SystemProxy
+	c.Transparent = args.Transparent
 	c.Timeout = args.Timeout
 	c.AllowedPatterns = parseAllowedPattern(args.AllowedPattern)
 	c.WindowSize = args.WindowSize
