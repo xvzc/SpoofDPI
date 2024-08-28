@@ -23,8 +23,8 @@ func GetCtxLogger(ctx context.Context) zerolog.Logger {
 
 func InitLogger(cfg *util.Config) {
 	partsOrder := []string{
-		zerolog.TimestampFieldName,
 		zerolog.LevelFieldName,
+		zerolog.TimestampFieldName,
 		traceIdFieldName,
 		scopeFieldName,
 		zerolog.MessageFieldName,
