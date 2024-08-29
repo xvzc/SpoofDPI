@@ -1,7 +1,7 @@
 # Quick Start
 
 ## Binary
-SpoofDPI will be installed in `~/.spoofdpi/bin`.
+SpoofDPI will be installed in `~/.spoofdpi/bin`.  
 To run SpoofDPI in any directory, add the line below to your `~/.bashrc || ~/.zshrc || ...`
 ```bash
 export PATH=$PATH:~/.spoofdpi/bin
@@ -41,7 +41,7 @@ You can also install SpoofDPI with `go install`.
 go install github.com/xvzc/SpoofDPI/cmd/spoofdpi@latest
 ```
 
-# How to build your own binary
+## How to build
 
 ```bash
 git clone https://github.com/xvzc/SpoofDPI.git
