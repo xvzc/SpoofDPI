@@ -31,19 +31,11 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
 ```
 
 ## FreeBSD 😈
-You can build spoofdpi either from ports tree or install the package.
-You may want to use spoofdpi rc.d service.
-You can specify arguments for spoofdpi in `/etc/rc.conf`.
 ```
-# Build from ports
+# Build from ports tree
 make -C /usr/ports/net/spoofdpi install clean
 # Install the package
 pkg install spoofdpi
-# Enabling the service
-service spoofdpi enable
-service spoofdpi start
-# Specifying arguments for spoofdpi
-spoofdpi_args="-port 8181 -dns-addr 1.1.1.1 -enable-doh"
 ```
 
 ## Homebrew 🍻
