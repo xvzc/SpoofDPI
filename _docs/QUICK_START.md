@@ -30,6 +30,14 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mipsle
 ```
 
+## FreeBSD 😈
+```
+# Build from ports tree
+make -C /usr/ports/net/spoofdpi install clean
+# Install the package
+pkg install spoofdpi
+```
+
 ## Homebrew 🍻
 ```bash
 brew install spoofdpi
