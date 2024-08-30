@@ -40,6 +40,10 @@ Usage: spoofdpi [options...]
         try lower values if the default value doesn't bypass the DPI;
         when not given, the client hello packet will be sent in two parts:
         fragmentation for the first data packet and the rest
+  -proxy-user=<string>
+        Username for proxy auth, if proxy-passwd is specified then proxy-user required
+  -proxy-passwd=<string>
+        Password for proxy auth, if proxy-user is specified then proxy-passwd required
 ```
 > If you are using any vpn extensions such as Hotspot Shield in Chrome browser,
   go to Settings > Extensions, and disable them.

@@ -18,6 +18,10 @@ type Args struct {
 	AllowedPattern StringArray
 	WindowSize     int
 	Version        bool
+
+	//Add proxy auth
+	ProxyUsername string
+	ProxyPassword string
 }
 
 type StringArray []string
@@ -48,6 +52,10 @@ try lower values if the default value doesn't bypass the DPI;
 when not given, the client hello packet will be sent in two parts:
 fragmentation for the first data packet and the rest
 `)
+	//Add proxy auth
+	flag.StringVar(&args.ProxyUsername, "proxy-user", "", "username for proxy auth")
+	flag.StringVar(&args.ProxyPassword, "proxy-passwd", "", "password for proxy auth")
+
 	flag.BoolVar(&args.Version, "v", false, "print spoofdpi's version; this may contain some other relevant information")
 	flag.Var(
 		&args.AllowedPattern,

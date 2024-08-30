@@ -2,11 +2,14 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 	"github.com/xvzc/SpoofDPI/util"
+	"github.com/xvzc/SpoofDPI/util/log"
 	"net"
 	"strconv"
 
-	"github.com/xvzc/SpoofDPI/util/log"
+	"strings"
+	"time"
 
 	"github.com/xvzc/SpoofDPI/packet"
 )
@@ -18,6 +21,47 @@ func (pxy *Proxy) handleHttp(ctx context.Context, lConn *net.TCPConn, pkt *packe
 	logger := log.GetCtxLogger(ctx)
 
 	pkt.Tidy()
+
+	//Is proxy auth enable
+	if pxy.proxyAuth != "" {
+		addr := lConn.LocalAddr().String()
+
+		var isAllow = false
+		var cachedAuthData *Auth
+		size := AuthorizedClientsCache.Size()
+
+		for i := 0; i < size; i++ {
+			cachedAuthData = AuthorizedClientsCache.At(i)
+			if cachedAuthData.Addr == addr {
+				isAllow = (time.Now().Unix() - cachedAuthData.AuthTime) < 60*30 //Cache available 30 min
+				break
+			}
+		}
+
+		var raw = string(pkt.Raw())
+		auth := extractProxyAuthorization(raw)
+
+		var isAvailableAuthData = strings.TrimSpace(pxy.proxyAuth) == strings.TrimSpace(auth)
+
+		if !isAllow && !isAvailableAuthData {
+			response := []byte(fmt.Sprintf(pkt.Version() + " 407 Proxy Authentication Required\nProxy-Authenticate: Basic realm=\"Access to internal site\"\r\n\r\n"))
+			lConn.Write(response)
+			lConn.Close()
+			logger.Debug().Msgf("Unauthorized client: " + addr)
+			return
+		}
+
+		go func() {
+			if isAvailableAuthData && cachedAuthData != nil {
+				cachedAuthData.AuthTime = time.Now().Unix()
+			} else if isAvailableAuthData {
+				var nA = Auth{}
+				nA.Addr = addr
+				nA.AuthTime = time.Now().Unix()
+				AuthorizedClientsCache.Add(nA)
+			}
+		}()
+	}
 
 	// Create a connection to the requested server
 	var port int = 80
@@ -49,4 +93,29 @@ func (pxy *Proxy) handleHttp(ctx context.Context, lConn *net.TCPConn, pkt *packe
 	logger.Debug().Msgf("sent a request to %s", pkt.Domain())
 
 	go Serve(ctx, lConn, rConn, protoHTTP, lConn.RemoteAddr().String(), pkt.Domain(), pxy.timeout)
+}
+
+func extractProxyAuthorization(text string) string {
+	start := strings.Index(text, "Proxy-Authorization: ")
+	if start == -1 {
+		return ""
+	}
+
+	end := strings.IndexByte(text[start:], '\n')
+	if end == -1 {
+		end = len(text)
+	} else {
+		end += start
+	}
+
+	authLine := text[start:end]
+
+	authValue := strings.TrimPrefix(authLine, "Proxy-Authorization: ")
+
+	parts := strings.SplitN(authValue, " ", 2)
+	if len(parts) == 2 && parts[0] == "Basic" {
+		return parts[1]
+	}
+
+	return ""
 }

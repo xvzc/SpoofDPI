@@ -1,8 +1,10 @@
 package util
 
 import (
+	"encoding/base64"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
@@ -15,10 +17,11 @@ type Config struct {
 	DnsPort         int
 	EnableDoh       bool
 	Debug           bool
-	Banner        bool
+	Banner          bool
 	SystemProxy     bool
 	Timeout         int
 	WindowSize      int
+	ProxyAuth       string
 	AllowedPatterns []*regexp.Regexp
 }
 
@@ -43,6 +46,23 @@ func (c *Config) Load(args *Args) {
 	c.Timeout = args.Timeout
 	c.AllowedPatterns = parseAllowedPattern(args.AllowedPattern)
 	c.WindowSize = args.WindowSize
+
+	//Add proxy auth
+	if strings.TrimSpace(args.ProxyUsername) != "" || strings.TrimSpace(args.ProxyPassword) != "" {
+		c.ProxyAuth = toBase64(args.ProxyUsername + ":" + args.ProxyPassword)
+	} else {
+		c.ProxyAuth = ""
+	}
+}
+
+func toBase64(str string) string {
+	// Преобразуем строку в байтовый массив
+	bytes := []byte(str)
+
+	// Кодируем байтовый массив в Base64
+	encodedString := base64.StdEncoding.EncodeToString(bytes)
+
+	return encodedString
 }
 
 func parseAllowedPattern(patterns StringArray) []*regexp.Regexp {
@@ -67,7 +87,7 @@ func PrintColoredBanner() {
 		{Level: 0, Text: "DEBUG   : " + fmt.Sprint(config.Debug)},
 	}).Render()
 
-  	pterm.DefaultBasicText.Println("Press 'CTRL + c' to quit")
+	pterm.DefaultBasicText.Println("Press 'CTRL + c' to quit")
 }
 
 func PrintSimpleInfo() {

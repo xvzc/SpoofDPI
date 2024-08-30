@@ -2,12 +2,14 @@ package proxy
 
 import (
 	"context"
+	"fmt"
+	"github.com/xvzc/SpoofDPI/packet"
 	"github.com/xvzc/SpoofDPI/util"
+	"github.com/xvzc/SpoofDPI/util/log"
 	"net"
 	"strconv"
-
-	"github.com/xvzc/SpoofDPI/packet"
-	"github.com/xvzc/SpoofDPI/util/log"
+	"strings"
+	"time"
 )
 
 const protoHTTPS = "HTTPS"
@@ -15,6 +17,47 @@ const protoHTTPS = "HTTPS"
 func (pxy *Proxy) handleHttps(ctx context.Context, lConn *net.TCPConn, exploit bool, initPkt *packet.HttpRequest, ip string) {
 	ctx = util.GetCtxWithScope(ctx, protoHTTPS)
 	logger := log.GetCtxLogger(ctx)
+
+	//Is proxy auth enable
+	if pxy.proxyAuth != "" {
+		addr := lConn.LocalAddr().String()
+
+		var isAllow = false
+		var cachedAuthData *Auth
+		size := AuthorizedClientsCache.Size()
+
+		for i := 0; i < size; i++ {
+			cachedAuthData = AuthorizedClientsCache.At(i)
+			if cachedAuthData.Addr == addr {
+				isAllow = (time.Now().Unix() - cachedAuthData.AuthTime) < 60*30 //Cache available 30 min
+				break
+			}
+		}
+
+		var raw = string(initPkt.Raw())
+		auth := extractProxyAuthorization(raw)
+
+		var isAvailableAuthData = strings.TrimSpace(pxy.proxyAuth) == strings.TrimSpace(auth)
+
+		if !isAllow && !isAvailableAuthData {
+			response := []byte(fmt.Sprintf(initPkt.Version() + " 407 Proxy Authentication Required\nProxy-Authenticate: Basic realm=\"Access to internal site\"\r\n\r\n"))
+			lConn.Write(response)
+			lConn.Close()
+			logger.Debug().Msgf("Unauthorized client: " + addr)
+			return
+		}
+
+		go func() {
+			if isAvailableAuthData && cachedAuthData != nil {
+				cachedAuthData.AuthTime = time.Now().Unix()
+			} else if isAvailableAuthData {
+				var nA = Auth{}
+				nA.Addr = addr
+				nA.AuthTime = time.Now().Unix()
+				AuthorizedClientsCache.Add(nA)
+			}
+		}()
+	}
 
 	// Create a connection to the requested server
 	var port int = 443

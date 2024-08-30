@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/golanglibs/gocollections/list/arraylist"
 	"github.com/xvzc/SpoofDPI/dns"
 	"github.com/xvzc/SpoofDPI/packet"
 	"github.com/xvzc/SpoofDPI/util"
@@ -22,6 +23,7 @@ type Proxy struct {
 	resolver       *dns.Dns
 	windowSize     int
 	enableDoh      bool
+	proxyAuth      string //Add proxy auth
 	allowedPattern []*regexp.Regexp
 }
 
@@ -33,9 +35,18 @@ func New(config *util.Config) *Proxy {
 		windowSize:     config.WindowSize,
 		enableDoh:      config.EnableDoh,
 		allowedPattern: config.AllowedPatterns,
+		proxyAuth:      config.ProxyAuth,
 		resolver:       dns.NewDns(config),
 	}
 }
+
+// Auth Cache struct for proxy auth
+type Auth struct {
+	Addr     string
+	AuthTime int64
+}
+
+var AuthorizedClientsCache = arraylist.List[Auth]{} //Cache of authed proxy clients
 
 func (pxy *Proxy) Start(ctx context.Context) {
 	ctx = util.GetCtxWithScope(ctx, scopeProxy)
