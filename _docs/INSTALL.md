@@ -7,7 +7,7 @@
       * [pkg](#pkg)
 <!--te-->
 
-# Binary
+## Binary
 SpoofDPI will be installed in `~/.spoofdpi/bin`.  
 To run SpoofDPI in any directory, add the line below to your `~/.bashrc || ~/.zshrc || ...`
 ```bash
@@ -36,19 +36,19 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mipsle
 ```
 
-# Go
+## Go
 ```bash
 go install github.com/xvzc/SpoofDPI/cmd/spoofdpi@latest
 ```
 
-# Package Manager
+## Package Manager
 
-## brew
+### brew
 ```bash
 brew install spoofdpi
 ```
 
-## pkg
+### pkg
 ```bash
 pkg install spoofdpi
 ```
