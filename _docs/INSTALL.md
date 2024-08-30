@@ -1,10 +1,10 @@
 # Installation Guide
+
+## Table of Contents
+
 <!--ts-->
    * [Binary](#binary)
    * [Go](#go)
-   * [Package Manager](#package-manager)
-      * [brew](#brew)
-      * [pkg](#pkg)
 <!--te-->
 
 ## Binary
@@ -40,17 +40,3 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
 ```bash
 go install github.com/xvzc/SpoofDPI/cmd/spoofdpi@latest
 ```
-
-## Package Manager
-
-### brew
-```bash
-brew install spoofdpi
-```
-
-### pkg
-```bash
-pkg install spoofdpi
-```
-
-

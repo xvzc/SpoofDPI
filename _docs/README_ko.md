@@ -1,4 +1,7 @@
-**⭐PRs or any form of contribution will be appreciated⭐**
+
+<a href="https://repology.org/project/spoofdpi/versions">
+    <img src="https://repology.org/badge/vertical-allrepos/spoofdpi.svg?columns=1" alt="Packaging status">
+</a>  
 
 # SpoofDPI
 
