@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"github.com/xvzc/SpoofDPI/util"
@@ -63,10 +64,36 @@ func Serve(ctx context.Context, from *net.TCPConn, to *net.TCPConn, proto string
 			logger.Debug().Msgf("error reading from %s: %s", fd, err)
 			return
 		}
+		bytesRead = makeRequestURIRelative(bytesRead)
 
 		if _, err := to.Write(bytesRead); err != nil {
 			logger.Debug().Msgf("error Writing to %s", td)
 			return
 		}
 	}
+}
+
+var postRequestPrefix = []byte{0x50, 0x4f, 0x53, 0x54, 0x20, 0x68, 0x74, 0x74, 0x70} // "POST http"
+
+func makeRequestURIRelative(data []byte) []byte {
+	if !bytes.Equal(data[:9], postRequestPrefix) {
+		return data
+	}
+
+	var slashCount uint8
+	var thirdSlashIdx int
+
+	for i := 9; i < len(data); i++ {
+		if data[i] == '/' {
+			slashCount++
+		}
+		if slashCount == 3 {
+			thirdSlashIdx = i
+			break
+		}
+	}
+	for i := 0; i < 5; i++ {
+		data[thirdSlashIdx-5+i] = postRequestPrefix[i]
+	}
+	return data[thirdSlashIdx-5:]
 }
