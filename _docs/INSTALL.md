@@ -3,8 +3,8 @@
    * [Binary](#binary)
    * [Go](#go)
    * [Package Manager](#package-manager)
-      * [brew(MacOS)](#brew(MacOS))
-      * [pkg(FreeBSD)](#pkg(freebsd))
+      * [brew](#brew)
+      * [pkg](#pkg)
 <!--te-->
 
 # Binary
@@ -43,12 +43,12 @@ go install github.com/xvzc/SpoofDPI/cmd/spoofdpi@latest
 
 # Package Manager
 
-## brew(MacOS)
+## brew
 ```bash
 brew install spoofdpi
 ```
 
-## pkg(FreeBSD)
+## pkg
 ```bash
 pkg install spoofdpi
 ```
