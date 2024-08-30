@@ -9,7 +9,7 @@
 ![image](https://user-images.githubusercontent.com/45588457/148035986-8b0076cc-fefb-48a1-9939-a8d9ab1d6322.png)
 
 # Installation
-Инструкции по установке SpoofDPI вы можете найти [здесь](https://github.com/xvzc/SpoofDPI/blob/main/_docs/QUICK_START.md).
+Инструкции по установке SpoofDPI вы можете найти [здесь](https://github.com/xvzc/SpoofDPI/blob/main/_docs/INSTALL.md).
 
 # Использование
 ```

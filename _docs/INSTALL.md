@@ -1,12 +1,18 @@
-# Quick Start
+# Installation Guide
+<!--ts-->
+   * [Binary](#binary)
+   * [Go](#go)
+   * [Package Manager](#package-manager)
+      * [brew(MacOS)](#brew(MacOS))
+      * [pkg(FreeBSD)](#pkg(freebsd))
+<!--te-->
 
-## Binary
+# Binary
 SpoofDPI will be installed in `~/.spoofdpi/bin`.  
 To run SpoofDPI in any directory, add the line below to your `~/.bashrc || ~/.zshrc || ...`
 ```bash
 export PATH=$PATH:~/.spoofdpi/bin
 ```
----
 ```bash
 # macOS Intel
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s darwin-amd64
@@ -30,29 +36,21 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mipsle
 ```
 
-## FreeBSD 😈
-```
-# Build from ports tree
-make -C /usr/ports/net/spoofdpi install clean
-# Install the package
-pkg install spoofdpi
-```
-
-## Homebrew 🍻
-```bash
-brew install spoofdpi
-```
-
-## Go
-You can also install SpoofDPI with `go install`.
+# Go
 ```bash
 go install github.com/xvzc/SpoofDPI/cmd/spoofdpi@latest
 ```
 
-## How to build
+# Package Manager
 
+## brew(MacOS)
 ```bash
-git clone https://github.com/xvzc/SpoofDPI.git
-cd SpoofDPI
-go build ./cmd/...
+brew install spoofdpi
 ```
+
+## pkg(FreeBSD)
+```bash
+pkg install spoofdpi
+```
+
+
