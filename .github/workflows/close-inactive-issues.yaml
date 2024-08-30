@@ -13,7 +13,7 @@ jobs:
       - uses: actions/stale@v5
         with:
           days-before-issue-stale: -1
-          days-before-issue-close: 7
+          days-before-issue-close: 30
           close-issue-message: "This issue was closed because it has been inactive for 7 days since being marked as stale."
           days-before-pr-stale: -1
           days-before-pr-close: -1

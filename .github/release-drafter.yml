@@ -1,8 +1,9 @@
-name-template: '$RESOLVED_VERSION'
 change-template: '* $TITLE (#$NUMBER) by @$AUTHOR'
 change-title-escapes: '\<*_&#@`'
 exclude-labels:
   - 'chore'
+  - 'documentation'
+  - 'help'
 template: |
   ## Changes
   $CHANGES
