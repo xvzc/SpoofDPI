@@ -55,6 +55,9 @@ pkg install spoofdpi
 ```
 
 ## Homebrew 🍻
+
+<a href="https://formulae.brew.sh/formula/spoofdpi"><img alt="Homebrew spoofdpi formula" src="https://img.shields.io/homebrew/v/spoofdpi?style=flat&logo=homebrew&label=spoofdpi"></a>
+
 ```bash
 brew install spoofdpi
 ```
