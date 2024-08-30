@@ -53,4 +53,22 @@ brew install spoofdpi
 pkg install spoofdpi
 ```
 
+### nix 
+You can either:
+1. Add it inside NixOS configuartion file:
+```Nix
+environment.systemPackages = [ pkgs.spoofdpi ];
+```
+2. Add it to home-manager configuration:
+```Nix
+home.packages = [ pkgs.spoofdpi ];
+```
+3. Add it to nix-darwin configuration:
+```Nix
+environment.systemPackages = [ pkgs.spoofdpi ];
+```
+4. Or add it with nix-darwin brew option:
+```Nix
+homebrew.brews = [ "spoofdpi" ];
+```
 
