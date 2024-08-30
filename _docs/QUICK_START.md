@@ -30,6 +30,22 @@ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bas
 curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash -s linux-mipsle
 ```
 
+## Linux
+
+### Arch Linux
+
+<a href="https://aur.archlinux.org/packages/spoofdpi"><img alt="AUR spoofdpi package" src="https://img.shields.io/aur/version/spoofdpi?style=flat&label=spoofdpi&logo=archlinux"></a>
+<a href="https://aur.archlinux.org/packages/spoofdpi-bin"><img alt="AUR spoofdpi-bin package" src="https://img.shields.io/aur/version/spoofdpi-bin?style=flat&label=spoofdpi-bin&logo=archlinux"></a>
+<a href="https://aur.archlinux.org/packages/spoofdpi-git"><img alt="AUR spoofdpi-git package" src="https://img.shields.io/aur/version/spoofdpi-git?style=flat&label=spoofdpi-git&logo=archlinux"></a>
+
+### ALT Sisyphus
+
+<a href="https://packages.altlinux.org/en/sisyphus/srpms/spoof-dpi/">spoof-dpi</a>
+
+### ROSA
+
+<a href="https://abf.io/import/spoofdpi">spoofdpi</a>
+
 ## FreeBSD 😈
 ```
 # Build from ports tree
