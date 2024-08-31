@@ -2,6 +2,7 @@ package packet
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"net"
 	"net/http"
@@ -96,29 +97,26 @@ func (p *HttpRequest) IsConnectMethod() bool {
 func (p *HttpRequest) Tidy() {
 	s := string(p.raw)
 
-	lines := strings.Split(s, "\r\n")
+	parts := strings.Split(s, "\r\n\r\n")
+	meta := strings.Split(parts[0], "\r\n")
 
-	lines[0] = p.method + " " + p.path + " " + p.version
+	meta[0] = p.method + " " + p.path + " " + p.version
 
-	for i := 0; i < len(lines); i++ {
-		if strings.HasPrefix(lines[i], "Proxy-Connection") {
-			lines[i] = ""
-		}
-	}
+	var buf bytes.Buffer
+	buf.Grow(len(p.raw))
 
-	result := ""
-
-	for i := 0; i < len(lines); i++ {
-		if lines[i] == "" {
+	crLF := []byte{0xD, 0xA}
+	for _, m := range meta {
+		if strings.HasPrefix(m, "Proxy-Connection") {
 			continue
 		}
-
-		result += lines[i] + "\r\n"
+		buf.WriteString(m)
+		buf.Write(crLF)
 	}
+	buf.Write(crLF)
+	buf.WriteString(parts[1])
 
-	result += "\r\n"
-
-	p.raw = []byte(result)
+	p.raw = buf.Bytes()
 }
 
 func parse(rdr io.Reader) (*HttpRequest, error) {
