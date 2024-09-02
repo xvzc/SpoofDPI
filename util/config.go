@@ -34,17 +34,17 @@ func GetConfig() *Config {
 
 func (c *Config) Load(args *Args) {
 	c.Addr = args.Addr
-	c.Port = args.Port
+	c.Port = int(args.Port)
 	c.DnsAddr = args.DnsAddr
-	c.DnsPort = args.DnsPort
+	c.DnsPort = int(args.DnsPort)
 	c.Debug = args.Debug
 	c.EnableDoh = args.EnableDoh
 	c.Banner = args.Banner
 	c.SystemProxy = args.SystemProxy
 	c.Transparent = args.Transparent
-	c.Timeout = args.Timeout
+	c.Timeout = int(args.Timeout)
 	c.AllowedPatterns = parseAllowedPattern(args.AllowedPattern)
-	c.WindowSize = args.WindowSize
+	c.WindowSize = int(args.WindowSize)
 }
 
 func parseAllowedPattern(patterns StringArray) []*regexp.Regexp {
@@ -69,7 +69,7 @@ func PrintColoredBanner() {
 		{Level: 0, Text: "DEBUG   : " + fmt.Sprint(config.Debug)},
 	}).Render()
 
-  	pterm.DefaultBasicText.Println("Press 'CTRL + c' to quit")
+	pterm.DefaultBasicText.Println("Press 'CTRL + c' to quit")
 }
 
 func PrintSimpleInfo() {

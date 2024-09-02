@@ -1,5 +1,3 @@
-**⭐PRs or any form of contribution will be appreciated⭐**
-
 # SpoofDPI
 
 다른 언어로 읽기: [🇬🇧English](https://github.com/xvzc/SpoofDPI), [🇰🇷한국어](https://github.com/xvzc/SpoofDPI/blob/main/_docs/README_ko.md), [🇨🇳简体中文](https://github.com/xvzc/SpoofDPI/blob/main/_docs/README_zh-cn.md), [🇷🇺Русский](https://github.com/xvzc/SpoofDPI/blob/main/_docs/README_ru.md), [🇯🇵日本語](https://github.com/xvzc/SpoofDPI/blob/main/_docs/README_ja.md)
@@ -10,6 +8,11 @@ DPI(Deep Packet Inspection) 우회를 위해 고안된 소프트웨어
 
 # Installation
 SpoofDPI의 설치과정은 [여기](https://github.com/xvzc/SpoofDPI/blob/main/_docs/INSTALL.md)를 참고바랍니다.
+
+
+<a href="https://repology.org/project/spoofdpi/versions">
+    <img src="https://repology.org/badge/vertical-allrepos/spoofdpi.svg?columns=1" alt="Packaging status">
+</a>  
 
 # 사용법
 ```
