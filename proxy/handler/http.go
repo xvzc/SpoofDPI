@@ -60,29 +60,24 @@ func (h *HttpHandler) Serve(ctx context.Context, lConn *net.TCPConn, pkt *packet
 	}
 }
 
-func (h *HttpHandler) deliverRequest(
-	ctx context.Context,
-	lConn *net.TCPConn,
-	rConn *net.TCPConn,
-	fd string,
-	td string,
-) {
+func (h *HttpHandler) deliverRequest(ctx context.Context, from *net.TCPConn, to *net.TCPConn, fd string, td string) {
 	ctx = util.GetCtxWithScope(ctx, h.protocol)
 	logger := log.GetCtxLogger(ctx)
 
 	defer func() {
-		lConn.Close()
-		rConn.Close()
+		from.Close()
+		to.Close()
 
 		logger.Debug().Msgf("closing proxy connection: %s -> %s", fd, td)
 	}()
 
-	if h.timeout > 0 {
-		lConn.SetReadDeadline(time.Now().Add(time.Millisecond * time.Duration(h.timeout)))
-	}
-
 	for {
-		pkt, err := packet.ReadHttpRequest(lConn)
+		err := setConnectionTimeout(from, h.timeout)
+		if err != nil {
+			logger.Debug().Msgf("error while setting connection deadline for %s: %s", fd, err)
+		}
+
+		pkt, err := packet.ReadHttpRequest(from)
 		if err != nil {
 			logger.Debug().Msgf("error reading from %s: %s", fd, err)
 			return
@@ -90,20 +85,14 @@ func (h *HttpHandler) deliverRequest(
 
 		pkt.Tidy()
 
-		if _, err := rConn.Write(pkt.Raw()); err != nil {
+		if _, err := to.Write(pkt.Raw()); err != nil {
 			logger.Debug().Msgf("error Writing to %s", td)
 			return
 		}
 	}
 }
 
-func (h *HttpHandler) deliverResponse(
-	ctx context.Context,
-	from *net.TCPConn,
-	to *net.TCPConn,
-	fd string,
-	td string,
-) {
+func (h *HttpHandler) deliverResponse(ctx context.Context, from *net.TCPConn, to *net.TCPConn, fd string, td string) {
 	ctx = util.GetCtxWithScope(ctx, h.protocol)
 	logger := log.GetCtxLogger(ctx)
 
@@ -116,8 +105,9 @@ func (h *HttpHandler) deliverResponse(
 
 	buf := make([]byte, h.bufferSize)
 	for {
-		if h.timeout > 0 {
-			from.SetReadDeadline(time.Now().Add(time.Millisecond * time.Duration(h.timeout)))
+		err := setConnectionTimeout(from, h.timeout)
+		if err != nil {
+			logger.Debug().Msgf("error while setting connection deadline for %s: %s", fd, err)
 		}
 
 		bytesRead, err := ReadBytes(ctx, from, buf)

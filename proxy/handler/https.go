@@ -107,8 +107,9 @@ func (h *HttpsHandler) communicate(ctx context.Context, from *net.TCPConn, to *n
 
 	buf := make([]byte, h.bufferSize)
 	for {
-		if h.timeout > 0 {
-			from.SetReadDeadline(time.Now().Add(time.Millisecond * time.Duration(h.timeout)))
+		err := setConnectionTimeout(from, h.timeout)
+		if err != nil {
+			logger.Debug().Msgf("error while setting connection deadline for %s: %s", fd, err)
 		}
 
 		bytesRead, err := ReadBytes(ctx, from, buf)
