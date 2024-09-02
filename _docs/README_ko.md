@@ -33,6 +33,8 @@ Usage: spoofdpi [options...]
         bypass DPI only on packets matching this regex pattern; can be given multiple times
   -port int
         port (default 8080)
+  -quiet
+        do not write anything to standart output
   -system-proxy
         enable system-wide proxy (default true)
   -timeout int
