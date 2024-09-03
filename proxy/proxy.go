@@ -9,6 +9,7 @@ import (
 
 	"github.com/xvzc/SpoofDPI/dns"
 	"github.com/xvzc/SpoofDPI/packet"
+	"github.com/xvzc/SpoofDPI/proxy/handler"
 	"github.com/xvzc/SpoofDPI/util"
 	"github.com/xvzc/SpoofDPI/util/log"
 )
@@ -23,6 +24,10 @@ type Proxy struct {
 	windowSize     int
 	enableDoh      bool
 	allowedPattern []*regexp.Regexp
+}
+
+type Handler interface {
+	Serve(ctx context.Context, lConn *net.TCPConn, pkt *packet.HttpRequest, ip string)
 }
 
 func New(config *util.Config) *Proxy {
@@ -74,7 +79,9 @@ func (pxy *Proxy) Start(ctx context.Context) {
 				return
 			}
 
-			logger.Debug().Msgf("request from %s\n\n%s", conn.RemoteAddr(), pkt.Raw())
+			pkt.Tidy()
+
+			logger.Debug().Msgf("request from %s\n\n%s", conn.RemoteAddr(), string(pkt.Raw()))
 
 			if !pkt.IsValidMethod() {
 				logger.Debug().Msgf("unsupported method: %s", pkt.Method())
@@ -100,11 +107,14 @@ func (pxy *Proxy) Start(ctx context.Context) {
 				return
 			}
 
+			var h Handler
 			if pkt.IsConnectMethod() {
-				pxy.handleHttps(ctx, conn.(*net.TCPConn), matched, pkt, ip)
+				h = handler.NewHttpsHandler(pxy.timeout, pxy.windowSize, pxy.allowedPattern, matched)
 			} else {
-				pxy.handleHttp(ctx, conn.(*net.TCPConn), pkt, ip)
+				h = handler.NewHttpHandler(pxy.timeout)
 			}
+
+			h.Serve(ctx, conn.(*net.TCPConn), pkt, ip)
 		}()
 	}
 }
