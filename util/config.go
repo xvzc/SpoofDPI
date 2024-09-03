@@ -15,7 +15,6 @@ type Config struct {
 	DnsPort         int
 	EnableDoh       bool
 	Debug           bool
-	Banner          bool
 	Silent          bool
 	SystemProxy     bool
 	Timeout         int
@@ -39,7 +38,6 @@ func (c *Config) Load(args *Args) {
 	c.DnsPort = int(args.DnsPort)
 	c.Debug = args.Debug
 	c.EnableDoh = args.EnableDoh
-	c.Banner = args.Banner
 	c.Silent = args.Silent
 	c.SystemProxy = args.SystemProxy
 	c.Timeout = int(args.Timeout)
