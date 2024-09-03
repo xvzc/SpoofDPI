@@ -29,12 +29,8 @@ func main() {
 
 	pxy := proxy.New(config)
 
-	if config.Quiet {
-		// Print nothing
-	} else if config.Banner {
+	if !config.Silent {
 		util.PrintColoredBanner()
-	} else {
-		util.PrintSimpleInfo()
 	}
 
 	if config.SystemProxy {

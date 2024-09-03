@@ -16,7 +16,7 @@ type Config struct {
 	EnableDoh       bool
 	Debug           bool
 	Banner          bool
-	Quiet           bool
+	Silent          bool
 	SystemProxy     bool
 	Timeout         int
 	WindowSize      int
@@ -40,7 +40,7 @@ func (c *Config) Load(args *Args) {
 	c.Debug = args.Debug
 	c.EnableDoh = args.EnableDoh
 	c.Banner = args.Banner
-	c.Quiet = args.Quiet
+	c.Silent = args.Silent
 	c.SystemProxy = args.SystemProxy
 	c.Timeout = int(args.Timeout)
 	c.AllowedPatterns = parseAllowedPattern(args.AllowedPattern)
