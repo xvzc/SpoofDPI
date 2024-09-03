@@ -18,8 +18,6 @@ See the installation guide for SpoofDPI [here](https://github.com/xvzc/SpoofDPI/
 Usage: spoofdpi [options...]
   -addr string
         listen address (default "127.0.0.1")
-  -banner
-        enable banner (default true)
   -debug
         enable debug output
   -dns-addr string
