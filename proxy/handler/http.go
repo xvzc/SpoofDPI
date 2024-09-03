@@ -4,7 +4,6 @@ import (
 	"context"
 	"net"
 	"strconv"
-	"time"
 
 	"github.com/xvzc/SpoofDPI/packet"
 	"github.com/xvzc/SpoofDPI/util"
