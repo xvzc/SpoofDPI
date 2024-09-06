@@ -3,11 +3,11 @@ package proxy
 import (
 	"context"
 	"errors"
-	"github.com/xvzc/SpoofDPI/util"
 	"io"
 	"net"
 	"time"
 
+	"github.com/xvzc/SpoofDPI/util"
 	"github.com/xvzc/SpoofDPI/util/log"
 )
 
@@ -65,7 +65,7 @@ func Serve(ctx context.Context, from *net.TCPConn, to *net.TCPConn, proto string
 		}
 
 		if _, err := to.Write(bytesRead); err != nil {
-			logger.Debug().Msgf("error Writing to %s", td)
+			logger.Debug().Msgf("error writing to %s", td)
 			return
 		}
 	}
