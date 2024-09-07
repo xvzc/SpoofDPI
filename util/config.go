@@ -13,6 +13,7 @@ type Config struct {
 	Port            int
 	DnsAddr         string
 	DnsPort         int
+	DnsIPv4Only     bool
 	EnableDoh       bool
 	Debug           bool
 	Banner          bool
@@ -36,6 +37,7 @@ func (c *Config) Load(args *Args) {
 	c.Port = int(args.Port)
 	c.DnsAddr = args.DnsAddr
 	c.DnsPort = int(args.DnsPort)
+	c.DnsIPv4Only = args.DnsIPv4Only
 	c.Debug = args.Debug
 	c.EnableDoh = args.EnableDoh
 	c.Banner = args.Banner
