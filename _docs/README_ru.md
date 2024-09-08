@@ -22,22 +22,24 @@ Usage: spoofdpi [опции...]
         enable debug output
   -dns-addr string
         dns address (default "8.8.8.8")
-  -dns-port int
+  -dns-ipv4-only
+        resolve only version 4 addresses
+  -dns-port value
         port number for dns (default 53)
   -enable-doh
         enable 'dns-over-https'
   -pattern value
         bypass DPI only on packets matching this regex pattern; can be given multiple times
-  -port int
+  -port value
         port (default 8080)
   -silent
         do not show the banner and server information at start up
   -system-proxy
         enable system-wide proxy (default true)
-  -timeout int
+  -timeout value
         timeout in milliseconds; no timeout when not given
   -v    print spoofdpi's version; this may contain some other relevant information
-  -window-size int
+  -window-size value
         chunk size, in number of bytes, for fragmented client hello,
         try lower values if the default value doesn't bypass the DPI;
         when not given, the client hello packet will be sent in two parts:
