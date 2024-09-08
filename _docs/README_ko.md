@@ -19,8 +19,6 @@ SpoofDPI의 설치과정은 [여기](https://github.com/xvzc/SpoofDPI/blob/main/
 Usage: spoofdpi [options...]
   -addr string
         listen address (default "127.0.0.1")
-  -banner
-        enable banner (default true)
   -debug
         enable debug output
   -dns-addr string
@@ -33,6 +31,8 @@ Usage: spoofdpi [options...]
         bypass DPI only on packets matching this regex pattern; can be given multiple times
   -port int
         port (default 8080)
+  -silent
+        do not show the banner and server information at start up
   -system-proxy
         enable system-wide proxy (default true)
   -timeout int
