@@ -31,7 +31,7 @@ Usage: spoofdpi [options...]
   -port int
         port (default 8080)
   -silent
-        do not write anything to standart output
+        do not show the banner and server information at start up
   -system-proxy
         enable system-wide proxy (default true)
   -timeout int

@@ -43,7 +43,7 @@ func ParseArgs() *Args {
 	uintNVar(&args.DnsPort, "dns-port", 53, "port number for dns")
 	flag.BoolVar(&args.EnableDoh, "enable-doh", false, "enable 'dns-over-https'")
 	flag.BoolVar(&args.Debug, "debug", false, "enable debug output")
-	flag.BoolVar(&args.Silent, "silent", false, "do not write anything to standart output")
+	flag.BoolVar(&args.Silent, "silent", false, "do not show the banner and server information at start up")
 	flag.BoolVar(&args.SystemProxy, "system-proxy", true, "enable system-wide proxy")
 	uintNVar(&args.Timeout, "timeout", 0, "timeout in milliseconds; no timeout when not given")
 	uintNVar(&args.WindowSize, "window-size", 0, `chunk size, in number of bytes, for fragmented client hello,
