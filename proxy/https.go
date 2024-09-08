@@ -2,11 +2,11 @@ package proxy
 
 import (
 	"context"
-	"github.com/xvzc/SpoofDPI/util"
 	"net"
 	"strconv"
 
 	"github.com/xvzc/SpoofDPI/packet"
+	"github.com/xvzc/SpoofDPI/util"
 	"github.com/xvzc/SpoofDPI/util/log"
 )
 
@@ -41,7 +41,7 @@ func (pxy *Proxy) handleHttps(ctx context.Context, lConn *net.TCPConn, exploit b
 		return
 	}
 
-	logger.Debug().Msgf("sent connection estabalished to %s", lConn.RemoteAddr())
+	logger.Debug().Msgf("sent connection established to %s", lConn.RemoteAddr())
 
 	// Read client hello
 	m, err := packet.ReadTLSMessage(lConn)

@@ -85,7 +85,7 @@ func (h *HttpHandler) deliverRequest(ctx context.Context, from *net.TCPConn, to 
 		pkt.Tidy()
 
 		if _, err := to.Write(pkt.Raw()); err != nil {
-			logger.Debug().Msgf("error Writing to %s", td)
+			logger.Debug().Msgf("error writing to %s", td)
 			return
 		}
 	}
@@ -116,7 +116,7 @@ func (h *HttpHandler) deliverResponse(ctx context.Context, from *net.TCPConn, to
 		}
 
 		if _, err := to.Write(bytesRead); err != nil {
-			logger.Debug().Msgf("error Writing to %s", td)
+			logger.Debug().Msgf("error writing to %s", td)
 			return
 		}
 	}

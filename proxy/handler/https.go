@@ -61,7 +61,7 @@ func (h *HttpsHandler) Serve(ctx context.Context, lConn *net.TCPConn, initPkt *p
 		return
 	}
 
-	logger.Debug().Msgf("sent connection estabalished to %s", lConn.RemoteAddr())
+	logger.Debug().Msgf("sent connection established to %s", lConn.RemoteAddr())
 
 	// Read client hello
 	m, err := packet.ReadTLSMessage(lConn)
@@ -118,7 +118,7 @@ func (h *HttpsHandler) communicate(ctx context.Context, from *net.TCPConn, to *n
 		}
 
 		if _, err := to.Write(bytesRead); err != nil {
-			logger.Debug().Msgf("error Writing to %s", td)
+			logger.Debug().Msgf("error writing to %s", td)
 			return
 		}
 	}
