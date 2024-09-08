@@ -13,6 +13,7 @@ type Args struct {
 	Port           uint16
 	DnsAddr        string
 	DnsPort        uint16
+	DnsIPv4Only    bool
 	EnableDoh      bool
 	Debug          bool
 	Silent         bool
@@ -57,6 +58,7 @@ fragmentation for the first data packet and the rest
 		"pattern",
 		"bypass DPI only on packets matching this regex pattern; can be given multiple times",
 	)
+	flag.BoolVar(&args.DnsIPv4Only, "dns-ipv4-only", false, "resolve only version 4 addresses")
 
 	flag.Parse()
 
