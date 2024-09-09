@@ -3,9 +3,12 @@ package resolver
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/quic-go/quic-go"
+	"github.com/quic-go/quic-go/http3"
 	"net"
 	"net/http"
 	"regexp"
@@ -33,13 +36,24 @@ func NewDOHResolver(host string) *DOHResolver {
 		},
 	}
 
-	host = regexp.MustCompile(`^https://|/dns-query$`).ReplaceAllString(host, "")
-	if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
-		host = fmt.Sprintf("[%s]", ip)
+	return &DOHResolver{
+		upstream: buildServerURL(host),
+		client:   c,
+	}
+}
+
+func NewDOH3Resolver(host string) *DOHResolver {
+	rt := &http3.RoundTripper{
+		TLSClientConfig: &tls.Config{},
+		QUICConfig:      &quic.Config{},
+	}
+	c := &http.Client{
+		Timeout:   5 * time.Second,
+		Transport: rt,
 	}
 
 	return &DOHResolver{
-		upstream: "https://" + host + "/dns-query",
+		upstream: buildServerURL(host),
 		client:   c,
 	}
 }
@@ -96,4 +110,9 @@ func (r *DOHResolver) exchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, err
 	}
 
 	return resultMsg, nil
+}
+
+func buildServerURL(host string) string {
+	host = regexp.MustCompile(`^https://|/dns-query$`).ReplaceAllString(host, "")
+	return "https://" + host + "/dns-query"
 }
