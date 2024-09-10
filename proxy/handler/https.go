@@ -1,34 +1,52 @@
-package proxy
+package handler
 
 import (
 	"context"
 	"net"
+	"regexp"
 	"strconv"
-
-	"github.com/xvzc/SpoofDPI/util"
 
 	"github.com/xvzc/SpoofDPI/packet"
 	"github.com/xvzc/SpoofDPI/util"
 	"github.com/xvzc/SpoofDPI/util/log"
 )
 
-const protoHTTPS = "HTTPS"
+type HttpsHandler struct {
+	bufferSize      int
+	protocol        string
+	port            int
+	timeout         int
+	windowsize      int
+	exploit         bool
+	allowedPatterns []*regexp.Regexp
+}
 
-func (pxy *Proxy) handleHttps(ctx context.Context, lConn *net.TCPConn, exploit bool, initPkt *packet.HttpRequest, ip string) {
-	ctx = util.GetCtxWithScope(ctx, protoHTTPS)
+func NewHttpsHandler(timeout int, windowSize int, allowedPatterns []*regexp.Regexp, exploit bool) *HttpsHandler {
+	return &HttpsHandler{
+		bufferSize:      1024,
+		protocol:        "HTTPS",
+		port:            443,
+		timeout:         timeout,
+		windowsize:      windowSize,
+		allowedPatterns: allowedPatterns,
+		exploit:         exploit,
+	}
+}
+
+func (h *HttpsHandler) Serve(ctx context.Context, lConn *net.TCPConn, initPkt *packet.HttpRequest, ip string) {
+	ctx = util.GetCtxWithScope(ctx, h.protocol)
 	logger := log.GetCtxLogger(ctx)
 
 	// Create a connection to the requested server
-	var port int = 443
 	var err error
 	if initPkt.Port() != "" {
-		port, err = strconv.Atoi(initPkt.Port())
+		h.port, err = strconv.Atoi(initPkt.Port())
 		if err != nil {
 			logger.Debug().Msgf("error parsing port for %s aborting..", initPkt.Domain())
 		}
 	}
 
-	rConn, err := net.DialTCP("tcp", nil, &net.TCPAddr{IP: net.ParseIP(ip), Port: port})
+	rConn, err := net.DialTCP("tcp", nil, &net.TCPAddr{IP: net.ParseIP(ip), Port: h.port})
 	if err != nil {
 		lConn.Close()
 		logger.Debug().Msgf("%s", err)
@@ -37,14 +55,13 @@ func (pxy *Proxy) handleHttps(ctx context.Context, lConn *net.TCPConn, exploit b
 
 	logger.Debug().Msgf("new connection to the server %s -> %s", rConn.LocalAddr(), initPkt.Domain())
 
-	if !pxy.transparent {
-		_, err = lConn.Write([]byte(initPkt.Version() + " 200 Connection Established\r\n\r\n"))
-		if err != nil {
-			logger.Debug().Msgf("error sending 200 connection established to the client: %s", err)
-			return
-		}
-		logger.Debug().Msgf("sent connection estabalished to %s", lConn.RemoteAddr())
+	_, err = lConn.Write([]byte(initPkt.Version() + " 200 Connection Established\r\n\r\n"))
+	if err != nil {
+		logger.Debug().Msgf("error sending 200 connection established to the client: %s", err)
+		return
 	}
+
+	logger.Debug().Msgf("sent connection established to %s", lConn.RemoteAddr())
 
 	// Read client hello
 	m, err := packet.ReadTLSMessage(lConn)
@@ -57,11 +74,12 @@ func (pxy *Proxy) handleHttps(ctx context.Context, lConn *net.TCPConn, exploit b
 	logger.Debug().Msgf("client sent hello %d bytes", len(clientHello))
 
 	// Generate a go routine that reads from the server
-	go Serve(ctx, rConn, lConn, protoHTTPS, initPkt.Domain(), lConn.RemoteAddr().String(), pxy.timeout)
+	go h.communicate(ctx, rConn, lConn, initPkt.Domain(), lConn.RemoteAddr().String())
+	go h.communicate(ctx, lConn, rConn, lConn.RemoteAddr().String(), initPkt.Domain())
 
-	if exploit {
+	if h.exploit {
 		logger.Debug().Msgf("writing chunked client hello to %s", initPkt.Domain())
-		chunks := splitInChunks(ctx, clientHello, pxy.windowSize)
+		chunks := splitInChunks(ctx, clientHello, h.windowsize)
 		if _, err := writeChunks(rConn, chunks); err != nil {
 			logger.Debug().Msgf("error writing chunked client hello to %s: %s", initPkt.Domain(), err)
 			return
@@ -73,8 +91,37 @@ func (pxy *Proxy) handleHttps(ctx context.Context, lConn *net.TCPConn, exploit b
 			return
 		}
 	}
+}
 
-	go Serve(ctx, lConn, rConn, protoHTTPS, lConn.RemoteAddr().String(), initPkt.Domain(), pxy.timeout)
+func (h *HttpsHandler) communicate(ctx context.Context, from *net.TCPConn, to *net.TCPConn, fd string, td string) {
+	ctx = util.GetCtxWithScope(ctx, h.protocol)
+	logger := log.GetCtxLogger(ctx)
+
+	defer func() {
+		from.Close()
+		to.Close()
+
+		logger.Debug().Msgf("closing proxy connection: %s -> %s", fd, td)
+	}()
+
+	buf := make([]byte, h.bufferSize)
+	for {
+		err := setConnectionTimeout(from, h.timeout)
+		if err != nil {
+			logger.Debug().Msgf("error while setting connection deadline for %s: %s", fd, err)
+		}
+
+		bytesRead, err := ReadBytes(ctx, from, buf)
+		if err != nil {
+			logger.Debug().Msgf("error reading from %s: %s", fd, err)
+			return
+		}
+
+		if _, err := to.Write(bytesRead); err != nil {
+			logger.Debug().Msgf("error writing to %s", td)
+			return
+		}
+	}
 }
 
 func splitInChunks(ctx context.Context, bytes []byte, size int) [][]byte {

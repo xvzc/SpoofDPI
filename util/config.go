@@ -13,9 +13,10 @@ type Config struct {
 	Port            int
 	DnsAddr         string
 	DnsPort         int
+	DnsIPv4Only     bool
 	EnableDoh       bool
 	Debug           bool
-	Banner          bool
+	Silent          bool
 	SystemProxy     bool
 	Transparent     bool
 	Timeout         int
@@ -37,9 +38,10 @@ func (c *Config) Load(args *Args) {
 	c.Port = int(args.Port)
 	c.DnsAddr = args.DnsAddr
 	c.DnsPort = int(args.DnsPort)
+	c.DnsIPv4Only = args.DnsIPv4Only
 	c.Debug = args.Debug
 	c.EnableDoh = args.EnableDoh
-	c.Banner = args.Banner
+	c.Silent = args.Silent
 	c.SystemProxy = args.SystemProxy
 	c.Transparent = args.Transparent
 	c.Timeout = int(args.Timeout)
@@ -70,15 +72,4 @@ func PrintColoredBanner() {
 	}).Render()
 
 	pterm.DefaultBasicText.Println("Press 'CTRL + c' to quit")
-}
-
-func PrintSimpleInfo() {
-	fmt.Println("")
-	fmt.Println("- ADDR    : ", config.Addr)
-	fmt.Println("- PORT    : ", config.Port)
-	fmt.Println("- DNS     : ", config.DnsAddr)
-	fmt.Println("- DEBUG   : ", config.Debug)
-	fmt.Println("")
-	fmt.Println("Press 'CTRL + c to quit'")
-	fmt.Println("")
 }

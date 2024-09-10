@@ -13,9 +13,10 @@ type Args struct {
 	Port           uint16
 	DnsAddr        string
 	DnsPort        uint16
+	DnsIPv4Only    bool
 	EnableDoh      bool
 	Debug          bool
-	Banner         bool
+	Silent         bool
 	SystemProxy    bool
 	Transparent    bool
 	Timeout        uint16
@@ -44,7 +45,7 @@ func ParseArgs() *Args {
 	uintNVar(&args.DnsPort, "dns-port", 53, "port number for dns")
 	flag.BoolVar(&args.EnableDoh, "enable-doh", false, "enable 'dns-over-https'")
 	flag.BoolVar(&args.Debug, "debug", false, "enable debug output")
-	flag.BoolVar(&args.Banner, "banner", true, "enable banner")
+	flag.BoolVar(&args.Silent, "silent", false, "do not show the banner and server information at start up")
 	flag.BoolVar(&args.SystemProxy, "system-proxy", true, "enable system-wide proxy")
 	flag.BoolVar(&args.Transparent, "transparent", false, "run as transparent proxy")
 	uintNVar(&args.Timeout, "timeout", 0, "timeout in milliseconds; no timeout when not given")
@@ -59,6 +60,7 @@ fragmentation for the first data packet and the rest
 		"pattern",
 		"bypass DPI only on packets matching this regex pattern; can be given multiple times",
 	)
+	flag.BoolVar(&args.DnsIPv4Only, "dns-ipv4-only", false, "resolve only version 4 addresses")
 
 	flag.Parse()
 

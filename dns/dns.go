@@ -26,18 +26,25 @@ type Dns struct {
 	systemClient  Resolver
 	generalClient Resolver
 	dohClient     Resolver
+	qTypes        []uint16
 }
 
 func NewDns(config *util.Config) *Dns {
 	addr := config.DnsAddr
 	port := strconv.Itoa(config.DnsPort)
-
+	var qTypes []uint16
+	if config.DnsIPv4Only {
+		qTypes = []uint16{dns.TypeA}
+	} else {
+		qTypes = []uint16{dns.TypeAAAA, dns.TypeA}
+	}
 	return &Dns{
 		host:          config.DnsAddr,
 		port:          port,
 		systemClient:  resolver.NewSystemResolver(),
 		generalClient: resolver.NewGeneralResolver(net.JoinHostPort(addr, port)),
 		dohClient:     resolver.NewDOHResolver(addr),
+		qTypes:        qTypes,
 	}
 }
 
@@ -57,7 +64,7 @@ func (d *Dns) ResolveHost(ctx context.Context, host string, enableDoh bool, useS
 
 	t := time.Now()
 
-	addrs, err := clt.Resolve(ctx, host, []uint16{dns.TypeAAAA, dns.TypeA})
+	addrs, err := clt.Resolve(ctx, host, d.qTypes)
 	// addrs, err := clt.Resolve(ctx, host, []uint16{dns.TypeAAAA})
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", clt, err)
