@@ -1,0 +1,37 @@
+name: spoofdpi
+adopt-info: spoofdpi
+summary: A simple and fast anti-censorship tool written in Go
+description: |
+  A simple and fast software designed to bypass Deep Packet Inspection.
+base: core22
+grade: stable
+confinement: strict
+architectures:
+  - build-on: amd64
+  - build-on: arm64
+  - build-on: armhf
+  - build-on: ppc64el
+  - build-on: riscv64
+license: Apache-2.0
+source-code: https://github.com/xvzc/SpoofDPI
+
+apps:
+  spoofdpi-daemon:
+    command: spoofdpi
+    daemon: simple
+    install-mode: disable
+    plugs: [network, network-bind, network-control]
+
+parts:
+  spoofdpi:
+    plugin: go
+    build-snaps: [go/latest/stable]
+    source: https://github.com/xvzc/SpoofDPI.git
+    source-type: git
+    override-pull: |
+      snapcraftctl pull
+      LAST_RELEASE=$(git tag --list | grep -P --regexp='v\d' | sort --version-sort | tail -1)
+      git checkout $LAST_RELEASE
+      snapcraftctl set-version ${LAST_RELEASE}+$(git rev-parse --short HEAD)
+    override-build: |
+      go build -o $SNAPCRAFT_PART_INSTALL/spoofdpi -ldflags '-w -s -extldflags "-static"' -tags timetzdata github.com/xvzc/SpoofDPI/cmd/spoofdpi
