@@ -7,7 +7,8 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/xvzc/SpoofDPI/dns"
+	"github.com/miekg/dns"
+	dnsresolver "github.com/xvzc/SpoofDPI/dns/resolver"
 	"github.com/xvzc/SpoofDPI/packet"
 	"github.com/xvzc/SpoofDPI/proxy/handler"
 	"github.com/xvzc/SpoofDPI/util"
@@ -20,9 +21,9 @@ type Proxy struct {
 	addr           string
 	port           int
 	timeout        int
-	resolver       *dns.Dns
+	resolver       dnsresolver.Resolver
+	DNSqTypes      []uint16
 	windowSize     int
-	enableDoh      bool
 	allowedPattern []*regexp.Regexp
 }
 
@@ -31,15 +32,23 @@ type Handler interface {
 }
 
 func New(config *util.Config) *Proxy {
-	return &Proxy{
+	proxy := &Proxy{
 		addr:           config.Addr,
 		port:           config.Port,
 		timeout:        config.Timeout,
 		windowSize:     config.WindowSize,
-		enableDoh:      config.EnableDoh,
 		allowedPattern: config.AllowedPatterns,
-		resolver:       dns.NewDns(config),
 	}
+	useSystemDnsPred := func(host string) bool {
+		return !proxy.patternMatches([]byte(host))
+	}
+	proxy.resolver = newProxyDnsResolver(config.DnsAddr, strconv.Itoa(config.DnsPort), config.EnableDoh, useSystemDnsPred)
+	if config.DnsIPv4Only {
+		proxy.DNSqTypes = []uint16{dns.TypeA}
+	} else {
+		proxy.DNSqTypes = []uint16{dns.TypeAAAA, dns.TypeA}
+	}
+	return proxy
 }
 
 func (pxy *Proxy) Start(ctx context.Context) {
@@ -90,10 +99,9 @@ func (pxy *Proxy) Start(ctx context.Context) {
 			}
 
 			matched := pxy.patternMatches([]byte(pkt.Domain()))
-			useSystemDns := !matched
 
-			ip, err := pxy.resolver.ResolveHost(ctx, pkt.Domain(), pxy.enableDoh, useSystemDns)
-			if err != nil {
+			ip, err := pxy.resolver.Resolve(ctx, pkt.Domain(), pxy.DNSqTypes)
+			if err != nil || len(ip) == 0 {
 				logger.Debug().Msgf("error while dns lookup: %s %s", pkt.Domain(), err)
 				conn.Write([]byte(pkt.Version() + " 502 Bad Gateway\r\n\r\n"))
 				conn.Close()
@@ -101,7 +109,7 @@ func (pxy *Proxy) Start(ctx context.Context) {
 			}
 
 			// Avoid recursively querying self
-			if pkt.Port() == strconv.Itoa(pxy.port) && isLoopedRequest(ctx, net.ParseIP(ip)) {
+			if pkt.Port() == strconv.Itoa(pxy.port) && isLoopedRequest(ctx, ip[0].IP) {
 				logger.Error().Msg("looped request has been detected. aborting.")
 				conn.Close()
 				return
@@ -114,7 +122,7 @@ func (pxy *Proxy) Start(ctx context.Context) {
 				h = handler.NewHttpHandler(pxy.timeout)
 			}
 
-			h.Serve(ctx, conn.(*net.TCPConn), pkt, ip)
+			h.Serve(ctx, conn.(*net.TCPConn), pkt, ip[0].String())
 		}()
 	}
 }

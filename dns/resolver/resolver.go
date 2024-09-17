@@ -12,6 +12,10 @@ import (
 	"github.com/xvzc/SpoofDPI/dns/addrselect"
 )
 
+type Resolver interface {
+	Resolve(ctx context.Context, host string, qTypes []uint16) ([]net.IPAddr, error)
+}
+
 type exchangeFunc = func(ctx context.Context, msg *dns.Msg) (*dns.Msg, error)
 
 type DNSResult struct {
