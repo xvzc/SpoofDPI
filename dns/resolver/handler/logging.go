@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"time"
 
@@ -27,11 +26,12 @@ func (l *LoggingHandler) DoHandle(ctx context.Context, host string, qTypes []uin
 	t := time.Now()
 	addrs, err := resolver.Resolve(ctx, host, qTypes)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", resolver, err)
+		logger.Debug().Msgf("failed to resolve %s using %s", host, resolver)
+		return nil, err
 	}
 	if len(addrs) > 0 {
 		d := time.Since(t).Milliseconds()
 		logger.Debug().Msgf("resolved %s from %s in %d ms", addrs[0].String(), host, d)
 	}
-	return addrs, err
+	return addrs, nil
 }
