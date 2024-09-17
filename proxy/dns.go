@@ -27,7 +27,7 @@ func newProxyDnsResolver(dnsAddr string, dnsPort string, enableDOH bool, shouldU
 			enableDOH,
 		),
 	)
-	return dnshandler.Apply(factoryResolver, dnshandler.NewErrorHandler(), dnshandler.NewLoggingHandler())
+	return dnshandler.Apply(factoryResolver, dnshandler.NewLoggingHandler(), dnshandler.NewErrorHandler())
 }
 
 func newProxyDnsFactory(
