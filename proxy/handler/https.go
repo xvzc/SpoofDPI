@@ -2,10 +2,14 @@ package handler
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net"
 	"regexp"
 	"strconv"
+	"sync"
 
+	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/packet"
 	"github.com/xvzc/SpoofDPI/util"
 	"github.com/xvzc/SpoofDPI/util/log"
@@ -74,35 +78,52 @@ func (h *HttpsHandler) Serve(ctx context.Context, lConn *net.TCPConn, initPkt *p
 	logger.Debug().Msgf("client sent hello %d bytes", len(clientHello))
 
 	// Generate a go routine that reads from the server
-	go h.communicate(ctx, rConn, lConn, initPkt.Domain(), lConn.RemoteAddr().String())
-	go h.communicate(ctx, lConn, rConn, lConn.RemoteAddr().String(), initPkt.Domain())
+	closeWg := sync.WaitGroup{}
+	closeWg.Add(2)
+	done := make(chan struct{})
+	doneOnce := sync.Once{}
+	closeDoneFunc := func() {
+		close(done)
+	}
+	go func() {
+		defer closeWg.Done()
+		h.communicate(ctx, rConn, lConn, initPkt.Domain(), lConn.RemoteAddr().String())
+	}()
+	go func() {
+		defer closeWg.Done()
+		h.communicate(ctx, lConn, rConn, lConn.RemoteAddr().String(), initPkt.Domain())
+	}()
+	go func(wg *sync.WaitGroup) {
+		wg.Wait()
+		doneOnce.Do(closeDoneFunc)
+	}(&closeWg)
 
 	if h.exploit {
 		logger.Debug().Msgf("writing chunked client hello to %s", initPkt.Domain())
 		chunks := splitInChunks(ctx, clientHello, h.windowsize)
 		if _, err := writeChunks(rConn, chunks); err != nil {
 			logger.Debug().Msgf("error writing chunked client hello to %s: %s", initPkt.Domain(), err)
-			return
+			doneOnce.Do(closeDoneFunc)
 		}
 	} else {
 		logger.Debug().Msgf("writing plain client hello to %s", initPkt.Domain())
 		if _, err := rConn.Write(clientHello); err != nil {
 			logger.Debug().Msgf("error writing plain client hello to %s: %s", initPkt.Domain(), err)
-			return
+			doneOnce.Do(closeDoneFunc)
 		}
 	}
+	// wait while conn handling routines stop, then close both connections
+	// current routine will sleep until conn handling routines works
+	<-done
+	_ = lConn.Close()
+	_ = rConn.Close()
+
+	logger.Debug().Msgf("closing proxy connection: %s -> %s", lConn.RemoteAddr(), initPkt.Domain())
 }
 
 func (h *HttpsHandler) communicate(ctx context.Context, from *net.TCPConn, to *net.TCPConn, fd string, td string) {
 	ctx = util.GetCtxWithScope(ctx, h.protocol)
 	logger := log.GetCtxLogger(ctx)
-
-	defer func() {
-		from.Close()
-		to.Close()
-
-		logger.Debug().Msgf("closing proxy connection: %s -> %s", fd, td)
-	}()
 
 	buf := make([]byte, h.bufferSize)
 	for {
@@ -113,15 +134,26 @@ func (h *HttpsHandler) communicate(ctx context.Context, from *net.TCPConn, to *n
 
 		bytesRead, err := ReadBytes(ctx, from, buf)
 		if err != nil {
+			if errors.Is(err, io.EOF) && len(bytesRead) > 0 {
+				h.write(logger, td, to, bytesRead)
+			}
 			logger.Debug().Msgf("error reading from %s: %s", fd, err)
 			return
 		}
 
-		if _, err := to.Write(bytesRead); err != nil {
-			logger.Debug().Msgf("error writing to %s", td)
+		if !h.write(logger, td, to, bytesRead) {
 			return
 		}
 	}
+}
+
+func (h *HttpsHandler) write(logger zerolog.Logger, connName string, to io.Writer, bytes []byte) (ok bool) {
+	ok = true
+	if _, err := to.Write(bytes); err != nil {
+		logger.Debug().Msgf("error writing to %s", connName)
+		ok = false
+	}
+	return
 }
 
 func splitInChunks(ctx context.Context, bytes []byte, size int) [][]byte {
