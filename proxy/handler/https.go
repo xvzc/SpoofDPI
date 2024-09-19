@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net"
 	"regexp"
@@ -134,7 +133,7 @@ func (h *HttpsHandler) communicate(ctx context.Context, from *net.TCPConn, to *n
 
 		bytesRead, err := ReadBytes(ctx, from, buf)
 		if err != nil {
-			if errors.Is(err, io.EOF) && len(bytesRead) > 0 {
+			if len(bytesRead) > 0 {
 				h.write(logger, td, to, bytesRead)
 			}
 			logger.Debug().Msgf("error reading from %s: %s", fd, err)
