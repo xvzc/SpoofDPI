@@ -13,6 +13,13 @@ See the installation guide for SpoofDPI [here](https://github.com/xvzc/SpoofDPI/
     <img src="https://repology.org/badge/vertical-allrepos/spoofdpi.svg?columns=1" alt="Packaging status">
 </a>  
 
+## Build
+
+For building binary file `spoof-dpi` run:
+```shell
+go build ./cmd/...
+```
+
 # Usage
 ```
 Usage: spoofdpi [options...]
