@@ -22,7 +22,7 @@ func main() {
 
 	config := util.GetConfig()
 	if err := config.Load(args); err != nil {
-		log.Fatalf("loading config: %s", err)
+		logger.Fatal().Msgf("loading config: %s", err)
 	}
 
 	log.InitLogger(config)
