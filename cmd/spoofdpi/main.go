@@ -21,9 +21,6 @@ func main() {
 	}
 
 	config := util.GetConfig()
-	if err := config.Load(args); err != nil {
-		logger.Fatal().Msgf("loading config: %s", err)
-	}
 
 	log.InitLogger(config)
 	ctx := util.GetCtxWithScope(context.Background(), "MAIN")
