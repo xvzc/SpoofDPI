@@ -20,6 +20,7 @@ type Args struct {
 	SystemProxy    bool
 	Timeout        uint16
 	AllowedPattern StringArray
+	PatternFile    string
 	WindowSize     uint16
 	Version        bool
 }
@@ -39,6 +40,7 @@ func ParseArgs() *Args {
 	args := new(Args)
 
 	flag.StringVar(&args.Addr, "addr", "127.0.0.1", "listen address")
+	flag.StringVar(&args.PatternFile, "pattern-file", "", "bypass DPI only on packets matching regex patterns provided in a file (one per line)")
 	uintNVar(&args.Port, "port", 8080, "port")
 	flag.StringVar(&args.DnsAddr, "dns-addr", "8.8.8.8", "dns address")
 	uintNVar(&args.DnsPort, "dns-port", 53, "port number for dns")
