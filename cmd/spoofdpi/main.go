@@ -21,6 +21,7 @@ func main() {
 	}
 
 	config := util.GetConfig()
+	config.Load(args)
 
 	log.InitLogger(config)
 	ctx := util.GetCtxWithScope(context.Background(), "MAIN")
