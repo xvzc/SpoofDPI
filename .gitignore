@@ -1,6 +1,7 @@
 spoof-dpi
 spoof-dpi-*
 spoof-dpi.*
+spoofdpi
 !*/spoof-dpi/
 out/**
 

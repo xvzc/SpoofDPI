@@ -16,6 +16,7 @@ type Args struct {
 	DnsIPv4Only    bool
 	EnableDoh      bool
 	Debug          bool
+	Disorder       bool
 	Silent         bool
 	SystemProxy    bool
 	Timeout        uint16
@@ -43,6 +44,7 @@ func ParseArgs() *Args {
 	flag.StringVar(&args.DnsAddr, "dns-addr", "8.8.8.8", "dns address")
 	uintNVar(&args.DnsPort, "dns-port", 53, "port number for dns")
 	flag.BoolVar(&args.EnableDoh, "enable-doh", false, "enable 'dns-over-https'")
+	flag.BoolVar(&args.Disorder, "disorder", false, "enable disordering Client Hello packet")
 	flag.BoolVar(&args.Debug, "debug", false, "enable debug output")
 	flag.BoolVar(&args.Silent, "silent", false, "do not show the banner and server information at start up")
 	flag.BoolVar(&args.SystemProxy, "system-proxy", true, "enable system-wide proxy")

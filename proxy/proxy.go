@@ -21,6 +21,7 @@ type Proxy struct {
 	port           int
 	timeout        int
 	resolver       *dns.Dns
+	disorder       bool
 	windowSize     int
 	enableDoh      bool
 	allowedPattern []*regexp.Regexp
@@ -35,6 +36,7 @@ func New(config *util.Config) *Proxy {
 		addr:           config.Addr,
 		port:           config.Port,
 		timeout:        config.Timeout,
+		disorder:       config.Disorder,
 		windowSize:     config.WindowSize,
 		enableDoh:      config.EnableDoh,
 		allowedPattern: config.AllowedPatterns,
@@ -109,7 +111,7 @@ func (pxy *Proxy) Start(ctx context.Context) {
 
 			var h Handler
 			if pkt.IsConnectMethod() {
-				h = handler.NewHttpsHandler(pxy.timeout, pxy.windowSize, pxy.allowedPattern, matched)
+				h = handler.NewHttpsHandler(pxy.timeout, pxy.windowSize, pxy.allowedPattern, matched, pxy.disorder)
 			} else {
 				h = handler.NewHttpHandler(pxy.timeout)
 			}

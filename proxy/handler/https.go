@@ -5,6 +5,7 @@ import (
 	"net"
 	"regexp"
 	"strconv"
+	"syscall"
 
 	"github.com/xvzc/SpoofDPI/packet"
 	"github.com/xvzc/SpoofDPI/util"
@@ -18,10 +19,11 @@ type HttpsHandler struct {
 	timeout         int
 	windowsize      int
 	exploit         bool
+	disorder        bool
 	allowedPatterns []*regexp.Regexp
 }
 
-func NewHttpsHandler(timeout int, windowSize int, allowedPatterns []*regexp.Regexp, exploit bool) *HttpsHandler {
+func NewHttpsHandler(timeout int, windowSize int, allowedPatterns []*regexp.Regexp, exploit bool, disorder bool) *HttpsHandler {
 	return &HttpsHandler{
 		bufferSize:      1024,
 		protocol:        "HTTPS",
@@ -30,7 +32,18 @@ func NewHttpsHandler(timeout int, windowSize int, allowedPatterns []*regexp.Rege
 		windowsize:      windowSize,
 		allowedPatterns: allowedPatterns,
 		exploit:         exploit,
+		disorder:        disorder,
 	}
+}
+
+func setTTL(conn net.Conn, ttl int) error {
+	rawConn, err := conn.(*net.TCPConn).SyscallConn()
+	if err != nil {
+		return err
+	}
+	return rawConn.Control(func(fd uintptr) {
+		syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_TTL, ttl)
+	})
 }
 
 func (h *HttpsHandler) Serve(ctx context.Context, lConn *net.TCPConn, initPkt *packet.HttpRequest, ip string) {
@@ -80,7 +93,7 @@ func (h *HttpsHandler) Serve(ctx context.Context, lConn *net.TCPConn, initPkt *p
 	if h.exploit {
 		logger.Debug().Msgf("writing chunked client hello to %s", initPkt.Domain())
 		chunks := splitInChunks(ctx, clientHello, h.windowsize)
-		if _, err := writeChunks(rConn, chunks); err != nil {
+		if _, err := writeChunks(rConn, chunks, h.disorder); err != nil {
 			logger.Debug().Msgf("error writing chunked client hello to %s: %s", initPkt.Domain(), err)
 			return
 		}
@@ -162,9 +175,18 @@ func splitInChunks(ctx context.Context, bytes []byte, size int) [][]byte {
 	return [][]byte{raw[:1], raw[1:]}
 }
 
-func writeChunks(conn *net.TCPConn, c [][]byte) (n int, err error) {
+func writeChunks(conn *net.TCPConn, c [][]byte, disorder bool) (n int, err error) {
 	total := 0
 	for i := 0; i < len(c); i++ {
+
+		if disorder {
+			if i == 0 {
+				setTTL(conn, 1)
+			} else if i == 1 {
+				setTTL(conn, 64)
+			}
+		}
+
 		b, err := conn.Write(c[i])
 		if err != nil {
 			return 0, nil

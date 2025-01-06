@@ -16,6 +16,7 @@ type Config struct {
 	DnsIPv4Only     bool
 	EnableDoh       bool
 	Debug           bool
+	Disorder        bool
 	Silent          bool
 	SystemProxy     bool
 	Timeout         int
@@ -39,6 +40,7 @@ func (c *Config) Load(args *Args) {
 	c.DnsPort = int(args.DnsPort)
 	c.DnsIPv4Only = args.DnsIPv4Only
 	c.Debug = args.Debug
+	c.Disorder = args.Disorder
 	c.EnableDoh = args.EnableDoh
 	c.Silent = args.Silent
 	c.SystemProxy = args.SystemProxy
@@ -63,10 +65,11 @@ func PrintColoredBanner() {
 	pterm.DefaultBigText.WithLetters(cyan, purple).Render()
 
 	pterm.DefaultBulletList.WithItems([]pterm.BulletListItem{
-		{Level: 0, Text: "ADDR    : " + fmt.Sprint(config.Addr)},
-		{Level: 0, Text: "PORT    : " + fmt.Sprint(config.Port)},
-		{Level: 0, Text: "DNS     : " + fmt.Sprint(config.DnsAddr)},
-		{Level: 0, Text: "DEBUG   : " + fmt.Sprint(config.Debug)},
+		{Level: 0, Text: "ADDR     : " + fmt.Sprint(config.Addr)},
+		{Level: 0, Text: "PORT     : " + fmt.Sprint(config.Port)},
+		{Level: 0, Text: "DNS      : " + fmt.Sprint(config.DnsAddr)},
+		{Level: 0, Text: "DEBUG    : " + fmt.Sprint(config.Debug)},
+		{Level: 0, Text: "DISORDER : " + fmt.Sprint(config.Disorder)},
 	}).Render()
 
 	pterm.DefaultBasicText.Println("Press 'CTRL + c' to quit")
