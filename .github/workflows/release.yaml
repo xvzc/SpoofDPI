@@ -118,7 +118,7 @@ jobs:
       env: 
         GOOS: linux
         GOARCH: mipsle
-        GOMIPS=softfloat
+        GOMIPS: softfloat
       run: |
         go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoofdpi 
         tar -zcvf "spoofdpi-$GOOS-$GOARCH-softfloat.tar.gz" ./spoofdpi && rm -rf ./spoofdpi
