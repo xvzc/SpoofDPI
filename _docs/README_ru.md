@@ -4,7 +4,19 @@
 
 Простое и быстрое ПО, созданное для обхода **Deep Packet Inspection**
 
-![image](https://user-images.githubusercontent.com/45588457/148035986-8b0076cc-fefb-48a1-9939-a8d9ab1d6322.png)
+```txt
+ ❯ spoofdpi
+███████ ██████   ██████   ██████  ███████ ██████  ██████  ██
+██      ██   ██ ██    ██ ██    ██ ██      ██   ██ ██   ██ ██
+███████ ██████  ██    ██ ██    ██ █████   ██   ██ ██████  ██
+     ██ ██      ██    ██ ██    ██ ██      ██   ██ ██      ██
+███████ ██       ██████   ██████  ██      ██████  ██      ██
+
+• ADDR    : 127.0.0.1
+• PORT    : 8080
+• DNS     : 8.8.8.8
+• DEBUG   : false
+```
 
 # Installation
 Инструкции по установке SpoofDPI вы можете найти [здесь](https://github.com/xvzc/SpoofDPI/blob/main/_docs/INSTALL.md).

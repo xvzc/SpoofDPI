@@ -55,7 +55,7 @@ type HttpRequest struct {
 }
 
 func ReadHttpRequest(rdr io.Reader) (*HttpRequest, error) {
-	p, err := parse(rdr)
+	p, err := parseHttpRequest(rdr)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func (p *HttpRequest) Tidy() {
 	p.raw = buf.Bytes()
 }
 
-func parse(rdr io.Reader) (*HttpRequest, error) {
+func parseHttpRequest(rdr io.Reader) (*HttpRequest, error) {
 	sb := strings.Builder{}
 	tee := io.TeeReader(rdr, &sb)
 	request, err := http.ReadRequest(bufio.NewReader(tee))

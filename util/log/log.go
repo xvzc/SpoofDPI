@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/config"
 	"github.com/xvzc/SpoofDPI/util"
 )
 
@@ -21,7 +22,7 @@ func GetCtxLogger(ctx context.Context) zerolog.Logger {
 	return logger.With().Ctx(ctx).Logger()
 }
 
-func InitLogger(cfg *util.Config) {
+func InitLogger(cfg *config.Config) {
 	partsOrder := []string{
 		zerolog.LevelFieldName,
 		zerolog.TimestampFieldName,
@@ -43,7 +44,7 @@ func InitLogger(cfg *util.Config) {
 	}
 
 	logger = zerolog.New(consoleWriter).Hook(ctxHook{})
-	if cfg.Debug {
+	if cfg.Debug() {
 		logger = logger.Level(zerolog.DebugLevel)
 	} else {
 		logger = logger.Level(zerolog.InfoLevel)

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/xvzc/SpoofDPI/config"
 	"github.com/xvzc/SpoofDPI/dns/resolver"
 	"github.com/xvzc/SpoofDPI/util"
 	"github.com/xvzc/SpoofDPI/util/log"
@@ -29,17 +30,19 @@ type Dns struct {
 	qTypes        []uint16
 }
 
-func NewDns(config *util.Config) *Dns {
-	addr := config.DnsAddr
-	port := strconv.Itoa(config.DnsPort)
+func NewDns() *Dns {
+	c := config.Get()
+
+	addr := c.DnsAddr()
+	port := strconv.Itoa(c.DnsPort())
 	var qTypes []uint16
-	if config.DnsIPv4Only {
+	if c.DnsIPv4Only() {
 		qTypes = []uint16{dns.TypeA}
 	} else {
 		qTypes = []uint16{dns.TypeAAAA, dns.TypeA}
 	}
 	return &Dns{
-		host:          config.DnsAddr,
+		host:          c.DnsAddr(),
 		port:          port,
 		systemClient:  resolver.NewSystemResolver(),
 		generalClient: resolver.NewGeneralResolver(net.JoinHostPort(addr, port)),
@@ -48,7 +51,9 @@ func NewDns(config *util.Config) *Dns {
 	}
 }
 
-func (d *Dns) ResolveHost(ctx context.Context, host string, enableDoh bool, useSystemDns bool) (string, error) {
+func (d *Dns) ResolveHost(ctx context.Context, host string) (string, error) {
+	c := config.Get()
+
 	ctx = util.GetCtxWithScope(ctx, scopeDNS)
 	logger := log.GetCtxLogger(ctx)
 
@@ -56,7 +61,7 @@ func (d *Dns) ResolveHost(ctx context.Context, host string, enableDoh bool, useS
 		return ip.String(), nil
 	}
 
-	clt := d.clientFactory(enableDoh, useSystemDns)
+	clt := d.clientFactory(c.EnableDoh(), ctx.Value("useSystemDns").(bool))
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 

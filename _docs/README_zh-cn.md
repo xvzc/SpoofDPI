@@ -6,7 +6,19 @@
 
 规避**深度包检测**的简单工具
 
-![image](https://user-images.githubusercontent.com/45588457/148035986-8b0076cc-fefb-48a1-9939-a8d9ab1d6322.png)
+```txt
+ ❯ spoofdpi
+███████ ██████   ██████   ██████  ███████ ██████  ██████  ██
+██      ██   ██ ██    ██ ██    ██ ██      ██   ██ ██   ██ ██
+███████ ██████  ██    ██ ██    ██ █████   ██   ██ ██████  ██
+     ██ ██      ██    ██ ██    ██ ██      ██   ██ ██      ██
+███████ ██       ██████   ██████  ██      ██████  ██      ██
+
+• ADDR    : 127.0.0.1
+• PORT    : 8080
+• DNS     : 8.8.8.8
+• DEBUG   : false
+```
 
 # Installation
 See the installation guide for SpoofDPI [here](https://github.com/xvzc/SpoofDPI/blob/main/_docs/INSTALL.md).
