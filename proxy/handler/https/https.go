@@ -1,40 +1,54 @@
-package handler
+package https
 
 import (
 	"context"
 	"net"
-	"regexp"
 	"strconv"
 
+	"github.com/xvzc/SpoofDPI/config"
 	"github.com/xvzc/SpoofDPI/packet"
+	"github.com/xvzc/SpoofDPI/proxy/handler"
 	"github.com/xvzc/SpoofDPI/util"
 	"github.com/xvzc/SpoofDPI/util/log"
+	"sync"
 )
 
+var lock = &sync.Mutex{}
+
 type HttpsHandler struct {
-	bufferSize      int
-	protocol        string
-	port            int
-	timeout         int
-	windowsize      int
-	exploit         bool
-	allowedPatterns []*regexp.Regexp
+	bufferSize int
+	port       int
 }
 
-func NewHttpsHandler(timeout int, windowSize int, allowedPatterns []*regexp.Regexp, exploit bool) *HttpsHandler {
-	return &HttpsHandler{
-		bufferSize:      1024,
-		protocol:        "HTTPS",
-		port:            443,
-		timeout:         timeout,
-		windowsize:      windowSize,
-		allowedPatterns: allowedPatterns,
-		exploit:         exploit,
+var instance *HttpsHandler
+
+func GetInstance() *HttpsHandler {
+	if instance == nil {
+		lock.Lock()
+		defer lock.Unlock()
+		if instance == nil {
+			instance = &HttpsHandler{
+				bufferSize: 1024,
+				port:       443,
+			}
+		}
 	}
+
+	return instance
 }
 
-func (h *HttpsHandler) Serve(ctx context.Context, lConn *net.TCPConn, initPkt *packet.HttpRequest, ip string) {
-	ctx = util.GetCtxWithScope(ctx, h.protocol)
+func (h *HttpsHandler) Protocol() string {
+	return "HTTPS"
+}
+
+func (h *HttpsHandler) Serve(
+	ctx context.Context,
+	lConn *net.TCPConn,
+	initPkt *packet.HttpRequest,
+	ip string,
+) {
+	c := config.Get()
+	ctx = util.GetCtxWithScope(ctx, h.Protocol())
 	logger := log.GetCtxLogger(ctx)
 
 	// Create a connection to the requested server
@@ -53,20 +67,24 @@ func (h *HttpsHandler) Serve(ctx context.Context, lConn *net.TCPConn, initPkt *p
 		return
 	}
 
-	logger.Debug().Msgf("new connection to the server %s -> %s", rConn.LocalAddr(), initPkt.Domain())
+	logger.Debug().Msgf("new conn to the server %s -> %s", rConn.LocalAddr(), initPkt.Domain())
 
 	_, err = lConn.Write([]byte(initPkt.Version() + " 200 Connection Established\r\n\r\n"))
 	if err != nil {
-		logger.Debug().Msgf("error sending 200 connection established to the client: %s", err)
+		logger.Debug().Msgf("error sending 200 conn established to the client: %s", err)
 		return
 	}
 
-	logger.Debug().Msgf("sent connection established to %s", lConn.RemoteAddr())
+	logger.Debug().Msgf("sent a conn established to %s", lConn.RemoteAddr())
 
 	// Read client hello
 	m, err := packet.ReadTLSMessage(lConn)
 	if err != nil || !m.IsClientHello() {
-		logger.Debug().Msgf("error reading client hello from %s: %s", lConn.RemoteAddr().String(), err)
+		logger.Debug().Msgf(
+			"error reading client hello from %s: %s",
+			lConn.RemoteAddr().String(),
+			err,
+		)
 		return
 	}
 	clientHello := m.Raw
@@ -77,11 +95,13 @@ func (h *HttpsHandler) Serve(ctx context.Context, lConn *net.TCPConn, initPkt *p
 	go h.communicate(ctx, rConn, lConn, initPkt.Domain(), lConn.RemoteAddr().String())
 	go h.communicate(ctx, lConn, rConn, lConn.RemoteAddr().String(), initPkt.Domain())
 
-	if h.exploit {
+	if bool(ctx.Value("shouldExploit").(bool)) {
 		logger.Debug().Msgf("writing chunked client hello to %s", initPkt.Domain())
-		chunks := splitInChunks(ctx, clientHello, h.windowsize)
+		chunks := splitInChunks(ctx, clientHello, c.WindowSize())
 		if _, err := writeChunks(rConn, chunks); err != nil {
-			logger.Debug().Msgf("error writing chunked client hello to %s: %s", initPkt.Domain(), err)
+			logger.Debug().Msgf(
+				"error writing chunked client hello to %s: %s",
+				initPkt.Domain(), err)
 			return
 		}
 	} else {
@@ -93,8 +113,15 @@ func (h *HttpsHandler) Serve(ctx context.Context, lConn *net.TCPConn, initPkt *p
 	}
 }
 
-func (h *HttpsHandler) communicate(ctx context.Context, from *net.TCPConn, to *net.TCPConn, fd string, td string) {
-	ctx = util.GetCtxWithScope(ctx, h.protocol)
+func (h *HttpsHandler) communicate(
+	ctx context.Context,
+	from *net.TCPConn,
+	to *net.TCPConn,
+	fd string,
+	td string,
+) {
+	c := config.Get()
+	ctx = util.GetCtxWithScope(ctx, h.Protocol())
 	logger := log.GetCtxLogger(ctx)
 
 	defer func() {
@@ -106,12 +133,12 @@ func (h *HttpsHandler) communicate(ctx context.Context, from *net.TCPConn, to *n
 
 	buf := make([]byte, h.bufferSize)
 	for {
-		err := setConnectionTimeout(from, h.timeout)
+		err := handler.SetConnectionTimeout(from, c.Timeout())
 		if err != nil {
 			logger.Debug().Msgf("error while setting connection deadline for %s: %s", fd, err)
 		}
 
-		bytesRead, err := ReadBytes(ctx, from, buf)
+		bytesRead, err := handler.ReadBytes(ctx, from, buf)
 		if err != nil {
 			logger.Debug().Msgf("error reading from %s: %s", fd, err)
 			return
@@ -128,16 +155,12 @@ func splitInChunks(ctx context.Context, bytes []byte, size int) [][]byte {
 	logger := log.GetCtxLogger(ctx)
 
 	var chunks [][]byte
-	var raw []byte = bytes
+	var raw = bytes
 
 	logger.Debug().Msgf("window-size: %d", size)
 
 	if size > 0 {
-		for {
-			if len(raw) == 0 {
-				break
-			}
-
+		for len(raw) != 0 {
 			// necessary check to avoid slicing beyond
 			// slice capacity
 			if len(raw) < size {
@@ -152,7 +175,6 @@ func splitInChunks(ctx context.Context, bytes []byte, size int) [][]byte {
 	}
 
 	// When the given window-size <= 0
-
 	if len(raw) < 1 {
 		return [][]byte{raw}
 	}

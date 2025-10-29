@@ -8,37 +8,38 @@ import (
 
 	"github.com/xvzc/SpoofDPI/util/log"
 
+	"github.com/xvzc/SpoofDPI/config"
 	"github.com/xvzc/SpoofDPI/proxy"
+	"github.com/xvzc/SpoofDPI/system"
 	"github.com/xvzc/SpoofDPI/util"
 	"github.com/xvzc/SpoofDPI/version"
 )
 
 func main() {
-	args := util.ParseArgs()
+	args := config.ParseArgs()
 	if args.Version {
 		version.PrintVersion()
 		os.Exit(0)
 	}
 
-	config := util.GetConfig()
-	config.Load(args)
+	config := config.New(args)
 
 	log.InitLogger(config)
 	ctx := util.GetCtxWithScope(context.Background(), "MAIN")
 	logger := log.GetCtxLogger(ctx)
 
-	pxy := proxy.New(config)
+	pxy := proxy.New()
 
-	if !config.Silent {
+	if !config.Silent() {
 		util.PrintColoredBanner()
 	}
 
-	if config.SystemProxy {
-		if err := util.SetOsProxy(uint16(config.Port)); err != nil {
+	if config.SetSystemProxy() {
+		if err := system.SetProxy(config.Port()); err != nil {
 			logger.Fatal().Msgf("error while changing proxy settings: %s", err)
 		}
 		defer func() {
-			if err := util.UnsetOsProxy(); err != nil {
+			if err := system.UnsetProxy(); err != nil {
 				logger.Fatal().Msgf("error while disabling proxy: %s", err)
 			}
 		}()

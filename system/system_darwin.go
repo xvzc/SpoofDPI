@@ -1,4 +1,9 @@
-package util
+//go:build darwin
+// +build darwin
+
+
+
+package system
 
 import (
 	"errors"
@@ -22,7 +27,7 @@ const (
 		" -system-proxy=false."
 )
 
-func SetOsProxy(port uint16) error {
+func SetProxy(port int) error {
 	if runtime.GOOS != darwinOS {
 		return nil
 	}
@@ -32,10 +37,10 @@ func SetOsProxy(port uint16) error {
 		return err
 	}
 
-	return setProxy(getProxyTypes(), network, "127.0.0.1", port)
+	return setProxyInternal(getProxyTypes(), network, "127.0.0.1", port)
 }
 
-func UnsetOsProxy() error {
+func UnsetProxy() error {
 	if runtime.GOOS != darwinOS {
 		return nil
 	}
@@ -45,7 +50,7 @@ func UnsetOsProxy() error {
 		return err
 	}
 
-	return unsetProxy(getProxyTypes(), network)
+	return unsetProxyInternal(getProxyTypes(), network)
 }
 
 func getDefaultNetwork() (string, error) {
@@ -62,7 +67,7 @@ func getProxyTypes() []string {
 	return []string{"webproxy", "securewebproxy"}
 }
 
-func setProxy(proxyTypes []string, network, domain string, port uint16) error {
+func setProxyInternal(proxyTypes []string, network, domain string, port int) error {
 	args := []string{"", network, domain, strconv.FormatUint(uint64(port), 10)}
 
 	for _, proxyType := range proxyTypes {
@@ -74,7 +79,7 @@ func setProxy(proxyTypes []string, network, domain string, port uint16) error {
 	return nil
 }
 
-func unsetProxy(proxyTypes []string, network string) error {
+func unsetProxyInternal(proxyTypes []string, network string) error {
 	args := []string{"", network, "off"}
 
 	for _, proxyType := range proxyTypes {

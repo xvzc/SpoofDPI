@@ -1,42 +1,57 @@
-package handler
+package http
 
 import (
 	"context"
 	"net"
 	"strconv"
 
+	"github.com/xvzc/SpoofDPI/config"
 	"github.com/xvzc/SpoofDPI/packet"
+	"github.com/xvzc/SpoofDPI/proxy/handler"
 	"github.com/xvzc/SpoofDPI/util"
 	"github.com/xvzc/SpoofDPI/util/log"
+	"sync"
 )
+
+var lock = &sync.Mutex{}
 
 type HttpHandler struct {
 	bufferSize int
-	protocol   string
 	port       int
-	timeout    int
 }
 
-func NewHttpHandler(timeout int) *HttpHandler {
-	return &HttpHandler{
-		bufferSize: 1024,
-		protocol:   "HTTP",
-		port:       80,
-		timeout:    timeout,
+var instance *HttpHandler
+
+func GetInstance() *HttpHandler {
+	if instance == nil {
+		lock.Lock()
+		defer lock.Unlock()
+		if instance == nil {
+			instance = &HttpHandler{
+				bufferSize: 1024,
+				port:       80,
+			}
+		}
 	}
+
+	return instance
 }
 
-func (h *HttpHandler) Serve(ctx context.Context, lConn *net.TCPConn, pkt *packet.HttpRequest, ip string) {
-	ctx = util.GetCtxWithScope(ctx, h.protocol)
+func (h *HttpHandler) Protocol() string {
+	return "HTTP"
+}
+
+func (h *HttpHandler) Serve(ctx context.Context, lConn *net.TCPConn, initPkt *packet.HttpRequest, ip string) {
+	ctx = util.GetCtxWithScope(ctx, h.Protocol())
 	logger := log.GetCtxLogger(ctx)
 
 	// Create a connection to the requested server
 	var port int = 80
 	var err error
-	if pkt.Port() != "" {
-		port, err = strconv.Atoi(pkt.Port())
+	if initPkt.Port() != "" {
+		port, err = strconv.Atoi(initPkt.Port())
 		if err != nil {
-			logger.Debug().Msgf("error while parsing port for %s aborting..", pkt.Domain())
+			logger.Debug().Msgf("error while parsing port for %s aborting..", initPkt.Domain())
 		}
 	}
 
@@ -47,20 +62,21 @@ func (h *HttpHandler) Serve(ctx context.Context, lConn *net.TCPConn, pkt *packet
 		return
 	}
 
-	logger.Debug().Msgf("new connection to the server %s -> %s", rConn.LocalAddr(), pkt.Domain())
+	logger.Debug().Msgf("new connection to the server %s -> %s", rConn.LocalAddr(), initPkt.Domain())
 
-	go h.deliverResponse(ctx, rConn, lConn, pkt.Domain(), lConn.RemoteAddr().String())
-	go h.deliverRequest(ctx, lConn, rConn, lConn.RemoteAddr().String(), pkt.Domain())
+	go h.deliverResponse(ctx, rConn, lConn, initPkt.Domain(), lConn.RemoteAddr().String())
+	go h.deliverRequest(ctx, lConn, rConn, lConn.RemoteAddr().String(), initPkt.Domain())
 
-	_, err = rConn.Write(pkt.Raw())
+	_, err = rConn.Write(initPkt.Raw())
 	if err != nil {
-		logger.Debug().Msgf("error sending request to %s: %s", pkt.Domain(), err)
+		logger.Debug().Msgf("error sending request to %s: %s", initPkt.Domain(), err)
 		return
 	}
 }
 
 func (h *HttpHandler) deliverRequest(ctx context.Context, from *net.TCPConn, to *net.TCPConn, fd string, td string) {
-	ctx = util.GetCtxWithScope(ctx, h.protocol)
+	c := config.Get()
+	ctx = util.GetCtxWithScope(ctx, h.Protocol())
 	logger := log.GetCtxLogger(ctx)
 
 	defer func() {
@@ -71,7 +87,7 @@ func (h *HttpHandler) deliverRequest(ctx context.Context, from *net.TCPConn, to 
 	}()
 
 	for {
-		err := setConnectionTimeout(from, h.timeout)
+		err := handler.SetConnectionTimeout(from, c.Timeout())
 		if err != nil {
 			logger.Debug().Msgf("error while setting connection deadline for %s: %s", fd, err)
 		}
@@ -92,7 +108,8 @@ func (h *HttpHandler) deliverRequest(ctx context.Context, from *net.TCPConn, to 
 }
 
 func (h *HttpHandler) deliverResponse(ctx context.Context, from *net.TCPConn, to *net.TCPConn, fd string, td string) {
-	ctx = util.GetCtxWithScope(ctx, h.protocol)
+	c := config.Get()
+	ctx = util.GetCtxWithScope(ctx, h.Protocol())
 	logger := log.GetCtxLogger(ctx)
 
 	defer func() {
@@ -104,12 +121,12 @@ func (h *HttpHandler) deliverResponse(ctx context.Context, from *net.TCPConn, to
 
 	buf := make([]byte, h.bufferSize)
 	for {
-		err := setConnectionTimeout(from, h.timeout)
+		err := handler.SetConnectionTimeout(from, c.Timeout())
 		if err != nil {
 			logger.Debug().Msgf("error while setting connection deadline for %s: %s", fd, err)
 		}
 
-		bytesRead, err := ReadBytes(ctx, from, buf)
+		bytesRead, err := handler.ReadBytes(ctx, from, buf)
 		if err != nil {
 			logger.Debug().Msgf("error reading from %s: %s", fd, err)
 			return
