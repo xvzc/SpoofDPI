@@ -40,15 +40,15 @@ func dialFirstSuccessful(
 	for _, addr := range addrs {
 		targetAddr := (&net.TCPAddr{IP: addr.IP, Port: port}).String()
 
-		// Attempt to dial using the context
+		// Attempt to dial using the context.
 		conn, err := dialer.DialContext(ctx, "tcp", targetAddr)
 		if err == nil {
-			// Connection successful
+			// Connection successful.
 			rConn = conn
 			break
 		}
 
-		// Store the last error for reporting
+		// Store the last error for reporting.
 		lastErr = err
 	}
 

@@ -45,7 +45,7 @@ func readTLSMessage(r io.Reader) (*TLSMessage, error) {
 		PayloadLen:   binary.BigEndian.Uint16(rawHeader[3:5]),
 	}
 	if header.PayloadLen > TLSMaxPayloadLen {
-		// Corrupted header? Check integer overflow
+		// Corrupted header? Check for integer overflow.
 		return nil, fmt.Errorf(
 			"invalid TLS header. Type: %x, ProtoVersion: %x, PayloadLen: %x",
 			header.Type,
@@ -70,8 +70,8 @@ func readTLSMessage(r io.Reader) (*TLSMessage, error) {
 }
 
 func (m *TLSMessage) IsClientHello() bool {
-	// According to RFC 8446 section 4.
-	// first byte (Raw[5]) of handshake message should be 0x1 - means client_hello
+	// According to RFC 8446 section 4,
+	// the first byte (Raw[5]) of a handshake message should be 0x1 for a client_hello.
 	return len(m.Raw) > TLSHeaderLen &&
 		m.Header.Type == TLSHandshake &&
 		m.Raw[5] == 0x01

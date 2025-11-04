@@ -133,7 +133,7 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 
 	dstAddrs := rSet.CopyAddrs()
 
-	// Avoid recursively querying self
+	// Avoid recursively querying self.
 	if pxy.isRecursive(ctx, dstAddrs, port) {
 		logger.Error().Msg("detected a looped request. aborting.")
 		closeConns(conn)
@@ -167,9 +167,9 @@ func (pxy *Proxy) isRecursive(
 			return true
 		}
 
-		// Get list of available addresses
+		// Get a list of available addresses.
 		// See `ip -4 ifAddrs show`
-		ifAddrs, err := net.InterfaceAddrs() // needs AF_NETLINK on linux
+		ifAddrs, err := net.InterfaceAddrs() // Needs AF_NETLINK on Linux.
 		if err != nil {
 			logger.Error().Msgf("error retrieving addrs of network interfaces: %s", err)
 			return false

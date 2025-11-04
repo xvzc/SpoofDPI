@@ -52,7 +52,7 @@ func (h *HTTPSHandler) Serve(
 ) {
 	logger := h.logger.With().Ctx(ctx).Logger()
 
-	// We are responsible for the client connection, close it when we're done.
+	// We are responsible for the client connection, so we must close it when done.
 	defer closeConns(lConn)
 
 	rConn, err := dialFirstSuccessful(ctx, dstAddrs, dstPort, timeout)
@@ -61,22 +61,22 @@ func (h *HTTPSHandler) Serve(
 			Msgf("dial to %s failed: %s", domain, err)
 	}
 
-	// The remote connection *must* be deferred as soon as it's successfully dialed.
+	// The remote connection must be closed as soon as it's successfully dialed.
 	defer closeConns(rConn)
 
 	logger.Debug().
 		Msgf("new conn to the server %s -> %s", rConn.LocalAddr(), domain)
 
-	// Send "200 Connection Established" to the client
+	// Send "200 Connection Established" to the client.
 	_, err = lConn.Write([]byte(req.Proto + " 200 Connection Established\r\n\r\n"))
 	if err != nil {
 		logger.Debug().Msgf("error sending 200 conn established to the client: %s", err)
-		return // Both conns are closed by defers
+		return // Both connections are closed by their defers.
 	}
 
 	logger.Debug().Msgf("sent a conn established to %s", lConn.RemoteAddr())
 
-	// Read client hello (this is specific to SpoofDPI logic)
+	// Read the client hello, which is specific to SpoofDPI logic.
 	tlsMsg, err := readTLSMessage(lConn)
 	if err != nil {
 		logger.Debug().Msgf("error reading client hello from %s: %s",
@@ -107,8 +107,8 @@ func (h *HTTPSHandler) Serve(
 	logger.Debug().
 		Msgf("value of 'shouldExploit' is %s", strconv.FormatBool(shouldExploit))
 
-	// The Client Hello *must* be sent to the server *before* we start
-	// the bidirectional copy tunnel.
+	// The Client Hello must be sent to the server before starting the
+	// bidirectional copy tunnel.
 	if shouldExploit {
 		logger.Debug().Msgf("writing chunked client hello to %s", domain)
 
@@ -135,35 +135,35 @@ func (h *HTTPSHandler) Serve(
 		}
 	}
 
-	// Start the tunnel using the refactored helper function
+	// Start the tunnel using the refactored helper function.
 	go h.tunnel(ctx, rConn, lConn, domain, true)
 	h.tunnel(ctx, lConn, rConn, domain, false)
 }
 
-// tunnel handles the bidirectional io.Copy between client and server.
+// tunnel handles the bidirectional io.Copy between the client and server.
 func (h *HTTPSHandler) tunnel(
 	ctx context.Context,
-	dst net.Conn, // Note: Renamed 'src' to 'dst' for io.Copy clarity (Destination)
-	src net.Conn, // Note: Renamed 'dst' to 'src' for io.Copy clarity (Source)
+	dst net.Conn, // Renamed for io.Copy clarity (Destination)
+	src net.Conn, // Renamed for io.Copy clarity (Source)
 	domain string,
 	closeOnReturn bool,
 ) {
 	logger := h.logger.With().Ctx(ctx).Logger()
 
-	// The goroutine (client->server) is responsible for closing both connections
-	// when it finishes, which will unblock the other (server->client) copy.
+	// The client-to-server goroutine is responsible for closing both connections
+	// when it finishes, which will unblock the server-to-client copy.
 	if closeOnReturn {
 		defer closeConns(dst, src)
 	}
 
-	// [MODIFIED: Use sync.Pool and io.CopyBuffer]
+	// Use a buffer from the pool to reduce allocations.
 	// 1. Get a buffer from the pool (zero allocation).
 	bufPtr := bufferPool.Get().(*[]byte)
 	// 2. Ensure the buffer is returned to the pool when the tunnel closes.
 	defer bufferPool.Put(bufPtr)
 
 	// 3. Use the borrowed buffer with io.CopyBuffer.
-	// This copies FROM src TO dst.
+	// This copies from src to dst.
 	n, err := io.CopyBuffer(dst, src, *bufPtr)
 	if err != nil {
 		if !errors.Is(err, net.ErrClosed) && err != io.EOF {
@@ -202,14 +202,14 @@ func modernFragmentaionStrategy(
 	return chunks
 }
 
-// legacyFragmentationStrategy implements the "legacy" strategy (1 byte, then the rest).
-// Its signature directly matches the chunkingFunc type.
+// legacyFragmentationStrategy implements the "legacy" strategy (1 byte, then the rest)
+// and matches the chunkingFunc type.
 func legacyFragmentationStrategy(
 	bytes []byte,
 	_ int,
 ) [][]byte {
 	if len(bytes) == 0 {
-		return nil // No bytes to send
+		return nil // No bytes to send.
 	}
 
 	if len(bytes) == 1 {
@@ -224,7 +224,7 @@ func writeChunks(conn net.Conn, c [][]byte) (n int, err error) {
 	for i := 0; i < len(c); i++ {
 		b, err := conn.Write(c[i])
 		if err != nil {
-			// Return the actual error, not nil.
+			// Return the actual error.
 			return total, err
 		}
 		total += b
