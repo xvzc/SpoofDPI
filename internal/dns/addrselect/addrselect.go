@@ -52,7 +52,9 @@ func srcAddrs(addrs []net.IPAddr) []netip.Addr {
 			if src, ok := c.LocalAddr().(*net.UDPAddr); ok {
 				srcs[i], _ = netip.AddrFromSlice(src.IP)
 			}
-			c.Close()
+
+			// Ignore error from Close, as the connection was only used to get the local address.
+			_ = c.Close()
 		}
 	}
 	return srcs
@@ -229,14 +231,20 @@ type policyTable []policyTableEntry
 var rfc6724policyTable = policyTable{
 	{
 		// "::1/128"
-		Prefix:     netip.PrefixFrom(netip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01}), 128),
+		Prefix: netip.PrefixFrom(
+			netip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01}),
+			128,
+		),
 		Precedence: 50,
 		Label:      0,
 	},
 	{
 		// "::ffff:0:0/96"
 		// IPv4-compatible, etc.
-		Prefix:     netip.PrefixFrom(netip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff}), 96),
+		Prefix: netip.PrefixFrom(
+			netip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff}),
+			96,
+		),
 		Precedence: 35,
 		Label:      4,
 	},
@@ -369,9 +377,9 @@ func commonPrefixLen(a netip.Addr, b net.IP) (cpl int) {
 			bits--
 			if ab == bb {
 				cpl += bits
-				return
+				return cpl
 			}
 		}
 	}
-	return
+	return cpl
 }
