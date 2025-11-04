@@ -54,7 +54,8 @@ func LoadConfigurationFromArgs(args *Args, logger zerolog.Logger) *Config {
 	}
 
 	if args.CacheShards < 1 || args.CacheShards > 256 {
-		logger.Fatal().Msgf("cache-shards value %d is out of range, it must be between 1 and 256", args.CacheShards)
+		logger.Fatal().
+			Msgf("cache-shards value %d is out of range, it must be between 1 and 256", args.CacheShards)
 	}
 
 	cfg := &Config{

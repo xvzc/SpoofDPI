@@ -29,7 +29,7 @@ func SetProxy(port uint16) error {
 		return err
 	}
 
-	return setProxyInternal(getProxyTypes(), network, "127.0.0.1", port)
+	return setProxyInternal(getProxyTypes(), network, "127.0.0.1", int(port))
 }
 
 func UnsetProxy() error {
@@ -55,7 +55,7 @@ func getProxyTypes() []string {
 	return []string{"webproxy", "securewebproxy"}
 }
 
-func setProxyInternal(proxyTypes []string, network, domain string, port uint16) error {
+func setProxyInternal(proxyTypes []string, network, domain string, port int) error {
 	args := []string{"", network, domain, strconv.FormatUint(uint64(port), 10)}
 
 	for _, proxyType := range proxyTypes {
