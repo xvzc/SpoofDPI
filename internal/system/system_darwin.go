@@ -1,8 +1,6 @@
 //go:build darwin
 // +build darwin
 
-
-
 package system
 
 import (
@@ -27,7 +25,7 @@ const (
 		" -system-proxy=false."
 )
 
-func SetProxy(port int) error {
+func SetProxy(port uint16) error {
 	if runtime.GOOS != darwinOS {
 		return nil
 	}
@@ -67,7 +65,7 @@ func getProxyTypes() []string {
 	return []string{"webproxy", "securewebproxy"}
 }
 
-func setProxyInternal(proxyTypes []string, network, domain string, port int) error {
+func setProxyInternal(proxyTypes []string, network, domain string, port uint16) error {
 	args := []string{"", network, domain, strconv.FormatUint(uint64(port), 10)}
 
 	for _, proxyType := range proxyTypes {
