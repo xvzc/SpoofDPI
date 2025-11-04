@@ -24,7 +24,7 @@ func NewLogger(debug bool) zerolog.Logger {
 	partsOrder := []string{
 		zerolog.LevelFieldName,
 		zerolog.TimestampFieldName,
-		traceIDFieldName, // Custom fields are placed before the message
+		traceIDFieldName, // Custom fields are placed before the message.
 		scopeFieldName,
 		zerolog.MessageFieldName,
 	}
@@ -72,7 +72,7 @@ func NewLogger(debug bool) zerolog.Logger {
 	return logger.With().Timestamp().Logger()
 }
 
-// This is the recommended helper for components (like HttpHandler or DnsResolver)
+// WithScope is a helper for components (like HttpHandler or DnsResolver)
 // to create a sub-logger with their component name.
 func WithScope(logger zerolog.Logger, scope string) zerolog.Logger {
 	return logger.With().Str(scopeFieldName, scope).Logger()
@@ -93,7 +93,7 @@ func (h ctxHook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 		return
 	}
 
-	// request-scoped values like trace_id.
+	// Request-scoped values like trace_id.
 	// Scope is expected to be added at the component's creation time.
 	if traceId, ok := appctx.TraceIDFrom(ctx); ok {
 		e.Str(traceIDFieldName, traceId)
