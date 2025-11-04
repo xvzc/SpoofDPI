@@ -9,17 +9,17 @@ import (
 )
 
 type Args struct {
-	Addr           string
-	Port           uint16
+	AllowedPattern StringArray
+	Debug          bool
 	DnsAddr        string
 	DnsPort        uint16
 	DnsIPv4Only    bool
-	EnableDoh      bool
-	Debug          bool
+	EnableDOH      bool
+	ListenAddr     string
+	ListenPort     uint16
 	Silent         bool
 	SystemProxy    bool
 	Timeout        uint16
-	AllowedPattern StringArray
 	WindowSize     uint16
 	Version        bool
 }
@@ -38,27 +38,52 @@ func (arr *StringArray) Set(value string) error {
 func ParseArgs() *Args {
 	args := new(Args)
 
-	flag.StringVar(&args.Addr, "addr", "127.0.0.1", "listen address")
-	uintNVar(&args.Port, "port", 8080, "port")
+	flag.StringVar(&args.ListenAddr, "listen-addr", "127.0.0.1", "ip addr to listen on")
+	uintNVar(&args.ListenPort, "listen-port", 8080, "port number to listen on")
 	flag.StringVar(&args.DnsAddr, "dns-addr", "8.8.8.8", "dns address")
 	uintNVar(&args.DnsPort, "dns-port", 53, "port number for dns")
-	flag.BoolVar(&args.EnableDoh, "enable-doh", false, "enable 'dns-over-https'")
+	flag.BoolVar(&args.EnableDOH, "enable-doh", false, "enable 'dns-over-https'")
 	flag.BoolVar(&args.Debug, "debug", false, "enable debug output")
-	flag.BoolVar(&args.Silent, "silent", false, "do not show the banner and server information at start up")
+	flag.BoolVar(
+		&args.Silent,
+		"silent",
+		false,
+		"do not show the banner and server information at start up",
+	)
 	flag.BoolVar(&args.SystemProxy, "system-proxy", true, "enable system-wide proxy")
-	uintNVar(&args.Timeout, "timeout", 0, "timeout in milliseconds; no timeout when not given")
-	uintNVar(&args.WindowSize, "window-size", 0, `chunk size, in number of bytes, for fragmented client hello,
+	uintNVar(
+		&args.Timeout,
+		"timeout",
+		0,
+		"timeout in milliseconds; no timeout when not given",
+	)
+	uintNVar(
+		&args.WindowSize,
+		"window-size",
+		0,
+		`chunk size, in number of bytes, for fragmented client hello,
 try lower values if the default value doesn't bypass the DPI;
 when not given, the client hello packet will be sent in two parts:
 fragmentation for the first data packet and the rest
-`)
-	flag.BoolVar(&args.Version, "v", false, "print spoofdpi's version; this may contain some other relevant information")
+`,
+	)
+	flag.BoolVar(
+		&args.Version,
+		"v",
+		false,
+		"print spoofdpi's version; this may contain some other relevant information",
+	)
 	flag.Var(
 		&args.AllowedPattern,
 		"pattern",
 		"bypass DPI only on packets matching this regex pattern; can be given multiple times",
 	)
-	flag.BoolVar(&args.DnsIPv4Only, "dns-ipv4-only", false, "resolve only version 4 addresses")
+	flag.BoolVar(
+		&args.DnsIPv4Only,
+		"dns-ipv4-only",
+		false,
+		"resolve only version 4 addresses",
+	)
 
 	flag.Parse()
 

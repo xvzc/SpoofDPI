@@ -1,0 +1,107 @@
+package config
+
+import (
+	"net"
+	"regexp"
+	"time"
+
+	"github.com/miekg/dns"
+	"github.com/rs/zerolog"
+)
+
+type Config struct {
+	allowedPatterns []*regexp.Regexp
+	debug           bool
+	dnsAddr         net.IP
+	dnsPort         uint16
+	dnsQueryTypes   []uint16
+	enableDOH       bool
+	listenAddr      net.IP
+	listenPort      uint16
+	setSystemProxy  bool
+	silent          bool
+	timeout         uint16
+	windowSize      uint16
+}
+
+func LoadConfigurationFromArgs(args *Args, logger zerolog.Logger) *Config {
+	dnsAddr := net.ParseIP(args.DnsAddr)
+	if dnsAddr == nil {
+		logger.Fatal().Msgf("invalid dns addr: %s", args.DnsAddr)
+	}
+
+	listenAddr := net.ParseIP(args.ListenAddr)
+	if listenAddr == nil {
+		logger.Fatal().Msgf("invalid listen addr: %s", args.ListenAddr)
+	}
+
+	cfg := &Config{
+		allowedPatterns: parseAllowedPatterns(args.AllowedPattern),
+		debug:           args.Debug,
+		dnsAddr:         dnsAddr,
+		dnsPort:         args.DnsPort,
+		enableDOH:       args.EnableDOH,
+		listenAddr:      listenAddr,
+		listenPort:      args.ListenPort,
+		setSystemProxy:  args.SystemProxy,
+		silent:          args.Silent,
+		timeout:         args.Timeout,
+		windowSize:      args.WindowSize,
+	}
+
+	if args.DnsIPv4Only {
+		cfg.dnsQueryTypes = []uint16{dns.TypeA}
+	} else {
+		cfg.dnsQueryTypes = []uint16{dns.TypeA, dns.TypeAAAA}
+	}
+
+	return cfg
+}
+
+func (c *Config) AllowedPatterns() []*regexp.Regexp {
+	return c.allowedPatterns
+}
+
+func (c *Config) Debug() bool {
+	return c.debug
+}
+
+func (c *Config) DnsAddr() net.IP {
+	return c.dnsAddr
+}
+
+func (c *Config) DnsPort() uint16 {
+	return c.dnsPort
+}
+
+func (c *Config) DnsQueryTypes() []uint16 {
+	return c.dnsQueryTypes
+}
+
+func (c *Config) EnableDOH() bool {
+	return c.enableDOH
+}
+
+func (c *Config) ListenAddr() net.IP {
+	return c.listenAddr
+}
+
+func (c *Config) ListenPort() uint16 {
+	return c.listenPort
+}
+
+func (c *Config) SetSystemProxy() bool {
+	return c.setSystemProxy
+}
+
+func (c *Config) Silent() bool {
+	return c.silent
+}
+
+func (c *Config) Timeout() time.Duration {
+	return time.Duration(c.timeout) * time.Millisecond
+}
+
+func (c *Config) WindowSize() uint16 {
+	return c.windowSize
+}
