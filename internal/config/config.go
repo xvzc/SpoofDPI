@@ -1,6 +1,7 @@
 package config
 
 import (
+	"math"
 	"net"
 	"regexp"
 	"time"
@@ -11,6 +12,7 @@ import (
 
 type Config struct {
 	allowedPatterns []*regexp.Regexp
+	cacheShards     uint64
 	debug           bool
 	dnsAddr         net.IP
 	dnsPort         uint16
@@ -35,18 +37,39 @@ func LoadConfigurationFromArgs(args *Args, logger zerolog.Logger) *Config {
 		logger.Fatal().Msgf("invalid listen addr: %s", args.ListenAddr)
 	}
 
+	if args.ListenPort > math.MaxUint16 {
+		logger.Fatal().Msgf("listen-port value %d is out of range", args.ListenPort)
+	}
+
+	if args.DnsPort > math.MaxUint16 {
+		logger.Fatal().Msgf("dns-port value %d is out of range", args.DnsPort)
+	}
+
+	if args.Timeout > math.MaxUint16 {
+		logger.Fatal().Msgf("timeout value %d is out of range", args.Timeout)
+	}
+
+	if args.WindowSize > math.MaxUint16 {
+		logger.Fatal().Msgf("window-size value %d is out of range", args.WindowSize)
+	}
+
+	if args.CacheShards < 1 || args.CacheShards > 256 {
+		logger.Fatal().Msgf("cache-shards value %d is out of range, it must be between 1 and 256", args.CacheShards)
+	}
+
 	cfg := &Config{
 		allowedPatterns: parseAllowedPatterns(args.AllowedPattern),
+		cacheShards:     uint64(args.CacheShards),
 		debug:           args.Debug,
 		dnsAddr:         dnsAddr,
-		dnsPort:         args.DnsPort,
+		dnsPort:         uint16(args.DnsPort),
 		enableDOH:       args.EnableDOH,
 		listenAddr:      listenAddr,
-		listenPort:      args.ListenPort,
+		listenPort:      uint16(args.ListenPort),
 		setSystemProxy:  args.SystemProxy,
 		silent:          args.Silent,
-		timeout:         args.Timeout,
-		windowSize:      args.WindowSize,
+		timeout:         uint16(args.Timeout),
+		windowSize:      uint16(args.WindowSize),
 	}
 
 	if args.DnsIPv4Only {
@@ -60,6 +83,10 @@ func LoadConfigurationFromArgs(args *Args, logger zerolog.Logger) *Config {
 
 func (c *Config) AllowedPatterns() []*regexp.Regexp {
 	return c.allowedPatterns
+}
+
+func (c *Config) CacheShards() uint64 {
+	return c.cacheShards
 }
 
 func (c *Config) Debug() bool {

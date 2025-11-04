@@ -7,8 +7,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pterm/pterm"
-	"github.com/pterm/pterm/putils"
 	"github.com/xvzc/SpoofDPI/internal/applog"
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/datastruct"
@@ -27,14 +25,15 @@ func main() {
 
 	cfg := config.LoadConfigurationFromArgs(
 		args,
-		applog.WithScope(applog.NewLogger(false), "CONFIG"),
+		applog.WithScope(applog.NewLogger(args.Debug), "CONFIG"),
 	)
 
 	if !cfg.Silent() {
-		printColoredBanner(cfg)
+		printBanner(cfg)
 	}
 
-	logger := applog.WithScope(applog.NewLogger(cfg.Debug()), "MAIN")
+	baseLogger := applog.NewLogger(cfg.Debug())
+	logger := applog.WithScope(baseLogger, "MAIN")
 
 	if cfg.SetSystemProxy() {
 		if err := system.SetProxy(cfg.ListenPort()); err != nil {
@@ -51,20 +50,23 @@ func main() {
 	httpsResolver := dns.NewHTTPSResolver(
 		cfg.DnsAddr(),
 		cfg.DnsQueryTypes(),
-		applog.WithScope(applog.NewLogger(cfg.Debug()), "DNS(HTTPS)"),
+		applog.WithScope(baseLogger, "DNS(HTTPS)"),
 	)
 	localResolver := dns.NewLocalResolver(
 		cfg.DnsQueryTypes(),
-		applog.WithScope(applog.NewLogger(cfg.Debug()), "DNS(LOCAL)"),
+		applog.WithScope(baseLogger, "DNS(LOCAL)"),
 	)
 	plainResolver := dns.NewPlainResolver(
 		cfg.DnsAddr(),
 		cfg.DnsPort(),
 		cfg.DnsQueryTypes(),
-		applog.WithScope(applog.NewLogger(cfg.Debug()), "DNS(PLAIN)"),
+		applog.WithScope(baseLogger, "DNS(PLAIN)"),
 	)
 
-	cache := datastruct.NewTTLCache[dns.RecordSet](32, time.Duration(1*time.Minute))
+	cache := datastruct.NewTTLCache[dns.RecordSet](
+		cfg.CacheShards(),
+		time.Duration(1*time.Minute),
+	)
 
 	routeResolver := dns.NewRouteResolver(
 		cfg.EnableDOH(),
@@ -72,23 +74,23 @@ func main() {
 		dns.NewCacheResolver(
 			cache,
 			plainResolver,
-			applog.WithScope(applog.NewLogger(cfg.Debug()), "DNS(CACHE)"),
+			applog.WithScope(baseLogger, "DNS(CACHE)"),
 		),
 		dns.NewCacheResolver(
 			cache,
 			httpsResolver,
-			applog.WithScope(applog.NewLogger(cfg.Debug()), "DNS(CACHE)"),
+			applog.WithScope(baseLogger, "DNS(CACHE)"),
 		),
-		applog.WithScope(applog.NewLogger(cfg.Debug()), "DNS(ROUTE)"),
+		applog.WithScope(baseLogger, "DNS(ROUTE)"),
 	)
 
 	// Create Proxy handlers with scoped loggers
 	httpHandler := proxy.NewHttpHandler(
-		applog.WithScope(applog.NewLogger(cfg.Debug()), "HTTP"),
+		applog.WithScope(baseLogger, "HTTP"),
 	)
 	httpsHandler := proxy.NewHttpsHandler(
 		cfg.WindowSize(),
-		applog.WithScope(applog.NewLogger(cfg.Debug()), "HTTPS"),
+		applog.WithScope(baseLogger, "HTTPS"),
 	)
 
 	// Create Proxy with a scoped logger
@@ -100,7 +102,7 @@ func main() {
 		routeResolver,
 		httpHandler,
 		httpsHandler,
-		applog.WithScope(applog.NewLogger(cfg.Debug()), "PROXY"),
+		applog.WithScope(baseLogger, "PROXY"),
 	)
 
 	go p.Start()
@@ -124,20 +126,29 @@ func main() {
 	<-done
 }
 
-func printColoredBanner(cfg *config.Config) {
-	cyan := putils.LettersFromStringWithStyle("Spoof", pterm.NewStyle(pterm.FgCyan))
-	purple := putils.LettersFromStringWithStyle(
-		"DPI",
-		pterm.NewStyle(pterm.FgLightMagenta),
-	)
-	_ = pterm.DefaultBigText.WithLetters(cyan, purple).Render()
+func printBanner(cfg *config.Config) {
+	const banner = `
+ .d8888b.                              .d888 8888888b.  8888888b. 8888888
+d88P  Y88b                            d88P"  888  "Y88b 888   Y88b  888
+Y88b.                                 888    888    888 888    888  888
+ "Y888b.   88888b.   .d88b.   .d88b.  888888 888    888 888   d88P  888
+    "Y88b. 888 "88b d88""88b d88""88b 888    888    888 8888888P"   888
+      "888 888  888 888  888 888  888 888    888    888 888         888
+Y88b  d88P 888 d88P Y88..88P Y88..88P 888    888  .d88P 888         888
+ "Y8888P"  88888P"   "Y88P"   "Y88P"  888    8888888P"  888       8888888
+           888
+           888
+           888
+`
 
-	_ = pterm.DefaultBulletList.WithItems([]pterm.BulletListItem{
-		{Level: 0, Text: "ADDR    : " + fmt.Sprint(cfg.ListenAddr())},
-		{Level: 0, Text: "PORT    : " + fmt.Sprint(cfg.ListenPort())},
-		{Level: 0, Text: "DNS     : " + fmt.Sprint(cfg.DnsAddr())},
-		{Level: 0, Text: "DEBUG   : " + fmt.Sprint(cfg.Debug())},
-	}).Render()
-
-	pterm.DefaultBasicText.Println("Press 'CTRL + c' to quit")
+	fmt.Print(banner)
+	fmt.Printf("\n")
+	fmt.Printf(" • LISTEN_ADDR : %s\n", fmt.Sprint(cfg.ListenAddr()))
+	fmt.Printf(" • LISTEN_PORT : %s\n", fmt.Sprint(cfg.ListenPort()))
+	fmt.Printf(" • DNS_ADDR    : %s\n", fmt.Sprint(cfg.DnsAddr()))
+	fmt.Printf(" • DNS_PORT    : %s\n", fmt.Sprint(cfg.DnsPort()))
+	fmt.Printf(" • DEBUG       : %s\n", fmt.Sprint(cfg.Debug()))
+	fmt.Printf("\n")
+	fmt.Printf("Press 'CTRL + c' to quit\n")
+	fmt.Printf("\n")
 }

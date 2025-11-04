@@ -1,26 +1,24 @@
 package config
 
 import (
-	"errors"
 	"flag"
 	"fmt"
-	"strconv"
-	"unsafe"
 )
 
 type Args struct {
 	AllowedPattern StringArray
+	CacheShards    uint
 	Debug          bool
 	DnsAddr        string
-	DnsPort        uint16
+	DnsPort        uint
 	DnsIPv4Only    bool
 	EnableDOH      bool
 	ListenAddr     string
-	ListenPort     uint16
+	ListenPort     uint
 	Silent         bool
 	SystemProxy    bool
-	Timeout        uint16
-	WindowSize     uint16
+	Timeout        uint
+	WindowSize     uint
 	Version        bool
 }
 
@@ -38,10 +36,10 @@ func (arr *StringArray) Set(value string) error {
 func ParseArgs() *Args {
 	args := new(Args)
 
-	flag.StringVar(&args.ListenAddr, "listen-addr", "127.0.0.1", "ip addr to listen on")
-	uintNVar(&args.ListenPort, "listen-port", 8080, "port number to listen on")
+	flag.StringVar(&args.ListenAddr, "listen-addr", "127.0.0.1", "IP address to listen on")
+	flag.UintVar(&args.ListenPort, "listen-port", 8080, "port number to listen on")
 	flag.StringVar(&args.DnsAddr, "dns-addr", "8.8.8.8", "dns address")
-	uintNVar(&args.DnsPort, "dns-port", 53, "port number for dns")
+	flag.UintVar(&args.DnsPort, "dns-port", 53, "port number for dns")
 	flag.BoolVar(&args.EnableDOH, "enable-doh", false, "enable 'dns-over-https'")
 	flag.BoolVar(&args.Debug, "debug", false, "enable debug output")
 	flag.BoolVar(
@@ -51,13 +49,13 @@ func ParseArgs() *Args {
 		"do not show the banner and server information at start up",
 	)
 	flag.BoolVar(&args.SystemProxy, "system-proxy", true, "enable system-wide proxy")
-	uintNVar(
+	flag.UintVar(
 		&args.Timeout,
 		"timeout",
 		0,
 		"timeout in milliseconds; no timeout when not given",
 	)
-	uintNVar(
+	flag.UintVar(
 		&args.WindowSize,
 		"window-size",
 		0,
@@ -84,64 +82,9 @@ fragmentation for the first data packet and the rest
 		false,
 		"resolve only version 4 addresses",
 	)
+	flag.UintVar(&args.CacheShards, "cache-shards", 32, "number of shards to use for ttlcache; it is recommended to set this to be >= the number of CPU cores for optimal performance")
 
 	flag.Parse()
 
 	return args
-}
-
-var (
-	errParse = errors.New("parse error")
-	errRange = errors.New("value out of range")
-)
-
-type unsigned interface {
-	~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
-}
-
-func uintNVar[T unsigned](p *T, name string, value T, usage string) {
-	flag.CommandLine.Var(newUintNValue(value, p), name, usage)
-}
-
-type uintNValue[T unsigned] struct {
-	val *T
-}
-
-func newUintNValue[T unsigned](val T, p *T) *uintNValue[T] {
-	*p = val
-	return &uintNValue[T]{val: p}
-}
-
-func (u *uintNValue[T]) Set(s string) error {
-	size := int(unsafe.Sizeof(*u.val) * 8)
-	v, err := strconv.ParseUint(s, 0, size)
-	if err != nil {
-		err = numError(err)
-	}
-	*u.val = T(v)
-	return err
-}
-
-func (u *uintNValue[T]) Get() any {
-	if u.val == nil {
-		return T(0)
-	}
-	return *u.val
-}
-
-func (u *uintNValue[T]) String() string {
-	if u.val == nil {
-		return "0"
-	}
-	return strconv.FormatUint(uint64(*u.val), 10)
-}
-
-func numError(err error) error {
-	if errors.Is(err, strconv.ErrSyntax) {
-		return errParse
-	}
-	if errors.Is(err, strconv.ErrRange) {
-		return errRange
-	}
-	return err
 }
