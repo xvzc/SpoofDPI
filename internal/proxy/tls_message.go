@@ -1,4 +1,4 @@
-package packet
+package proxy
 
 import (
 	"encoding/binary"
@@ -21,7 +21,7 @@ const (
 
 type TLSMessage struct {
 	Header     TLSHeader
-	Raw        []byte //Header + Payload
+	Raw        []byte // Header + Payload
 	RawHeader  []byte
 	RawPayload []byte
 }
@@ -32,7 +32,7 @@ type TLSHeader struct {
 	PayloadLen   uint16
 }
 
-func ReadTLSMessage(r io.Reader) (*TLSMessage, error) {
+func readTLSMessage(r io.Reader) (*TLSMessage, error) {
 	var rawHeader [TLSHeaderLen]byte
 	_, err := io.ReadFull(r, rawHeader[:])
 	if err != nil {
@@ -46,7 +46,12 @@ func ReadTLSMessage(r io.Reader) (*TLSMessage, error) {
 	}
 	if header.PayloadLen > TLSMaxPayloadLen {
 		// Corrupted header? Check integer overflow
-		return nil, fmt.Errorf("invalid TLS header. Type: %x, ProtoVersion: %x, PayloadLen: %x", header.Type, header.ProtoVersion, header.PayloadLen)
+		return nil, fmt.Errorf(
+			"invalid TLS header. Type: %x, ProtoVersion: %x, PayloadLen: %x",
+			header.Type,
+			header.ProtoVersion,
+			header.PayloadLen,
+		)
 	}
 	raw := make([]byte, header.PayloadLen+TLSHeaderLen)
 	copy(raw[0:TLSHeaderLen], rawHeader[:])
