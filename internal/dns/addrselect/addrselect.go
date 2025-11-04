@@ -39,8 +39,8 @@ func sortByRFC6724withSrcs(addrs []net.IPAddr, srcs []netip.Addr) {
 }
 
 // srcAddrs tries to UDP-connect to each address to see if it has a
-// route. (This doesn't send any packets). The destination port
-// number is irrelevant.
+// route. This does not send any packets. The destination port number
+// is irrelevant.
 func srcAddrs(addrs []net.IPAddr) []netip.Addr {
 	srcs := make([]netip.Addr, len(addrs))
 	dst := net.UDPAddr{Port: 9}
@@ -52,7 +52,9 @@ func srcAddrs(addrs []net.IPAddr) []netip.Addr {
 			if src, ok := c.LocalAddr().(*net.UDPAddr); ok {
 				srcs[i], _ = netip.AddrFromSlice(src.IP)
 			}
-			c.Close()
+
+			// Ignore the error from Close, as the connection was only used to get the local address.
+			_ = c.Close()
 		}
 	}
 	return srcs
@@ -77,9 +79,9 @@ func ipAttrOf(ip netip.Addr) ipAttr {
 }
 
 type byRFC6724 struct {
-	addrs    []net.IPAddr // addrs to sort
+	addrs    []net.IPAddr // Addresses to sort.
 	addrAttr []ipAttr
-	srcs     []netip.Addr // or not valid addr if unreachable
+	srcs     []netip.Addr // Or not a valid addr if unreachable.
 	srcAttr  []ipAttr
 }
 
@@ -95,7 +97,7 @@ func (s *byRFC6724) Swap(i, j int) {
 // Less reports whether i is a better destination address for this
 // host than j.
 //
-// The algorithm and variable names comes from RFC 6724 section 6.
+// The algorithm and variable names are from RFC 6724 section 6.
 func (s *byRFC6724) Less(i, j int) bool {
 	DA := s.addrs[i].IP
 	DB := s.addrs[j].IP
@@ -111,7 +113,7 @@ func (s *byRFC6724) Less(i, j int) bool {
 
 	// Rule 1: Avoid unusable destinations.
 	// If DB is known to be unreachable or if Source(DB) is undefined, then
-	// prefer DA.  Similarly, if DA is known to be unreachable or if
+	// prefer DA. Similarly, if DA is known to be unreachable or if
 	// Source(DA) is undefined, then prefer DB.
 	if !SourceDA.IsValid() && !SourceDB.IsValid() {
 		return false // "equal"
@@ -125,7 +127,7 @@ func (s *byRFC6724) Less(i, j int) bool {
 
 	// Rule 2: Prefer matching scope.
 	// If Scope(DA) = Scope(Source(DA)) and Scope(DB) <> Scope(Source(DB)),
-	// then prefer DA.  Similarly, if Scope(DA) <> Scope(Source(DA)) and
+	// then prefer DA. Similarly, if Scope(DA) <> Scope(Source(DA)) and
 	// Scope(DB) = Scope(Source(DB)), then prefer DB.
 	if attrDA.Scope == attrSourceDA.Scope && attrDB.Scope != attrSourceDB.Scope {
 		return preferDA
@@ -139,19 +141,19 @@ func (s *byRFC6724) Less(i, j int) bool {
 	// Similarly, if Source(DA) is not deprecated and Source(DB) is
 	// deprecated, then prefer DA.
 
-	// TODO(bradfitz): implement? low priority for now.
+	// TODO(bradfitz): Implement this. Low priority for now.
 
 	// Rule 4: Prefer home addresses.
 	// If Source(DA) is simultaneously a home address and care-of address
-	// and Source(DB) is not, then prefer DA.  Similarly, if Source(DB) is
+	// and Source(DB) is not, then prefer DA. Similarly, if Source(DB) is
 	// simultaneously a home address and care-of address and Source(DA) is
 	// not, then prefer DB.
 
-	// TODO(bradfitz): implement? low priority for now.
+	// TODO(bradfitz): Implement this. Low priority for now.
 
 	// Rule 5: Prefer matching label.
 	// If Label(Source(DA)) = Label(DA) and Label(Source(DB)) <> Label(DB),
-	// then prefer DA.  Similarly, if Label(Source(DA)) <> Label(DA) and
+	// then prefer DA. Similarly, if Label(Source(DA)) <> Label(DA) and
 	// Label(Source(DB)) = Label(DB), then prefer DB.
 	if attrSourceDA.Label == attrDA.Label &&
 		attrSourceDB.Label != attrDB.Label {
@@ -163,7 +165,7 @@ func (s *byRFC6724) Less(i, j int) bool {
 	}
 
 	// Rule 6: Prefer higher precedence.
-	// If Precedence(DA) > Precedence(DB), then prefer DA.  Similarly, if
+	// If Precedence(DA) > Precedence(DB), then prefer DA. Similarly, if
 	// Precedence(DA) < Precedence(DB), then prefer DB.
 	if attrDA.Precedence > attrDB.Precedence {
 		return preferDA
@@ -174,13 +176,13 @@ func (s *byRFC6724) Less(i, j int) bool {
 
 	// Rule 7: Prefer native transport.
 	// If DA is reached via an encapsulating transition mechanism (e.g.,
-	// IPv6 in IPv4) and DB is not, then prefer DB.  Similarly, if DB is
+	// IPv6 in IPv4) and DB is not, then prefer DB. Similarly, if DB is
 	// reached via encapsulation and DA is not, then prefer DA.
 
-	// TODO(bradfitz): implement? low priority for now.
+	// TODO(bradfitz): Implement this. Low priority for now.
 
 	// Rule 8: Prefer smaller scope.
-	// If Scope(DA) < Scope(DB), then prefer DA.  Similarly, if Scope(DA) >
+	// If Scope(DA) < Scope(DB), then prefer DA. Similarly, if Scope(DA) >
 	// Scope(DB), then prefer DB.
 	if attrDA.Scope < attrDB.Scope {
 		return preferDA
@@ -192,12 +194,12 @@ func (s *byRFC6724) Less(i, j int) bool {
 	// Rule 9: Use the longest matching prefix.
 	// When DA and DB belong to the same address family (both are IPv6 or
 	// both are IPv4 [but see below]): If CommonPrefixLen(Source(DA), DA) >
-	// CommonPrefixLen(Source(DB), DB), then prefer DA.  Similarly, if
+	// CommonPrefixLen(Source(DB), DB), then prefer DA. Similarly, if
 	// CommonPrefixLen(Source(DA), DA) < CommonPrefixLen(Source(DB), DB),
 	// then prefer DB.
 	//
 	// However, applying this rule to IPv4 addresses causes
-	// problems (see issues 13283 and 18518), so limit to IPv6.
+	// problems (see issues 13283 and 18518), so it is limited to IPv6.
 	if DA.To4() == nil && DB.To4() == nil {
 		commonA := commonPrefixLen(SourceDA, DA)
 		commonB := commonPrefixLen(SourceDB, DB)
@@ -225,18 +227,24 @@ type policyTableEntry struct {
 type policyTable []policyTableEntry
 
 // RFC 6724 section 2.1.
-// Items are sorted by the size of their Prefix.Mask.Size,
+// Items are sorted by the size of their Prefix.Mask.Size.
 var rfc6724policyTable = policyTable{
 	{
 		// "::1/128"
-		Prefix:     netip.PrefixFrom(netip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01}), 128),
+		Prefix: netip.PrefixFrom(
+			netip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01}),
+			128,
+		),
 		Precedence: 50,
 		Label:      0,
 	},
 	{
 		// "::ffff:0:0/96"
 		// IPv4-compatible, etc.
-		Prefix:     netip.PrefixFrom(netip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff}), 96),
+		Prefix: netip.PrefixFrom(
+			netip.AddrFrom16([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff}),
+			96,
+		),
 		Precedence: 35,
 		Label:      4,
 	},
@@ -337,7 +345,7 @@ func classifyScope(ip netip.Addr) scope {
 // the portion of the address not including the interface ID).
 //
 // If a or b is an IPv4 address as an IPv6 address, the IPv4 addresses
-// are compared (with max common prefix length of 32).
+// are compared (with a max common prefix length of 32).
 // If a and b are different IP versions, 0 is returned.
 //
 // See https://tools.ietf.org/html/rfc6724#section-2.2
@@ -349,7 +357,7 @@ func commonPrefixLen(a netip.Addr, b net.IP) (cpl int) {
 	if len(aAsSlice) != len(b) {
 		return 0
 	}
-	// If IPv6, only up to the prefix (first 64 bits)
+	// If IPv6, only up to the prefix (first 64 bits).
 	if len(aAsSlice) > 8 {
 		aAsSlice = aAsSlice[:8]
 		b = b[:8]
@@ -369,9 +377,9 @@ func commonPrefixLen(a netip.Addr, b net.IP) (cpl int) {
 			bits--
 			if ab == bb {
 				cpl += bits
-				return
+				return cpl
 			}
 		}
 	}
-	return
+	return cpl
 }

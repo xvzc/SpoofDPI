@@ -1,0 +1,218 @@
+version: "2"
+
+linters-settings:
+  errcheck:
+    check-blank: true
+  govet:
+    check-shadowing: true
+  staticcheck:
+    checks: ["SA", "S1", "ST"] # Example checks, adjust as needed
+  unused:
+    check-exported: false
+linters:
+  default: none
+  disable:
+    # - exhaustivestruct
+    - depguard
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - asciicheck
+    - goconst
+    # - revive
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - staticcheck
+    - text: "Error return value of .*(Close|Write|Read) is not checked"
+      linters:
+        - errcheck
+
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+    - golines
+    - swaggo
+  settings:
+    golines:
+      max-len: 88
+      tab-len: 2
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+
+
+
+
+
+
+# version: "2"
+
+# linters:
+#   enable:
+#     - arangolint
+#     - asasalint
+#     - asciicheck
+#     - bidichk
+#     - bodyclose
+#     - canonicalheader
+#     - containedctx
+#     - contextcheck
+#     - copyloopvar
+#     - cyclop
+#     - decorder
+#     - depguard
+#     - dogsled
+#     - dupl
+#     - dupword
+#     - durationcheck
+#     - embeddedstructfieldcheck
+#     - err113
+#     - errcheck
+#     - errchkjson
+#     - errname
+#     - errorlint
+#     - exhaustive
+#     - exhaustruct
+#     - exptostd
+#     - fatcontext
+#     - forbidigo
+#     # - forcetypeassert
+#     - funcorder
+#     - funlen
+#     - ginkgolinter
+#     - gocheckcompilerdirectives
+#     - gochecknoglobals
+#     - gochecknoinits
+#     - gochecksumtype
+#     - gocognit
+#     - goconst
+#     - gocritic
+#     - gocyclo
+#     - godoclint
+#     - godot
+#     - godox
+#     - goheader
+#     - gomoddirectives
+#     - gomodguard
+#     - goprintffuncname
+#     - gosec
+#     - gosmopolitan
+#     - govet
+#     - grouper
+#     - iface
+#     - importas
+#     - inamedparam
+#     - ineffassign
+#     - interfacebloat
+#     - intrange
+#     - iotamixing
+#     - ireturn
+#     - lll
+#     - loggercheck
+#     - maintidx
+#     - makezero
+#     - mirror
+#     - misspell
+#     - mnd
+#     - musttag
+#     - nakedret
+#     - nestif
+#     - nilerr
+#     - nilnesserr
+#     - nilnil
+#     - nlreturn
+#     - noctx
+#     - noinlineerr
+#     - nolintlint
+#     - nonamedreturns
+#     - nosprintfhostport
+#     - paralleltest
+#     - perfsprint
+#     - prealloc
+#     - predeclared
+#     - promlinter
+#     - protogetter
+#     - reassign
+#     - recvcheck
+#     # - revive
+#     - rowserrcheck
+#     - sloglint
+#     - spancheck
+#     - sqlclosecheck
+#     - staticcheck
+#     - tagalign
+#     - tagliatelle
+#     - testableexamples
+#     - testifylint
+#     - testpackage
+#     - thelper
+#     - tparallel
+#     - unconvert
+#     - unparam
+#     - unqueryvet
+#     - unused
+#     - usestdlibvars
+#     - usetesting
+#     # - varnamelen
+#     - wastedassign
+#     - whitespace
+#     - wrapcheck
+#     # - wsl
+#     - wsl_v5
+#     - zerologlint
+#   settings:
+#     wsl_v5:
+#       allow-first-in-block: true
+#       allow-whole-block: false
+#       branch-max-lines: 2
+#       case-max-lines: 0
+#       default: ~ # Can be `all`, `none`, `default` or empty
+#       enable:
+#         - append
+#         - assign
+#         - branch
+#         - defer
+#         - err
+#         - expr
+#         - for
+#         - go
+#         - if
+#         - inc-dec
+#         - label
+#         - range
+#         - return
+#         - select
+#         - send
+#         - switch
+#         - type-switch
+#         - leading-whitespace
+#         - trailing-whitespace
+#       disable:
+#         - decl
+#         - assign-exclusive
+#         - assign-expr
+#
+#
+#
+# formatters:
+#   enable:
+#     - gci
+#     - gofmt
+#     - gofumpt
+#     - goimports
+#     - golines
+#     - swaggo
+#   settings:
+#     golines:
+#       max-len: 88
+#       tab-len: 2

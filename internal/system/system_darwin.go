@@ -1,15 +1,12 @@
 //go:build darwin
 // +build darwin
 
-
-
 package system
 
 import (
 	"errors"
 	"fmt"
 	"os/exec"
-	"runtime"
 	"strconv"
 	"strings"
 )
@@ -18,7 +15,6 @@ const (
 	getDefaultNetworkCMD = "networksetup -listnetworkserviceorder | grep" +
 		" `(route -n get default | grep 'interface' || route -n get -inet6 default | grep 'interface') | cut -d ':' -f2`" +
 		" -B 1 | head -n 1 | cut -d ' ' -f 2-"
-	darwinOS                     = "darwin"
 	permissionErrorHelpTextMacOS = "By default SpoofDPI tries to set itself up as a system-wide proxy server.\n" +
 		"Doing so may require root access on machines with\n" +
 		"'Settings > Privacy & Security > Advanced > Require" +
@@ -27,24 +23,16 @@ const (
 		" -system-proxy=false."
 )
 
-func SetProxy(port int) error {
-	if runtime.GOOS != darwinOS {
-		return nil
-	}
-
+func SetProxy(port uint16) error {
 	network, err := getDefaultNetwork()
 	if err != nil {
 		return err
 	}
 
-	return setProxyInternal(getProxyTypes(), network, "127.0.0.1", port)
+	return setProxyInternal(getProxyTypes(), network, "127.0.0.1", int(port))
 }
 
 func UnsetProxy() error {
-	if runtime.GOOS != darwinOS {
-		return nil
-	}
-
 	network, err := getDefaultNetwork()
 	if err != nil {
 		return err
@@ -105,10 +93,6 @@ func networkSetup(args []string) error {
 }
 
 func isMacOSPermissionError(err error) bool {
-	if runtime.GOOS != darwinOS {
-		return false
-	}
-
 	var exitErr *exec.ExitError
 	ok := errors.As(err, &exitErr)
 	return ok && exitErr.ExitCode() == 14
