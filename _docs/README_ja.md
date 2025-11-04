@@ -7,16 +7,26 @@
 
 ```txt
  ❯ spoofdpi
-███████ ██████   ██████   ██████  ███████ ██████  ██████  ██
-██      ██   ██ ██    ██ ██    ██ ██      ██   ██ ██   ██ ██
-███████ ██████  ██    ██ ██    ██ █████   ██   ██ ██████  ██
-     ██ ██      ██    ██ ██    ██ ██      ██   ██ ██      ██
-███████ ██       ██████   ██████  ██      ██████  ██      ██
 
-• ADDR    : 127.0.0.1
-• PORT    : 8080
-• DNS     : 8.8.8.8
-• DEBUG   : false
+ .d8888b.                              .d888 8888888b.  8888888b. 8888888
+d88P  Y88b                            d88P"  888  "Y88b 888   Y88b  888
+Y88b.                                 888    888    888 888    888  888
+ "Y888b.   88888b.   .d88b.   .d88b.  888888 888    888 888   d88P  888
+    "Y88b. 888 "88b d88""88b d88""88b 888    888    888 8888888P"   888
+      "888 888  888 888  888 888  888 888    888    888 888         888
+Y88b  d88P 888 d88P Y88..88P Y88..88P 888    888  .d88P 888         888
+ "Y8888P"  88888P"   "Y88P"   "Y88P"  888    8888888P"  888       8888888
+           888
+           888
+           888
+
+ • LISTEN_ADDR : 127.0.0.1
+ • LISTEN_PORT : 8080
+ • DNS_ADDR    : 8.8.8.8
+ • DNS_PORT    : 53
+ • DEBUG       : false
+
+Press 'CTRL + c' to quit
 ```
 
 # Installation
@@ -30,8 +40,8 @@ See the installation guide for SpoofDPI [here](https://github.com/xvzc/SpoofDPI/
 # 使用方法
 ```
 Usage: spoofdpi [options...]
-  -addr string
-        listen address (default "127.0.0.1")
+  -cache-shards uint
+        number of shards to use for ttlcache; it is recommended to set this to be >= the number of CPU cores for optimal performance (default 32)
   -debug
         enable debug output
   -dns-addr string
@@ -42,10 +52,12 @@ Usage: spoofdpi [options...]
         port number for dns (default 53)
   -enable-doh
         enable 'dns-over-https'
+  -listen-addr string
+        IP address to listen on (default "127.0.0.1")
+  -listen-port value
+        port number to listen on (default 8080)
   -pattern value
         bypass DPI only on packets matching this regex pattern; can be given multiple times
-  -port value
-        port (default 8080)
   -silent
         do not show the banner and server information at start up
   -system-proxy
