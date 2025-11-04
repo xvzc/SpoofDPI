@@ -105,14 +105,25 @@ jobs:
         tar -zcvf "spoofdpi-$GOOS-$GOARCH.tar.gz" ./spoofdpi && rm -rf ./spoofdpi
         gh release upload $TAG_NAME "./spoofdpi-$GOOS-$GOARCH.tar.gz"
 
-    - name: linux/mipsle
+    - name: linux/mipsle-hardfloat
       env: 
         GOOS: linux
         GOARCH: mipsle
       run: |
         go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoofdpi 
-        tar -zcvf "spoofdpi-$GOOS-$GOARCH.tar.gz" ./spoofdpi && rm -rf ./spoofdpi
-        gh release upload $TAG_NAME "./spoofdpi-$GOOS-$GOARCH.tar.gz"
+        tar -zcvf "spoofdpi-$GOOS-$GOARCH-hardfloat.tar.gz" ./spoofdpi && rm -rf ./spoofdpi
+        gh release upload $TAG_NAME "./spoofdpi-$GOOS-$GOARCH-hardfloat.tar.gz"
+
+    - name: linux/mipsle-softfloat
+      env: 
+        GOOS: linux
+        GOARCH: mipsle
+        GOMIPS: softfloat
+      run: |
+        go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoofdpi 
+        tar -zcvf "spoofdpi-$GOOS-$GOARCH-softfloat.tar.gz" ./spoofdpi && rm -rf ./spoofdpi
+        gh release upload $TAG_NAME "./spoofdpi-$GOOS-$GOARCH-softfloat.tar.gz"
+
 
     - name: windows/amd64
       env: 
