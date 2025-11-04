@@ -7,17 +7,17 @@ import (
 	"time"
 )
 
-// ttlCacheItem represents a single cached ttlCacheItem, using generics.
+// ttlCacheItem represents a single cached item using generics.
 // T is the generic type of the value being stored.
 type ttlCacheItem[T any] struct {
-	value     T         // value is the cached data of type T.
-	expiresAt time.Time // expiresAt is the time when the item expires.
+	value     T         // The cached data of type T.
+	expiresAt time.Time // The time when the item expires.
 }
 
 // isExpired checks if the item has expired.
 func (i ttlCacheItem[T]) isExpired() bool {
 	if i.expiresAt.IsZero() {
-		// Zero time means no expiration
+		// Zero time means no expiration.
 		return false
 	}
 	return time.Now().After(i.expiresAt)
@@ -31,11 +31,11 @@ type ttlCacheShard[T any] struct {
 
 // TTLCache is a high-performance, sharded, generic TTL cache.
 type TTLCache[T any] struct {
-	shards []*ttlCacheShard[T] // shards is a slice of cache shards.
+	shards []*ttlCacheShard[T] // A slice of cache shards.
 }
 
 // NewTTLCache creates a new sharded TTL cache with a background janitor goroutine.
-// numShards specifies the number of shards to create. Must be > 0.
+// numShards specifies the number of shards to create and must be greater than 0.
 // cleanupInterval specifies how often the janitor should run.
 func NewTTLCache[T any](numShards uint64, cleanupInterval time.Duration) *TTLCache[T] {
 	if numShards == 0 {
@@ -102,7 +102,7 @@ func (c *TTLCache[T]) Get(key string) (T, bool) {
 
 	// 2. Passive expiration: item found but is expired.
 	if i.isExpired() {
-		// Item is expired, acquire write lock to delete it.
+		// Item is expired, so acquire a write lock to delete it.
 		shard.mu.Lock()
 		// Double-check: ensure the item hasn't been replaced
 		// by another goroutine while we were waiting for the write lock.
@@ -131,7 +131,7 @@ func (c *TTLCache[T]) Delete(key string) {
 // --- Background Janitor ---
 
 // ForceCleanup actively scans all shards and deletes expired items.
-// This is called periodically by the janitor, but can also be called manually.
+// This is called periodically by the janitor but can also be called manually.
 func (c *TTLCache[T]) ForceCleanup() {
 	now := time.Now()
 	for _, shard := range c.shards {
