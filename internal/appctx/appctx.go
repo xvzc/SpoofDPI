@@ -29,12 +29,12 @@ func ScopeFrom(ctx context.Context) (string, bool) {
 // a new context carrying it.
 // If one already exists, it returns the original context unmodified.
 func WithNewTraceID(ctx context.Context) context.Context {
-	// Check if traceId already exists.
+	// Check if a traceId already exists.
 	if _, ok := TraceIDFrom(ctx); ok {
-		// It already exists, do nothing.
+		// If it already exists, do nothing.
 		return ctx
 	}
-	// It does not exist, create a new one.
+	// If it does not exist, create a new one.
 	return context.WithValue(ctx, traceIDCtxKey{}, generateTraceId())
 }
 
@@ -74,9 +74,9 @@ func generateTraceId() string {
 		}
 		q, r = q>>4, uint8(q&0xF)
 		if r > 9 {
-			r += 0x27 // 0x27 is 'a' - 10
+			r += 0x27 // 'a' - 10
 		}
-		sb.WriteByte(r + 0x30) // 0x30 is '0'
+		sb.WriteByte(r + 0x30) // '0'
 		if i&7 == 7 && i != 31 {
 			sb.WriteByte(0x2D) // '-'
 		}
