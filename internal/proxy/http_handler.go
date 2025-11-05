@@ -39,6 +39,8 @@ func (h *HTTPHandler) Serve(
 	if err != nil {
 		logger.Debug().
 			Msgf("dial to %s failed: %s", domain, err)
+
+		return
 	}
 
 	// Ensure the remote connection is also closed on exit.
