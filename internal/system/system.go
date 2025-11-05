@@ -3,7 +3,7 @@
 
 package system
 
-func SetProxy(port int) error {
+func SetProxy(port uint16) error {
 	return nil
 }
 
