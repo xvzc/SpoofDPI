@@ -9,8 +9,12 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-func SetProxy(port int) error {
-	key, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Internet Settings`, registry.SET_VALUE)
+func SetProxy(port uint16) error {
+	key, err := registry.OpenKey(
+		registry.CURRENT_USER,
+		`Software\Microsoft\Windows\CurrentVersion\Internet Settings`,
+		registry.SET_VALUE,
+	)
 	if err != nil {
 		return err
 	}
@@ -30,7 +34,11 @@ func SetProxy(port int) error {
 }
 
 func UnsetProxy() error {
-	key, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Internet Settings`, registry.SET_VALUE)
+	key, err := registry.OpenKey(
+		registry.CURRENT_USER,
+		`Software\Microsoft\Windows\CurrentVersion\Internet Settings`,
+		registry.SET_VALUE,
+	)
 	if err != nil {
 		return err
 	}
