@@ -20,6 +20,7 @@ type Args struct {
 	Timeout        uint
 	WindowSize     uint
 	Version        bool
+	FakeHTTPSPackets int
 }
 
 type StringArray []string
@@ -83,6 +84,12 @@ fragmentation for the first data packet and the rest
 		"resolve only version 4 addresses",
 	)
 	flag.UintVar(&args.CacheShards, "cache-shards", 32, "number of shards to use for ttlcache; it is recommended to set this to be >= the number of CPU cores for optimal performance")
+	flag.IntVar(
+		&args.FakeHTTPSPackets,
+		"fake-https-packets",
+		0,
+		"number of fake packets to send before the client hello packet; max 50. The value is typically small (uint8 equivalent). Requires root privilege and libpcap dependency",
+	)
 
 	flag.Parse()
 

@@ -129,6 +129,7 @@ func main() {
 	// create an HTTPS handler.
 	httpsHandler := proxy.NewHttpsHandler(
 		cfg.WindowSize(),
+		cfg.FakeHTTPSPackets(),
 		// hopTracker,
 		packetInjector,
 		applog.WithScope(baseLogger, "HTTPS"),

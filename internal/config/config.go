@@ -24,6 +24,7 @@ type Config struct {
 	silent          bool
 	timeout         uint16
 	windowSize      uint16
+	fakeHTTPSPackets int
 }
 
 func LoadConfigurationFromArgs(args *Args, logger zerolog.Logger) *Config {
@@ -58,6 +59,11 @@ func LoadConfigurationFromArgs(args *Args, logger zerolog.Logger) *Config {
 			Msgf("cache-shards value %d is out of range, it must be between 1 and 256", args.CacheShards)
 	}
 
+	if args.FakeHTTPSPackets > 50 {
+		logger.Fatal().
+			Msgf("fake-https-packets value %d is out of range, it must be between 0 and 50", args.FakeHTTPSPackets)
+	}
+
 	cfg := &Config{
 		allowedPatterns: parseAllowedPatterns(args.AllowedPattern),
 		cacheShards:     uint64(args.CacheShards),
@@ -71,6 +77,7 @@ func LoadConfigurationFromArgs(args *Args, logger zerolog.Logger) *Config {
 		silent:          args.Silent,
 		timeout:         uint16(args.Timeout),
 		windowSize:      uint16(args.WindowSize),
+		fakeHTTPSPackets: args.FakeHTTPSPackets,
 	}
 
 	if args.DnsIPv4Only {
@@ -132,4 +139,8 @@ func (c *Config) Timeout() time.Duration {
 
 func (c *Config) WindowSize() uint16 {
 	return c.windowSize
+}
+
+func (c *Config) FakeHTTPSPackets() int {
+	return c.fakeHTTPSPackets
 }

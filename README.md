@@ -45,13 +45,15 @@ Usage: spoofdpi [options...]
         dns address (default "8.8.8.8")
   -dns-ipv4-only
         resolve only version 4 addresses
-  -dns-port value
+  -dns-port uint
         port number for dns (default 53)
   -enable-doh
         enable 'dns-over-https'
+  -fake-https-packets int
+        number of fake packets to send before the client hello packet; max 50. The value is typically small (uint8 equivalent). Requires root privilege and libpcap dependency
   -listen-addr string
         IP address to listen on (default "127.0.0.1")
-  -listen-port value
+  -listen-port uint
         port number to listen on (default 8080)
   -pattern value
         bypass DPI only on packets matching this regex pattern; can be given multiple times
@@ -59,10 +61,10 @@ Usage: spoofdpi [options...]
         do not show the banner and server information at start up
   -system-proxy
         enable system-wide proxy (default true)
-  -timeout value
+  -timeout uint
         timeout in milliseconds; no timeout when not given
   -v    print spoofdpi's version; this may contain some other relevant information
-  -window-size value
+  -window-size uint
         chunk size, in number of bytes, for fragmented client hello,
         try lower values if the default value doesn't bypass the DPI;
         when not given, the client hello packet will be sent in two parts:
