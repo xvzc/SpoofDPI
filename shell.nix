@@ -7,11 +7,13 @@ let
   unstablePkgs = import unstableTarball { };
 in
 pkgs.mkShell {
+  buildInputs = with pkgs; [
+    libpcap
+  ];
   packages = with pkgs; [
     go
     gopls
     golangci-lint-langserver
-    libpcap
     unstablePkgs.golangci-lint
   ];
 
