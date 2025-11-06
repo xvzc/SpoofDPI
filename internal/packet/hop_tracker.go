@@ -43,6 +43,7 @@ func (ht *HopTracker) StartCapturing() {
 	// Create a new packet source from the handle.
 	packetSource := gopacket.NewPacketSource(ht.handle, ht.handle.LinkType())
 	packets := packetSource.Packets()
+	ht.handle.SetBPFFilter("tcp and (tcp[13] & 18 = 18)")
 
 	// Start a dedicated goroutine to process incoming packets.
 	go func() {
