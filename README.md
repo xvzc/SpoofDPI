@@ -27,12 +27,25 @@ Y88b  d88P 888 d88P Y88..88P Y88..88P 888    888  .d88P 888         888
 Press 'CTRL + c' to quit
 ```
 
-# Installation
-See the installation guide for SpoofDPI [here](https://github.com/xvzc/SpoofDPI/blob/main/_docs/INSTALL.md).
+# Dependencies
+```
+go >= 1.22
+libpcap (optional, to use the --fake-https-packets feature)
+```
 
-<a href="https://repology.org/project/spoofdpi/versions">
-    <img src="https://repology.org/badge/vertical-allrepos/spoofdpi.svg?columns=1" alt="Packaging status">
-</a>  
+# Installation
+```sh
+# To install locally
+GOBIN=~/.local/bin go install github.com/xvzc/SpoofDPI/cmd/spoofdpi@latest
+
+# To install system wide
+GOBIN=/usr/bin go install github.com/xvzc/SpoofDPI/cmd/spoofdpi@latest
+```
+
+# Build from the source
+```sh
+CGO_ENABLED=1 go build -ldflags="-w -s" ./cmd/...
+```
 
 # Usage
 ```
