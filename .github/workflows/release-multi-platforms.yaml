@@ -81,31 +81,47 @@ jobs:
           tar -zcvf "spoofdpi-$GOOS-$GOARCH.tar.gz" ./spoofdpi && rm -rf ./spoofdpi
           gh release upload $TAG_NAME "./spoofdpi-$GOOS-$GOARCH.tar.gz"
 
-  build_macos:
+  build_macos_amd64:
     runs-on: macos-latest
     needs: draft_release
-    name: Build for macOS (amd64, arm64)
+    name: Build for macOS (amd64)
     permissions:
       contents: write
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TAG_NAME: ${{ needs.draft_release.outputs.tag_name }}
+      GOOS: darwin
+      GOARCH: amd64
     steps:
       - uses: actions/checkout@v4
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: 1.22
-      
-      - name: Build darwin/amd64
-        env: { GOOS: darwin, GOARCH: amd64 }
+      - name: Build and Upload (amd64)
         run: |
           go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoofdpi
           tar -zcvf "spoofdpi-$GOOS-$GOARCH.tar.gz" ./spoofdpi && rm -rf ./spoofdpi
           gh release upload $TAG_NAME "./spoofdpi-$GOOS-$GOARCH.tar.gz"
 
-      - name: Build darwin/arm64
-        env: { GOOS: darwin, GOARCH: arm64 }
+  build_macos_arm64:
+    runs-on: macos-14
+    needs: draft_release
+    name: Build for macOS (arm64)
+    permissions:
+      contents: write
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG_NAME: ${{ needs.draft_release.outputs.tag_name }}
+      GOOS: darwin
+      GOARCH: arm64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
+      - name: Build and Upload (arm64)
         run: |
           go build -ldflags="-w -s" github.com/xvzc/SpoofDPI/cmd/spoofdpi
           tar -zcvf "spoofdpi-$GOOS-$GOARCH.tar.gz" ./spoofdpi && rm -rf ./spoofdpi
@@ -128,13 +144,11 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: 1.22
-      
       - name: Install Npcap SDK (C dependency)
         run: |
           choco install npcap -y
           echo "Windows Cgo build requires Npcap SDK (installed via Choco)."
         shell: pwsh
-
       - name: Build and Upload
         run: |
           go build -ldflags="-w -s" -o "spoofdpi-$env:GOOS-$env:GOARCH.exe" github.com/xvzc/SpoofDPI/cmd/spoofdpi
