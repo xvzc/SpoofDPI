@@ -141,7 +141,9 @@ func (h *HTTPSHandler) Serve(
 			if err != nil {
 				logger.Debug().Msgf("error sending fake packet to %s: %s", domain, err)
 			} else {
-				logger.Debug().Msgf("sent %d bytes of fake packets to %s", n, domain)
+				logger.Debug().Msgf(
+					"sent %d bytes of fake packets to %s, nhops: %d", n, domain, nhops,
+				)
 			}
 		}
 
