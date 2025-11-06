@@ -65,9 +65,12 @@ func LoadConfigurationFromArgs(args *Args, logger zerolog.Logger) *Config {
 			Msgf("fake-https-packets value %d is out of range, it must be between 0 and 50", args.FakeHTTPSPackets)
 	}
 
-	if ok, err := regexp.MatchString("^https?://", args.DOHEndpoint); !ok || err != nil {
-		logger.Fatal().
-			Msgf("doh-enpoint value should be https scheme: '%s' does not start with 'https://'", args.DOHEndpoint)
+	if args.DOHEndpoint != "" {
+		if ok, err := regexp.MatchString("^https?://", args.DOHEndpoint); !ok ||
+			err != nil {
+			logger.Fatal().
+				Msgf("doh-enpoint value should be https scheme: '%s' does not start with 'https://'", args.DOHEndpoint)
+		}
 	}
 
 	cfg := &Config{
