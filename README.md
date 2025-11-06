@@ -30,7 +30,7 @@ Press 'CTRL + c' to quit
 # Dependencies
 ```
 go >= 1.22
-libpcap (optional, to use the --fake-https-packets feature)
+libpcap
 ```
 
 # Installation
