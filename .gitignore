@@ -1,7 +1,7 @@
-spoof-dpi
-spoof-dpi-*
-spoof-dpi.*
-!*/spoof-dpi/
+spoofdpi
+spoofdpi-*
+spoofdpi.*
+!*/spoofdpi/
 out/**
 
 .DS_Store
