@@ -51,19 +51,25 @@ CGO_ENABLED=1 go build -ldflags="-w -s" ./cmd/...
 ```
 Usage: spoofdpi [options...]
   -cache-shards uint
-        number of shards to use for ttlcache; it is recommended to set this to be >= the number of CPU cores for optimal performance (default 32)
+        number of shards to use for ttlcache; it is recommended to set
+        this to be >= the number of CPU cores for optimal performance (max 256) (default 32)
   -debug
         enable debug output
   -dns-addr string
         dns address (default "8.8.8.8")
   -dns-ipv4-only
-        resolve only version 4 addresses
+        resolve only IPv4 addresses
   -dns-port uint
         port number for dns (default 53)
+  -doh-endpoint string
+        endpoint for 'dns over https'
   -enable-doh
         enable 'dns-over-https'
-  -fake-https-packets int
-        number of fake packets to send before the client hello packet; max 50. The value is typically small (uint8 equivalent). Requires root privilege and libpcap dependency
+  -fake-https-packets uint
+        number of fake packets to send before the client hello (default 0, max 50)
+        higher values may increase success, but the lowest possible value is recommended.
+        try this if tcp-level fragmentation (via --window-size) does not work.
+        this feature requires root privilege and the 'libpcap' dependency
   -listen-addr string
         IP address to listen on (default "127.0.0.1")
   -listen-port uint
