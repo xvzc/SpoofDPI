@@ -11,6 +11,7 @@ pkgs.mkShell {
     go
     gopls
     golangci-lint-langserver
+    libpcap
     unstablePkgs.golangci-lint
   ];
 

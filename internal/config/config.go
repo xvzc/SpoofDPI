@@ -11,19 +11,21 @@ import (
 )
 
 type Config struct {
-	allowedPatterns []*regexp.Regexp
-	cacheShards     uint64
-	debug           bool
-	dnsAddr         net.IP
-	dnsPort         uint16
-	dnsQueryTypes   []uint16
-	enableDOH       bool
-	listenAddr      net.IP
-	listenPort      uint16
-	setSystemProxy  bool
-	silent          bool
-	timeout         uint16
-	windowSize      uint16
+	allowedPatterns  []*regexp.Regexp
+	cacheShards      uint64
+	debug            bool
+	dnsAddr          net.IP
+	dnsPort          uint16
+	dnsQueryTypes    []uint16
+	dohEndpoint      string
+	enableDOH        bool
+	fakeHTTPSPackets uint8
+	listenAddr       net.IP
+	listenPort       uint16
+	setSystemProxy   bool
+	silent           bool
+	timeout          uint16
+	windowSize       uint16
 }
 
 func LoadConfigurationFromArgs(args *Args, logger zerolog.Logger) *Config {
@@ -58,19 +60,33 @@ func LoadConfigurationFromArgs(args *Args, logger zerolog.Logger) *Config {
 			Msgf("cache-shards value %d is out of range, it must be between 1 and 256", args.CacheShards)
 	}
 
+	if args.FakeHTTPSPackets > 50 {
+		logger.Fatal().
+			Msgf("fake-https-packets value %d is out of range, it must be between 0 and 50", args.FakeHTTPSPackets)
+	}
+
+	if args.DOHEndpoint != "" {
+		if ok, err := regexp.MatchString("^https?://", args.DOHEndpoint); !ok ||
+			err != nil {
+			logger.Fatal().
+				Msgf("doh-enpoint value should be https scheme: '%s' does not start with 'https://'", args.DOHEndpoint)
+		}
+	}
+
 	cfg := &Config{
-		allowedPatterns: parseAllowedPatterns(args.AllowedPattern),
-		cacheShards:     uint64(args.CacheShards),
-		debug:           args.Debug,
-		dnsAddr:         dnsAddr,
-		dnsPort:         uint16(args.DnsPort),
-		enableDOH:       args.EnableDOH,
-		listenAddr:      listenAddr,
-		listenPort:      uint16(args.ListenPort),
-		setSystemProxy:  args.SystemProxy,
-		silent:          args.Silent,
-		timeout:         uint16(args.Timeout),
-		windowSize:      uint16(args.WindowSize),
+		allowedPatterns:  parseAllowedPatterns(args.AllowedPattern),
+		cacheShards:      uint64(args.CacheShards),
+		debug:            args.Debug,
+		dnsAddr:          dnsAddr,
+		dnsPort:          uint16(args.DnsPort),
+		enableDOH:        args.EnableDOH,
+		listenAddr:       listenAddr,
+		listenPort:       uint16(args.ListenPort),
+		setSystemProxy:   args.SystemProxy,
+		silent:           args.Silent,
+		timeout:          uint16(args.Timeout),
+		windowSize:       uint16(args.WindowSize),
+		fakeHTTPSPackets: uint8(args.FakeHTTPSPackets),
 	}
 
 	if args.DnsIPv4Only {
@@ -106,8 +122,16 @@ func (c *Config) DnsQueryTypes() []uint16 {
 	return c.dnsQueryTypes
 }
 
+func (c *Config) DOHEndpoint() string {
+	return c.dohEndpoint
+}
+
 func (c *Config) EnableDOH() bool {
 	return c.enableDOH
+}
+
+func (c *Config) FakeHTTPSPackets() uint8 {
+	return c.fakeHTTPSPackets
 }
 
 func (c *Config) ListenAddr() net.IP {

@@ -8,7 +8,6 @@ import (
 )
 
 // ttlCacheItem represents a single cached item using generics.
-// T is the generic type of the value being stored.
 type ttlCacheItem[T any] struct {
 	value     T         // The cached data of type T.
 	expiresAt time.Time // The time when the item expires.
@@ -17,7 +16,7 @@ type ttlCacheItem[T any] struct {
 // isExpired checks if the item has expired.
 func (i ttlCacheItem[T]) isExpired() bool {
 	if i.expiresAt.IsZero() {
-		// Zero time means no expiration.
+		// zero time means no expiration.
 		return false
 	}
 	return time.Now().After(i.expiresAt)
@@ -46,7 +45,7 @@ func NewTTLCache[T any](numShards uint64, cleanupInterval time.Duration) *TTLCac
 		shards: make([]*ttlCacheShard[T], numShards),
 	}
 
-	for i := uint64(0); i < numShards; i++ {
+	for i := range numShards {
 		c.shards[i] = &ttlCacheShard[T]{
 			items: make(map[string]ttlCacheItem[T]),
 		}
@@ -59,6 +58,15 @@ func NewTTLCache[T any](numShards uint64, cleanupInterval time.Duration) *TTLCac
 	return c
 }
 
+// janitor runs the cleanup goroutine, calling ForceCleanup at the specified interval.
+func (c *TTLCache[T]) janitor(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for range ticker.C {
+		c.ForceCleanup()
+	}
+}
+
 // getShard maps a key to its corresponding cache shard using a hash function.
 func (c *TTLCache[T]) getShard(key string) *ttlCacheShard[T] {
 	hasher := fnv.New64a()
@@ -67,8 +75,9 @@ func (c *TTLCache[T]) getShard(key string) *ttlCacheShard[T] {
 	return c.shards[hash%uint64(len(c.shards))]
 }
 
-// --- Public API ---
-
+// ┌─────────────┐
+// │ PUBLIC APIs │
+// └─────────────┘
 // Set adds an item to the cache, replacing any existing item.
 // If ttl is 0 or negative, the item will never expire (passive-only).
 func (c *TTLCache[T]) Set(key string, value T, ttl time.Duration) {
@@ -128,8 +137,6 @@ func (c *TTLCache[T]) Delete(key string) {
 	shard.mu.Unlock()
 }
 
-// --- Background Janitor ---
-
 // ForceCleanup actively scans all shards and deletes expired items.
 // This is called periodically by the janitor but can also be called manually.
 func (c *TTLCache[T]) ForceCleanup() {
@@ -142,14 +149,5 @@ func (c *TTLCache[T]) ForceCleanup() {
 			}
 		}
 		shard.mu.Unlock()
-	}
-}
-
-// janitor runs the cleanup goroutine, calling ForceCleanup at the specified interval.
-func (c *TTLCache[T]) janitor(interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for range ticker.C {
-		c.ForceCleanup()
 	}
 }

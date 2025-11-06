@@ -11,9 +11,10 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/appctx"
+	"github.com/xvzc/SpoofDPI/internal/packet"
 )
 
-type chunkingFunc func(bytes []byte, size int) [][]byte
+type fragmentationFunc func(bytes []byte, size int) [][]byte
 
 // bufferPool is a package-level pool of 32KB buffers used by io.CopyBuffer
 // to reduce memory allocations and GC pressure in the tunnel hot path.
@@ -27,17 +28,26 @@ var bufferPool = sync.Pool{
 }
 
 type HTTPSHandler struct {
-	windowSize uint16
-	logger     zerolog.Logger
+	windowSize       uint16
+	fakeHTTPSPackets uint8
+	hopTracker       *packet.HopTracker
+	packetInjector   *packet.PacketInjector
+	logger           zerolog.Logger
 }
 
 func NewHttpsHandler(
 	windowSize uint16,
+	fakeHTTPSPackets uint8,
+	hopTrakcer *packet.HopTracker,
+	packetInjector *packet.PacketInjector,
 	logger zerolog.Logger,
 ) *HTTPSHandler {
 	return &HTTPSHandler{
-		windowSize: windowSize,
-		logger:     logger,
+		windowSize:       windowSize,
+		fakeHTTPSPackets: fakeHTTPSPackets,
+		hopTracker:       hopTrakcer,
+		packetInjector:   packetInjector,
+		logger:           logger,
 	}
 }
 
@@ -66,8 +76,9 @@ func (h *HTTPSHandler) Serve(
 	// The remote connection must be closed as soon as it's successfully dialed.
 	defer closeConns(rConn)
 
-	logger.Debug().
-		Msgf("new conn to the server %s -> %s", rConn.LocalAddr(), domain)
+	logger.Debug().Msgf("new conn to the server %s -> %s(%s)",
+		rConn.LocalAddr(), domain, rConn.RemoteAddr(),
+	)
 
 	// Send "200 Connection Established" to the client.
 	_, err = lConn.Write([]byte(req.Proto + " 200 Connection Established\r\n\r\n"))
@@ -112,9 +123,34 @@ func (h *HTTPSHandler) Serve(
 	// The Client Hello must be sent to the server before starting the
 	// bidirectional copy tunnel.
 	if shouldExploit {
+		// ┌──────────────────┐
+		// │ SEND FAKE_PACKET │
+		// └──────────────────┘
+		if h.hopTracker != nil && h.packetInjector != nil && h.fakeHTTPSPackets > 0 {
+			src := rConn.LocalAddr().(*net.TCPAddr)
+			dst := rConn.RemoteAddr().(*net.TCPAddr)
+
+			nhops, ok := h.hopTracker.GetHops(dst.String())
+			if !ok {
+				nhops = 255
+			}
+
+			n, err := h.packetInjector.InjectPacket(
+				ctx, src, dst, nhops-1, packet.FakeClientHello, h.fakeHTTPSPackets,
+			)
+			if err != nil {
+				logger.Debug().Msgf("error sending fake packet to %s: %s", domain, err)
+			} else {
+				logger.Debug().Msgf("sent %d bytes of fake packets to %s", n, domain)
+			}
+		}
+
+		// ┌───────────────────────────┐
+		// │ SEND CHUNKED_CLIENT_HELLO │
+		// └───────────────────────────┘
 		logger.Debug().Msgf("writing chunked client hello to %s", domain)
 
-		var cFunc chunkingFunc
+		var cFunc fragmentationFunc
 		if h.windowSize == 0 {
 			logger.Debug().Msgf("using legacy fragmentation strategy")
 			cFunc = legacyFragmentationStrategy
@@ -223,12 +259,13 @@ func legacyFragmentationStrategy(
 
 func writeChunks(conn net.Conn, c [][]byte) (n int, err error) {
 	total := 0
-	for i := 0; i < len(c); i++ {
+	for i := range c {
 		b, err := conn.Write(c[i])
 		if err != nil {
 			// Return the actual error.
 			return total, err
 		}
+
 		total += b
 	}
 
