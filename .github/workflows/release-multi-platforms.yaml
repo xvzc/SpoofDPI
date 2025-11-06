@@ -144,13 +144,24 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: 1.22
-      - name: Install Npcap SDK (C dependency)
+      
+      - name: Install Npcap (C dependency)
         run: |
-          choco install npcap -y
+          # [FIXED] Force install from the 'chocolatey' source
+          choco install npcap -y --source=chocolatey
           echo "Windows Cgo build requires Npcap SDK (installed via Choco)."
         shell: pwsh
+
       - name: Build and Upload
+        shell: pwsh
         run: |
+          # Set CGO flags to point to the Npcap SDK installation
+          # Npcap 1.x installs headers and libs in the 'Npcap' folder
+          $env:CGO_CFLAGS = "-I'C:\Program Files\Npcap\Include'"
+          
+          # For 64-bit (amd64) builds, use the Lib/x64 folder
+          $env:CGO_LDFLAGS = "-L'C:\Program Files\Npcap\Lib\x64'"
+          
+          # Now, go build will find pcap.h and pcap.lib
           go build -ldflags="-w -s" -o "spoofdpi-$env:GOOS-$env:GOARCH.exe" github.com/xvzc/SpoofDPI/cmd/spoofdpi
           gh release upload $env:TAG_NAME "./spoofdpi-$env:GOOS-$env:GOARCH.exe"
-        shell: pwsh
