@@ -195,8 +195,9 @@ func buildApp(
 	return proxy.NewProxy(
 		cfg.ListenAddr(),
 		cfg.ListenPort(),
+		cfg.PatternsAllowed(),
+		cfg.PatternsIgnored(),
 		cfg.Timeout(),
-		cfg.AllowedPatterns(),
 		routeResolver,
 		httpHandler,
 		httpsHandler,

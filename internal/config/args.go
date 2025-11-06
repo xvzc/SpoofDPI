@@ -6,7 +6,8 @@ import (
 )
 
 type Args struct {
-	AllowedPattern   StringArray
+	PatternsAllowed  StringArray
+	PatternsIgnored  StringArray
 	CacheShards      uint
 	Debug            bool
 	DnsAddr          string
@@ -44,6 +45,7 @@ func ParseArgs() *Args {
 		`number of shards to use for ttlcache; it is recommended to set 
 this to be >= the number of CPU cores for optimal performance (max 256)`,
 	)
+
 	flag.BoolVar(&args.Debug, "debug", false, "enable debug output")
 	flag.StringVar(&args.DnsAddr, "dns-addr", "8.8.8.8", "dns address")
 	flag.BoolVar(
@@ -52,6 +54,7 @@ this to be >= the number of CPU cores for optimal performance (max 256)`,
 		false,
 		"resolve only IPv4 addresses",
 	)
+
 	flag.UintVar(&args.DnsPort, "dns-port", 53, "port number for dns")
 	flag.StringVar(&args.DOHEndpoint, "doh-endpoint", "", "endpoint for 'dns over https'")
 	flag.BoolVar(&args.EnableDOH, "enable-doh", false, "enable 'dns-over-https'")
@@ -64,6 +67,7 @@ higher values may increase success, but the lowest possible value is recommended
 try this if tcp-level fragmentation (via --window-size) does not work.
 this feature requires root privilege and the 'libpcap' dependency`,
 	)
+
 	flag.StringVar(
 		&args.ListenAddr,
 		"listen-addr",
@@ -72,9 +76,16 @@ this feature requires root privilege and the 'libpcap' dependency`,
 	)
 	flag.UintVar(&args.ListenPort, "listen-port", 8080, "port number to listen on")
 	flag.Var(
-		&args.AllowedPattern,
-		"pattern",
-		"bypass DPI only on packets matching this regex pattern; can be given multiple times",
+		&args.PatternsAllowed,
+		"allow",
+		`perform DPI circumvention only on domains matching this regex pattern; 
+can be given multiple times`,
+	)
+	flag.Var(
+		&args.PatternsIgnored,
+		"ignore",
+		`do not perform DPI circumvention on domains matching this regex pattern; 
+can be given multiple times`,
 	)
 	flag.BoolVar(
 		&args.Silent,
@@ -82,6 +93,7 @@ this feature requires root privilege and the 'libpcap' dependency`,
 		false,
 		"do not show the banner and server information at start up",
 	)
+
 	flag.BoolVar(&args.SystemProxy, "system-proxy", true, "enable system-wide proxy")
 	flag.UintVar(
 		&args.Timeout,

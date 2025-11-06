@@ -15,8 +15,9 @@ import (
 type Proxy struct {
 	listenAddr      net.IP
 	listenPort      uint16
+	patternsAllowed []*regexp.Regexp
+	patternsIgnored []*regexp.Regexp
 	timeout         time.Duration
-	allowedPatterns []*regexp.Regexp
 
 	httpHandler  Handler
 	httpsHandler Handler
@@ -27,8 +28,9 @@ type Proxy struct {
 func NewProxy(
 	listenAddr net.IP,
 	listenPort uint16,
+	patternsAllowed []*regexp.Regexp,
+	patternsIgnored []*regexp.Regexp,
 	timeout time.Duration,
-	allowedPatterns []*regexp.Regexp,
 	resolver dns.Resolver,
 	httpHandler Handler,
 	httpsHandler Handler,
@@ -38,7 +40,8 @@ func NewProxy(
 		listenAddr:      listenAddr,
 		listenPort:      listenPort,
 		timeout:         timeout,
-		allowedPatterns: allowedPatterns,
+		patternsAllowed: patternsAllowed,
+		patternsIgnored: patternsIgnored,
 
 		resolver:     resolver,
 		httpHandler:  httpHandler,
@@ -67,9 +70,12 @@ func (pxy *Proxy) Start() {
 			Msgf("connection timeout is set to %d ms", pxy.timeout.Milliseconds())
 	}
 
-	if len(pxy.allowedPatterns) > 0 {
-		logger.Info().
-			Msgf("number of white-listed patterns: %d", len(pxy.allowedPatterns))
+	if len(pxy.patternsAllowed) > 0 || len(pxy.patternsIgnored) > 0 {
+		logger.Info().Msgf(
+			"allowed patterns: %d, ignored patterns: %d",
+			len(pxy.patternsIgnored),
+			len(pxy.patternsIgnored),
+		)
 	}
 
 	for {
@@ -120,7 +126,15 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 		return
 	}
 
-	patternMatched := patternMatches([]byte(domain), pxy.allowedPatterns)
+	patternMatched := true
+	if len(pxy.patternsAllowed) > 0 || len(pxy.patternsIgnored) > 0 {
+		patternMatched = patternMatches(
+			[]byte(domain),
+			pxy.patternsAllowed,
+			pxy.patternsIgnored,
+		)
+	}
+
 	ctx = appctx.WithPatternMatched(ctx, patternMatched)
 
 	rSet, err := pxy.resolver.Resolve(ctx, domain)
@@ -187,13 +201,19 @@ func (pxy *Proxy) isRecursive(
 	return false
 }
 
-func patternMatches(bytes []byte, patterns []*regexp.Regexp) bool {
-	if patterns == nil {
-		return true
+func patternMatches(
+	bytes []byte,
+	patternsAllowed []*regexp.Regexp,
+	patternsIgnored []*regexp.Regexp,
+) bool {
+	for _, p := range patternsIgnored {
+		if p.Match(bytes) {
+			return false
+		}
 	}
 
-	for _, pattern := range patterns {
-		if pattern.Match(bytes) {
+	for _, p := range patternsAllowed {
+		if p.Match(bytes) {
 			return true
 		}
 	}

@@ -11,7 +11,6 @@ import (
 )
 
 type Config struct {
-	allowedPatterns  []*regexp.Regexp
 	cacheShards      uint64
 	debug            bool
 	dnsAddr          net.IP
@@ -22,6 +21,8 @@ type Config struct {
 	fakeHTTPSPackets uint8
 	listenAddr       net.IP
 	listenPort       uint16
+	patternsAllowed  []*regexp.Regexp
+	patternsIgnored  []*regexp.Regexp
 	setSystemProxy   bool
 	silent           bool
 	timeout          uint16
@@ -74,7 +75,6 @@ func LoadConfigurationFromArgs(args *Args, logger zerolog.Logger) *Config {
 	}
 
 	cfg := &Config{
-		allowedPatterns:  parseAllowedPatterns(args.AllowedPattern),
 		cacheShards:      uint64(args.CacheShards),
 		debug:            args.Debug,
 		dnsAddr:          dnsAddr,
@@ -82,6 +82,8 @@ func LoadConfigurationFromArgs(args *Args, logger zerolog.Logger) *Config {
 		enableDOH:        args.EnableDOH,
 		listenAddr:       listenAddr,
 		listenPort:       uint16(args.ListenPort),
+		patternsAllowed:  parseAllowedPatterns(args.PatternsAllowed),
+		patternsIgnored:  parseAllowedPatterns(args.PatternsIgnored),
 		setSystemProxy:   args.SystemProxy,
 		silent:           args.Silent,
 		timeout:          uint16(args.Timeout),
@@ -96,10 +98,6 @@ func LoadConfigurationFromArgs(args *Args, logger zerolog.Logger) *Config {
 	}
 
 	return cfg
-}
-
-func (c *Config) AllowedPatterns() []*regexp.Regexp {
-	return c.allowedPatterns
 }
 
 func (c *Config) CacheShards() uint64 {
@@ -140,6 +138,14 @@ func (c *Config) ListenAddr() net.IP {
 
 func (c *Config) ListenPort() uint16 {
 	return c.listenPort
+}
+
+func (c *Config) PatternsAllowed() []*regexp.Regexp {
+	return c.patternsAllowed
+}
+
+func (c *Config) PatternsIgnored() []*regexp.Regexp {
+	return c.patternsIgnored
 }
 
 func (c *Config) SetSystemProxy() bool {
