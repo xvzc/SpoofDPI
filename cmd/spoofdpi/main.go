@@ -96,6 +96,7 @@ func buildApp(
 
 	// create a resolver for DNS over HTTPS (DoH).
 	httpsResolver := dns.NewHTTPSResolver(
+		cfg.DOHEndpoint(),
 		cfg.DnsAddr(),
 		cfg.DnsQueryTypes(),
 		applog.WithScope(baseLogger, "DNS(HTTPS)"),

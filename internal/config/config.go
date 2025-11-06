@@ -17,6 +17,7 @@ type Config struct {
 	dnsAddr          net.IP
 	dnsPort          uint16
 	dnsQueryTypes    []uint16
+	dohEndpoint      string
 	enableDOH        bool
 	fakeHTTPSPackets uint8
 	listenAddr       net.IP
@@ -62,6 +63,11 @@ func LoadConfigurationFromArgs(args *Args, logger zerolog.Logger) *Config {
 	if args.FakeHTTPSPackets > 50 {
 		logger.Fatal().
 			Msgf("fake-https-packets value %d is out of range, it must be between 0 and 50", args.FakeHTTPSPackets)
+	}
+
+	if ok, err := regexp.MatchString("^https?://", args.DOHEndpoint); !ok || err != nil {
+		logger.Fatal().
+			Msgf("doh-enpoint value should be https scheme: '%s' does not start with 'https://'", args.DOHEndpoint)
 	}
 
 	cfg := &Config{
@@ -111,6 +117,10 @@ func (c *Config) DnsPort() uint16 {
 
 func (c *Config) DnsQueryTypes() []uint16 {
 	return c.dnsQueryTypes
+}
+
+func (c *Config) DOHEndpoint() string {
+	return c.dohEndpoint
 }
 
 func (c *Config) EnableDOH() bool {

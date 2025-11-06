@@ -12,6 +12,7 @@ type Args struct {
 	DnsAddr          string
 	DnsPort          uint
 	DnsIPv4Only      bool
+	DOHEndpoint      string
 	EnableDOH        bool
 	FakeHTTPSPackets uint
 	ListenAddr       string
@@ -52,6 +53,7 @@ this to be >= the number of CPU cores for optimal performance (max 256)`,
 		"resolve only IPv4 addresses",
 	)
 	flag.UintVar(&args.DnsPort, "dns-port", 53, "port number for dns")
+	flag.StringVar(&args.DOHEndpoint, "doh-endpoint", "", "endpoint for 'dns over https'")
 	flag.BoolVar(&args.EnableDOH, "enable-doh", false, "enable 'dns-over-https'")
 	flag.UintVar(
 		&args.FakeHTTPSPackets,

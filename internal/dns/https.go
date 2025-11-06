@@ -24,12 +24,20 @@ type HTTPSResolver struct {
 }
 
 func NewHTTPSResolver(
+	endpoint string,
 	server net.IP,
 	qTypes []uint16,
 	logger zerolog.Logger,
 ) *HTTPSResolver {
+	var upstream string
+	if endpoint != "" {
+		upstream = endpoint
+	} else {
+		upstream = "https://" + server.String() + "/dns-query"
+	}
+
 	return &HTTPSResolver{
-		upstream: "https://" + server.String() + "/dns-query",
+		upstream: upstream,
 		client: &http.Client{
 			Timeout: 5 * time.Second,
 			Transport: &http.Transport{
