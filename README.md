@@ -54,6 +54,9 @@ CGO_ENABLED=1 go build -ldflags="-w -s" ./cmd/...
 # Usage
 ```
 Usage: spoofdpi [options...]
+  -allow value
+        perform DPI circumvention only on domains matching this regex pattern;
+        can be given multiple times
   -cache-shards uint
         number of shards to use for ttlcache; it is recommended to set
         this to be >= the number of CPU cores for optimal performance (max 256) (default 32)
@@ -70,16 +73,17 @@ Usage: spoofdpi [options...]
   -enable-doh
         enable 'dns-over-https'
   -fake-https-packets uint
-        number of fake packets to send before the client hello (default 0, max 50)
+        number of fake packets to send before the client hello (max 50) (default 0)
         higher values may increase success, but the lowest possible value is recommended.
         try this if tcp-level fragmentation (via --window-size) does not work.
         this feature requires root privilege and the 'libpcap' dependency
+  -ignore value
+        do not perform DPI circumvention on domains matching this regex pattern;
+        can be given multiple times. ignored patterns have higher priority than allowed patterns
   -listen-addr string
         IP address to listen on (default "127.0.0.1")
   -listen-port uint
         port number to listen on (default 8080)
-  -pattern value
-        bypass DPI only on packets matching this regex pattern; can be given multiple times
   -silent
         do not show the banner and server information at start up
   -system-proxy
