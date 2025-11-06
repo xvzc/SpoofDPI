@@ -27,6 +27,10 @@ Y88b  d88P 888 d88P Y88..88P Y88..88P 888    888  .d88P 888         888
 Press 'CTRL + c' to quit
 ```
 
+<a href="https://repology.org/project/spoofdpi/versions">
+    <img src="https://repology.org/badge/vertical-allrepos/spoofdpi.svg?columns=1" alt="Packaging status">
+</a>
+
 # Dependencies
 ```
 go >= 1.22
