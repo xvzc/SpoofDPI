@@ -38,6 +38,12 @@ func (arr *StringArray) Set(value string) error {
 
 func ParseArgs() *Args {
 	args := new(Args)
+	flag.Var(
+		&args.PatternsAllowed,
+		"allow",
+		`perform DPI circumvention only on domains matching this regex pattern; 
+can be given multiple times`,
+	)
 	flag.UintVar(
 		&args.CacheShards,
 		"cache-shards",
@@ -62,7 +68,7 @@ this to be >= the number of CPU cores for optimal performance (max 256)`,
 		&args.FakeHTTPSPackets,
 		"fake-https-packets",
 		0,
-		`number of fake packets to send before the client hello (default 0, max 50)
+		`number of fake packets to send before the client hello (max 50) (default 0)
 higher values may increase success, but the lowest possible value is recommended.
 try this if tcp-level fragmentation (via --window-size) does not work.
 this feature requires root privilege and the 'libpcap' dependency`,
@@ -76,16 +82,10 @@ this feature requires root privilege and the 'libpcap' dependency`,
 	)
 	flag.UintVar(&args.ListenPort, "listen-port", 8080, "port number to listen on")
 	flag.Var(
-		&args.PatternsAllowed,
-		"allow",
-		`perform DPI circumvention only on domains matching this regex pattern; 
-can be given multiple times`,
-	)
-	flag.Var(
 		&args.PatternsIgnored,
 		"ignore",
 		`do not perform DPI circumvention on domains matching this regex pattern; 
-can be given multiple times`,
+can be given multiple times. ignored patterns have higher priority than allowed patterns`,
 	)
 	flag.BoolVar(
 		&args.Silent,
