@@ -46,7 +46,7 @@ func (inj *PacketInjector) InjectPacket(
 	dst *net.TCPAddr,
 	ttl uint8,
 	payload []byte,
-	repeat int,
+	repeat uint8,
 ) (int, error) {
 	// set variables for src/dst
 	srcMAC := inj.iface.HardwareAddr
@@ -85,6 +85,7 @@ func (inj *PacketInjector) InjectPacket(
 			Seq:     uint32(rand.Int()), // A random sequence number
 			PSH:     true,               // Push the payload
 			ACK:     true,               // Assuming this is part of an established flow
+			Ack:     uint32(rand.Int()),
 			Window:  12345,
 		}
 		if err := tcpLayer.SetNetworkLayerForChecksum(ipLayer); err != nil {

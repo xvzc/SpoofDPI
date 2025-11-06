@@ -29,20 +29,23 @@ var bufferPool = sync.Pool{
 
 type HTTPSHandler struct {
 	windowSize       uint16
-	fakeHTTPSPackets int
+	fakeHTTPSPackets uint8
+	hopTracker       *packet.HopTracker
 	packetInjector   *packet.PacketInjector
 	logger           zerolog.Logger
 }
 
 func NewHttpsHandler(
 	windowSize uint16,
-	fakeHTTPSPackets int,
+	fakeHTTPSPackets uint8,
+	hopTrakcer *packet.HopTracker,
 	packetInjector *packet.PacketInjector,
 	logger zerolog.Logger,
 ) *HTTPSHandler {
 	return &HTTPSHandler{
 		windowSize:       windowSize,
 		fakeHTTPSPackets: fakeHTTPSPackets,
+		hopTracker:       hopTrakcer,
 		packetInjector:   packetInjector,
 		logger:           logger,
 	}
@@ -123,17 +126,17 @@ func (h *HTTPSHandler) Serve(
 		// ┌──────────────────┐
 		// │ SEND FAKE_PACKET │
 		// └──────────────────┘
-		if h.fakeHTTPSPackets > 0 {
+		if h.hopTracker != nil && h.packetInjector != nil && h.fakeHTTPSPackets > 0 {
 			src := rConn.LocalAddr().(*net.TCPAddr)
 			dst := rConn.RemoteAddr().(*net.TCPAddr)
 
+			nhops, ok := h.hopTracker.GetHops(dst.String())
+			if !ok {
+				nhops = 255
+			}
+
 			n, err := h.packetInjector.InjectPacket(
-				ctx,
-				src,
-				dst,
-				255,
-				packet.FakeClientHello,
-				h.fakeHTTPSPackets,
+				ctx, src, dst, nhops-1, packet.FakeClientHello, h.fakeHTTPSPackets,
 			)
 			if err != nil {
 				logger.Debug().Msgf("error sending fake packet to %s: %s", domain, err)

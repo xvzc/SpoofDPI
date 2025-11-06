@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/applog"
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/datastruct"
@@ -18,9 +19,6 @@ import (
 )
 
 func main() {
-	// ┌───────────────────────────┐
-	// │ PARSE ARGS AND SET CONFIG │
-	// └───────────────────────────┘
 	args := config.ParseArgs()
 	if args.Version {
 		version.PrintVersion()
@@ -39,9 +37,49 @@ func main() {
 	baseLogger := applog.NewLogger(cfg.Debug())
 	logger := applog.WithScope(baseLogger, "MAIN")
 
-	// ┌──────────────────────┐
-	// │ DEPENDENCY INJECTION │
-	// └──────────────────────┘
+	p, err := buildApp(cfg, baseLogger, logger)
+	if err != nil {
+		logger.Fatal().Msgf("failed to build app: %s", err)
+	}
+
+	// start app
+	go p.Start()
+
+	// set system-wide proxy configuration.
+	if cfg.SetSystemProxy() {
+		if err := system.SetProxy(cfg.ListenPort()); err != nil {
+			logger.Fatal().Msgf("error while changing proxy settings: %s", err)
+		}
+		defer func() {
+			if err := system.UnsetProxy(); err != nil {
+				logger.Fatal().Msgf("error while disabling proxy: %s", err)
+			}
+		}()
+	}
+
+	sigs := make(chan os.Signal, 1)
+	done := make(chan bool, 1)
+
+	signal.Notify(
+		sigs,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT,
+		syscall.SIGHUP)
+
+	go func() {
+		<-sigs
+		done <- true
+	}()
+
+	<-done
+}
+
+func buildApp(
+	cfg *config.Config,
+	baseLogger zerolog.Logger,
+	logger zerolog.Logger,
+) (*proxy.Proxy, error) {
 	// create a local resolver.
 	localResolver := dns.NewLocalResolver(
 		cfg.DnsQueryTypes(),
@@ -86,39 +124,57 @@ func main() {
 		applog.WithScope(baseLogger, "DNS(ROUTE)"),
 	)
 
-	// find the default network interface.
-	iface, err := system.FindDefaultInterface()
-	if err != nil {
-		logger.Fatal().Msgf("could not find default interface: %s", err)
-	}
+	var packetInjector *packet.PacketInjector
+	var hopTracker *packet.HopTracker
+	if cfg.FakeHTTPSPackets() > 0 {
+		// find the default network interface.
+		iface, err := system.FindDefaultInterface()
+		if err != nil {
+			return nil, fmt.Errorf("could not find default interface: %s", err)
+		}
 
-	logger.Debug().Msgf("interface name is %s", iface.Name)
+		logger.Debug().Msgf("interface name is %s", iface.Name)
 
-	// get the IPv4 address for the default network interface.
-	ifaceIP, err := system.GetInterfaceIPv4(iface)
-	if err != nil {
-		logger.Fatal().Msgf("could not find ip address of nic: %s", err)
-	}
+		// get the IPv4 address for the default network interface.
+		ifaceIP, err := system.GetInterfaceIPv4(iface)
+		if err != nil {
+			return nil, fmt.Errorf("could not find ip address of nic: %s", err)
+		}
 
-	// create a pcap handle for packet capturing.
-	handle, err := system.CreatePcapHandle(iface)
-	if err != nil {
-		logger.Fatal().
-			Msgf("error opening pcap handle on interface %s: %s", iface.Name, err)
-	}
+		// create a pcap handle for packet capturing.
+		handle, err := system.CreatePcapHandle(iface)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"error opening pcap handle on interface %s: %s",
+				iface.Name,
+				err,
+			)
+		}
 
-	// resolve the MAC address of the gateway.
-	gatewayMAC, err := system.ResolveGatewayMACAddr(handle, iface, ifaceIP, logger)
-	if err != nil {
-		logger.Fatal().Msgf("could not find mac address of gateway: %s", err)
-	}
+		// resolve the MAC address of the gateway.
+		gatewayMAC, err := system.ResolveGatewayMACAddr(handle, iface, ifaceIP, logger)
+		if err != nil {
+			return nil, fmt.Errorf("could not find mac address of gateway: %s", err)
+		}
 
-	// create a packet injector instance.
-	packetInjector, err := packet.NewPacketInjector(handle, iface, gatewayMAC,
-		applog.WithScope(baseLogger, "PACKET"),
-	)
-	if err != nil {
-		logger.Fatal().Msgf("error creating package injector: %s", err)
+		hopCache := datastruct.NewTTLCache[uint8](
+			cfg.CacheShards(),
+			time.Duration(1)*time.Minute,
+		)
+		hopTracker = packet.NewHopTracker(handle, hopCache,
+			applog.WithScope(baseLogger, "HOP_TRACK"),
+		)
+		hopTracker.StartCapturing()
+
+		// create a packet injector instance.
+		packetInjector, err = packet.NewPacketInjector(handle, iface, gatewayMAC,
+			applog.WithScope(baseLogger, "INJECT"),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("error creating package injector: %s", err)
+		}
+	} else {
+		packetInjector = nil
 	}
 
 	// create an HTTP handler.
@@ -130,25 +186,12 @@ func main() {
 	httpsHandler := proxy.NewHttpsHandler(
 		cfg.WindowSize(),
 		cfg.FakeHTTPSPackets(),
-		// hopTracker,
+		hopTracker,
 		packetInjector,
 		applog.WithScope(baseLogger, "HTTPS"),
 	)
 
-	// set system-wide proxy configuration.
-	if cfg.SetSystemProxy() {
-		if err := system.SetProxy(cfg.ListenPort()); err != nil {
-			logger.Fatal().Msgf("error while changing proxy settings: %s", err)
-		}
-		defer func() {
-			if err := system.UnsetProxy(); err != nil {
-				logger.Fatal().Msgf("error while disabling proxy: %s", err)
-			}
-		}()
-	}
-
-	// create a proxy instance.
-	p := proxy.NewProxy(
+	return proxy.NewProxy(
 		cfg.ListenAddr(),
 		cfg.ListenPort(),
 		cfg.Timeout(),
@@ -157,29 +200,7 @@ func main() {
 		httpHandler,
 		httpsHandler,
 		applog.WithScope(baseLogger, "PROXY"),
-	)
-
-	go p.Start()
-
-	// ┌────────────────┐
-	// │ HANDLE SIGNALS │
-	// └────────────────┘
-	sigs := make(chan os.Signal, 1)
-	done := make(chan bool, 1)
-
-	signal.Notify(
-		sigs,
-		syscall.SIGINT,
-		syscall.SIGTERM,
-		syscall.SIGQUIT,
-		syscall.SIGHUP)
-
-	go func() {
-		<-sigs
-		done <- true
-	}()
-
-	<-done
+	), nil
 }
 
 func printBanner(cfg *config.Config) {
