@@ -43,7 +43,8 @@ func runApp(ctx context.Context, cfg *config.Config) {
 	}
 
 	// start app
-	go p.Start()
+	wait := make(chan struct{}) // wait for setup logs to be printed
+	go p.Start(wait)
 
 	// set system-wide proxy configuration.
 	if cfg.SetSystemProxy {
@@ -68,11 +69,13 @@ func runApp(ctx context.Context, cfg *config.Config) {
 		"patterns: allow %d, ignore %d", len(cfg.PatternsAllowed), len(cfg.PatternsIgnored),
 	)
 
-	logger.Info().Msgf("resolver info;")
+	logger.Info().Msgf("dns resolvers;")
 	dnsInfo := resolver.Info()
 	for i := range dnsInfo {
 		logger.Info().Msgf(" • %s", dnsInfo[i].String())
 	}
+
+	wait <- struct{}{}
 
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)

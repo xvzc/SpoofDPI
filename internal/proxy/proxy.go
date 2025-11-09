@@ -50,7 +50,9 @@ func NewProxy(
 	}
 }
 
-func (pxy *Proxy) Start() {
+func (pxy *Proxy) Start(wait chan struct{}) {
+	<-wait
+
 	logger := pxy.logger
 
 	listener, err := net.ListenTCP(
@@ -62,10 +64,7 @@ func (pxy *Proxy) Start() {
 		os.Exit(1)
 	}
 
-	go func() {
-		time.Sleep(time.Duration(200) * time.Millisecond)
-		logger.Info().Msgf("created a listener(%s:%d)", pxy.listenAddr, pxy.listenPort)
-	}()
+	logger.Info().Msgf("created a listener(%s:%d)", pxy.listenAddr, pxy.listenPort)
 
 	for {
 		conn, err := listener.Accept()
