@@ -53,7 +53,6 @@ func NewProxy(
 func (pxy *Proxy) Start() {
 	logger := pxy.logger
 
-	//exhaustruct:ignore
 	listener, err := net.ListenTCP(
 		"tcp",
 		&net.TCPAddr{IP: pxy.listenAddr, Port: int(pxy.listenPort)},
@@ -63,20 +62,10 @@ func (pxy *Proxy) Start() {
 		os.Exit(1)
 	}
 
-	logger.Info().Msgf("created a listener on port %d", pxy.listenPort)
-
-	if pxy.timeout > 0 {
-		logger.Info().
-			Msgf("connection timeout is set to %d ms", pxy.timeout.Milliseconds())
-	}
-
-	if len(pxy.patternsAllowed) > 0 || len(pxy.patternsIgnored) > 0 {
-		logger.Info().Msgf(
-			"allowed patterns: %d, ignored patterns: %d",
-			len(pxy.patternsIgnored),
-			len(pxy.patternsIgnored),
-		)
-	}
+	go func() {
+		time.Sleep(time.Duration(200) * time.Millisecond)
+		logger.Info().Msgf("created a listener(%s:%d)", pxy.listenAddr, pxy.listenPort)
+	}()
 
 	for {
 		conn, err := listener.Accept()
@@ -126,14 +115,11 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 		return
 	}
 
-	patternMatched := true
-	if len(pxy.patternsAllowed) > 0 || len(pxy.patternsIgnored) > 0 {
-		patternMatched = patternMatches(
-			[]byte(domain),
-			pxy.patternsAllowed,
-			pxy.patternsIgnored,
-		)
-	}
+	patternMatched := patternMatches(
+		[]byte(domain),
+		pxy.patternsAllowed,
+		pxy.patternsIgnored,
+	)
 
 	ctx = appctx.WithPatternMatched(ctx, patternMatched)
 
@@ -203,20 +189,32 @@ func (pxy *Proxy) isRecursive(
 
 func patternMatches(
 	bytes []byte,
-	patternsAllowed []*regexp.Regexp,
-	patternsIgnored []*regexp.Regexp,
+	allow []*regexp.Regexp,
+	ignore []*regexp.Regexp,
 ) bool {
-	for _, p := range patternsIgnored {
+	// always true when there's no patterns to check
+	if len(allow) == 0 && len(ignore) == 0 {
+		return true
+	}
+
+	// use whitelist strategy when allow patterns exist
+	// skip checking for ignore patterns this case
+	if len(allow) > 0 {
+		for _, p := range allow {
+			if p.Match(bytes) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	// use blacklist strategy when only ignore patterns exist
+	for _, p := range ignore {
 		if p.Match(bytes) {
 			return false
 		}
 	}
 
-	for _, p := range patternsAllowed {
-		if p.Match(bytes) {
-			return true
-		}
-	}
-
-	return false
+	return true
 }
