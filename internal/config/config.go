@@ -57,11 +57,6 @@ func mergeConfig(argsCfg *Config, tomlCfg *Config, args []string) *Config {
 	for i := 0; i < finalVal.NumField(); i++ {
 		tag := structType.Field(i).Tag.Get("toml")
 
-		// fieldName := structType.Field(i).Name
-		// if fieldName == "PatternsAllowed" || fieldName == "PatternsIgnored" {
-		// 	continue
-		// }
-
 		finalField := finalVal.Field(i)
 		argsField := argsVal.Field(i)
 
@@ -76,9 +71,6 @@ func mergeConfig(argsCfg *Config, tomlCfg *Config, args []string) *Config {
 			}
 		}
 	}
-
-	// final.PatternsAllowed = append(final.PatternsAllowed, argsCfg.PatternsAllowed...)
-	// final.PatternsIgnored = append(final.PatternsIgnored, argsCfg.PatternsIgnored...)
 
 	return final
 }
