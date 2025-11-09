@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/rs/zerolog"
 )
 
 const (
@@ -22,7 +24,7 @@ const (
 		" -system-proxy=false."
 )
 
-func SetProxy(port uint16) error {
+func SetProxy(port uint16, logger zerolog.Logger) error {
 	network, err := getDefaultNetwork()
 	if err != nil {
 		return err
@@ -31,7 +33,7 @@ func SetProxy(port uint16) error {
 	return setProxyInternal(getProxyTypes(), network, "127.0.0.1", int(port))
 }
 
-func UnsetProxy() error {
+func UnsetProxy(logger zerolog.Logger) error {
 	network, err := getDefaultNetwork()
 	if err != nil {
 		return err
