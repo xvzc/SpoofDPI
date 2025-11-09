@@ -28,7 +28,7 @@ var bufferPool = sync.Pool{
 }
 
 type HTTPSHandler struct {
-	windowSize       uint16
+	windowSize       uint8
 	fakeHTTPSPackets uint8
 	hopTracker       *packet.HopTracker
 	packetInjector   *packet.PacketInjector
@@ -36,7 +36,7 @@ type HTTPSHandler struct {
 }
 
 func NewHttpsHandler(
-	windowSize uint16,
+	windowSize uint8,
 	fakeHTTPSPackets uint8,
 	hopTrakcer *packet.HopTracker,
 	packetInjector *packet.PacketInjector,
