@@ -20,13 +20,14 @@ type ResolverInfo struct {
 }
 
 func (i *ResolverInfo) String() string {
-	s := fmt.Sprintf("%s; %s; ", i.Name, i.Dest)
+	var cached string
 	if i.Cached {
-		s += "cache=true"
+		cached = "cached=1"
 	} else {
-		s += "cache=false"
+		cached = "cached=0"
 	}
-	return s
+
+	return fmt.Sprintf("%s; %s; %s;", i.Name, cached, i.Dest)
 }
 
 type Resolver interface {
