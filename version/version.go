@@ -13,7 +13,7 @@ func Version() string {
 }
 
 func PrintVersion() {
-	println("spoofdpi- Simple and fast anti-censorship tool written in Go.")
+	println("spoofdpi- Simple and fast anti-censorship tool written in Go")
 	println(Version())
 	println("https://github.com/xvzc/SpoofDPI")
 }
