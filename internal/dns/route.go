@@ -5,48 +5,39 @@ import (
 	"fmt"
 	"net"
 	"slices"
-	"strconv"
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/appctx"
 )
 
 type RouteResolver struct {
-	enableDOH bool
-	local     Resolver
-	plain     Resolver
-	https     Resolver
-	logger    zerolog.Logger
+	logger zerolog.Logger
+
+	neighbors []Resolver
 }
 
 func NewRouteResolver(
-	enableDOH bool,
-	local Resolver,
-	plain Resolver,
-	https Resolver,
 	logger zerolog.Logger,
+	neighbors []Resolver,
 ) *RouteResolver {
 	return &RouteResolver{
-		enableDOH: enableDOH,
-		local:     local,
-		plain:     plain,
-		https:     https,
 		logger:    logger,
+		neighbors: neighbors,
 	}
 }
 
 func (rr *RouteResolver) Info() []ResolverInfo {
-	return slices.Concat(rr.local.Info(), rr.plain.Info(), rr.https.Info())
-}
-
-func (rr *RouteResolver) String() string {
-	return "route-resolver"
+	var ret []ResolverInfo
+	for _, v := range rr.neighbors {
+		ret = slices.Concat(ret, v.Info())
+	}
+	return ret
 }
 
 func (rr *RouteResolver) Resolve(
 	ctx context.Context,
 	domain string,
+	qTypes []uint16,
 ) (RecordSet, error) {
 	logger := rr.logger.With().Ctx(ctx).Logger()
 
@@ -54,47 +45,42 @@ func (rr *RouteResolver) Resolve(
 		return RecordSet{addrs: []net.IPAddr{(*ip)}, ttl: 0}, nil
 	}
 
-	patternMatched, ok := appctx.PatternMatchedFrom(ctx)
-	if !ok {
-		logger.Debug().Msg("failed to retrieve 'patternMatched' value from ctx")
-	}
-
-	useSystemDns := !patternMatched
-
-	logger.Debug().
-		Msgf("value of 'useSystemDns' is '%s'", strconv.FormatBool(useSystemDns))
-
-	resolver := rr.route(useSystemDns)
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	logger.Debug().Msgf("routing %s to %s", domain, resolver)
+	resolver, ok := rr.Route(ctx)
+	if !ok {
+		return RecordSet{addrs: []net.IPAddr{}, ttl: 0}, fmt.Errorf(
+			"error routing resolver",
+		)
+	}
 
-	startedTime := time.Now()
-	rSet, err := resolver.Resolve(ctx, domain)
+	destInfo := resolver.Info()[0]
+	logger.Debug().Msgf("route dns; name=%s; dest=%s; cached=%s;",
+		domain, destInfo.Name, destInfo.Cached.String(),
+	)
+
+	rSet, err := resolver.Resolve(ctx, domain, qTypes)
 	if err != nil {
-		return RecordSet{addrs: []net.IPAddr{}, ttl: 0}, fmt.Errorf("%s: %w", rr, err)
+		return RecordSet{addrs: []net.IPAddr{}, ttl: 0}, err
 	}
 
-	if rSet.Counts() > 0 {
-		deltaTime := time.Since(startedTime).Milliseconds()
-		logger.Debug().Msgf("dns resolution took %d ms for %s", deltaTime, domain)
-		return rSet, nil
-	}
-
-	return rSet, fmt.Errorf("could not resolve %s using %s", domain, resolver)
+	return rSet, nil
 }
 
-func (rr *RouteResolver) route(useSystemDns bool) Resolver {
-	if useSystemDns {
-		return rr.local
+func (rr *RouteResolver) Route(ctx context.Context) (Resolver, bool) {
+	for _, r := range rr.neighbors {
+		next, ok := r.Route(ctx)
+		if !ok {
+			return nil, false
+		}
+
+		if next != nil {
+			return next, true
+		}
 	}
 
-	if rr.enableDOH {
-		return rr.https
-	}
-
-	return rr.plain
+	return nil, false
 }
 
 func parseIpAddr(addr string) (*net.IPAddr, error) {

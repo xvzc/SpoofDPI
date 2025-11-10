@@ -3,6 +3,7 @@ package packet
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/gopacket"
@@ -16,25 +17,25 @@ import (
 // HopTracker monitors a pcap handle to find SYN/ACK packets and
 // stores their estimated hop count into a TTLCache.
 type HopTracker struct {
-	handle *pcap.Handle
-	// The cache stores hop counts (uint8)
-	cache  *datastruct.TTLCache[uint8]
 	logger zerolog.Logger
+
+	cache  *datastruct.TTLCache[uint8] // The cache stores hop counts (uint8)
+	handle *pcap.Handle
 }
 
 // NewHopTracker creates a new HopTracker.
 func NewHopTracker(
-	handle *pcap.Handle,
-	cache *datastruct.TTLCache[uint8],
 	logger zerolog.Logger,
+	cache *datastruct.TTLCache[uint8],
+	handle *pcap.Handle,
 ) *HopTracker {
 	// Error checking for nil handle and cache has been removed
 	// as per the request.
 
 	return &HopTracker{
-		handle: handle,
-		cache:  cache,
 		logger: logger,
+		cache:  cache,
+		handle: handle,
 	}
 }
 
@@ -43,7 +44,7 @@ func (ht *HopTracker) StartCapturing() {
 	// Create a new packet source from the handle.
 	packetSource := gopacket.NewPacketSource(ht.handle, ht.handle.LinkType())
 	packets := packetSource.Packets()
-	ht.handle.SetBPFFilter("tcp and (tcp[13] & 18 = 18)")
+	_ = ht.handle.SetBPFFilter("tcp and (tcp[13] & 18 = 18)")
 
 	// Start a dedicated goroutine to process incoming packets.
 	go func() {
@@ -55,10 +56,15 @@ func (ht *HopTracker) StartCapturing() {
 	}()
 }
 
-// GetHops retrieves the estimated hop count for a given key from the cache.
+// GetOptimalHops retrieves the estimated hop count for a given key from the cache.
 // It returns the hop count and true if found, or 0 and false if not found.
-func (ht *HopTracker) GetHops(key string) (uint8, bool) {
-	return ht.cache.Get(key)
+func (ht *HopTracker) GetOptimalHops(key string) uint8 {
+	nhops, ok := ht.cache.Get(key)
+	if !ok || nhops < 1 {
+		return math.MaxUint8 - 1
+	}
+
+	return nhops - 1
 }
 
 // processPacket analyzes a single packet to find SYN/ACKs and store hop counts.
@@ -90,23 +96,15 @@ func (ht *HopTracker) processPacket(ctx context.Context, p gopacket.Packet) {
 
 			// Create the cache key: ServerIP:ServerPort
 			// (The source of the SYN/ACK is the server)
-			cacheKey := fmt.Sprintf("%s:%d", srcIP, tcp.SrcPort)
+			key := fmt.Sprintf("%s:%d", srcIP, tcp.SrcPort)
 
 			// Calculate hop count from the TTL
 			nhops := calculateHops(ttl)
-			if nhops > 0 {
-				// Store the hop count in the cache with a short TTL
-				ht.cache.Set(cacheKey, nhops, 180*time.Second)
-				logger.Debug().
-					Msgf("detected SYN/ACK and stored hop count: %s, TTL: %d, Hops: %d",
-						cacheKey, ttl, nhops,
-					)
-			} else {
-				logger.Debug().
-					Msgf("detected SYN/ACK, but could not estimate hop count: %s, TTL: %d",
-						cacheKey, ttl,
-					)
-			}
+			ht.cache.Set(key, nhops, 180*time.Second)
+			logger.Trace().
+				Msgf("received syn+ack; src=%s; ttl=%d; nhops=%d;",
+					key, ttl, nhops,
+				)
 		}
 	}
 }

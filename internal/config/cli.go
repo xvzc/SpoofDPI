@@ -66,13 +66,6 @@ func CreateCommand(runFunc func(ctx context.Context, cfg *Config)) *cli.Command 
 				Sources:  cli.EnvVars("SPOOFDPI_CONFIG"),
 			},
 
-			&cli.BoolFlag{
-				Name: "debug",
-				Usage: `
-				enable debug output`,
-				OnlyOnce: true,
-			},
-
 			&cli.StringFlag{
 				Name: "dns-addr",
 				Usage: `
@@ -167,6 +160,15 @@ func CreateCommand(runFunc func(ctx context.Context, cfg *Config)) *cli.Command 
 				Value:     8080,
 				OnlyOnce:  true,
 				Validator: validateUint16,
+			},
+
+			&cli.StringFlag{
+				Name: "log-level",
+				Usage: `
+				set log level (default: 'info')`,
+				Value:     "info",
+				OnlyOnce:  true,
+				Validator: validateLogLevel,
 			},
 
 			&cli.BoolFlag{
@@ -289,7 +291,6 @@ GLOBAL OPTIONS:
 func parseConfigFromArgs(cmd *cli.Command) (*Config, error) {
 	cfg := &Config{
 		CacheShards:      Uint8Number{uint8(cmd.Int("cache-shards"))},
-		Debug:            cmd.Bool("debug"),
 		DnsAddr:          IPAddress{net.ParseIP(cmd.String("dns-addr"))},
 		DnsPort:          Uint16Number{uint16(cmd.Int("dns-port"))},
 		DnsIPv4Only:      cmd.Bool("dns-ipv4-only"),
@@ -297,6 +298,7 @@ func parseConfigFromArgs(cmd *cli.Command) (*Config, error) {
 		EnableDOH:        cmd.Bool("enable-doh"),
 		ListenAddr:       IPAddress{net.ParseIP(cmd.String("listen-addr"))},
 		ListenPort:       Uint16Number{uint16(cmd.Int("listen-port"))},
+		LogLevel:         LogLevel{cmd.String("log-level")},
 		PatternsAllowed:  ParseRegexPatterns(cmd.StringSlice("allow")),
 		PatternsIgnored:  ParseRegexPatterns(cmd.StringSlice("ignore")),
 		SetSystemProxy:   cmd.Bool("system-proxy"),

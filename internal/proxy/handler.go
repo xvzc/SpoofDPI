@@ -2,13 +2,17 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"time"
+
+	"github.com/rs/zerolog"
 )
 
 type Handler interface {
-	Serve(
+	HandleRequest(
 		ctx context.Context,
 		lConn net.Conn,
 		req *HttpRequest,
@@ -64,4 +68,47 @@ func dialFirstSuccessful(
 	}
 
 	return rConn, nil
+}
+
+// tunnel handles the bidirectional io.Copy between the client and server.
+func tunnel(
+	_ context.Context,
+	logger zerolog.Logger,
+	dst net.Conn, // Renamed for io.Copy clarity (Destination)
+	src net.Conn, // Renamed for io.Copy clarity (Source)
+	domain string,
+	closeOnReturn bool,
+) {
+	// The client-to-server goroutine is responsible for closing both connections
+	// when it finishes, which will unblock the server-to-client copy.
+	if closeOnReturn {
+		defer closeConns(dst, src)
+	}
+
+	// Use a buffer from the pool to reduce allocations.
+	// 1. Get a buffer from the pool (zero allocation).
+	bufPtr := bufferPool.Get().(*[]byte)
+	// 2. Ensure the buffer is returned to the pool when the tunnel closes.
+	defer bufferPool.Put(bufPtr)
+
+	// 3. Use the borrowed buffer with io.CopyBuffer.
+	// This copies from src to dst.
+	n, err := io.CopyBuffer(dst, src, *bufPtr)
+	if err != nil {
+		if !errors.Is(err, net.ErrClosed) && err != io.EOF {
+			logger.Debug().Msgf("error while copying data from %s to %s: %s",
+				src.RemoteAddr().String(), dst.RemoteAddr().String(), err,
+			)
+		}
+	}
+
+	if n > 0 {
+		logger.Trace().Msgf("copied %d bytes from %s to %s",
+			n, src.RemoteAddr().String(), dst.RemoteAddr().String(),
+		)
+	}
+
+	logger.Trace().Msgf("closing tunnel %s -> %s for %s",
+		src.RemoteAddr().String(), dst.RemoteAddr().String(), domain,
+	)
 }

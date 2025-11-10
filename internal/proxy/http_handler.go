@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"io"
 	"net"
 	"time"
 
@@ -21,7 +20,7 @@ func NewHttpHandler(
 	}
 }
 
-func (h *HTTPHandler) Serve(
+func (h *HTTPHandler) HandleRequest(
 	ctx context.Context,
 	lConn net.Conn, // Use the net.Conn interface, not a concrete *net.TCPConn.
 	req *HttpRequest, // Assumes HttpRequest is a custom type for request parsing.
@@ -37,16 +36,17 @@ func (h *HTTPHandler) Serve(
 
 	rConn, err := dialFirstSuccessful(ctx, dstAddrs, dstPort, timeout)
 	if err != nil {
-		logger.Debug().
-			Msgf("dial to %s failed: %s", domain, err)
+		logger.Debug().Msgf("all dial attempts to %s failed: %s", domain, err)
 
 		return
 	}
 
 	// Ensure the remote connection is also closed on exit.
 	defer closeConns(rConn)
-	logger.Debug().
-		Msgf("new connection established %s -> %s", rConn.LocalAddr(), domain)
+
+	logger.Debug().Msgf("new conn; http; %s -> %s(%s);",
+		rConn.LocalAddr(), domain, rConn.RemoteAddr(),
+	)
 
 	// Assumes our custom HttpRequest type has a WriteProxy method
 	// (like net/http.Request.WriteProxy) that correctly formats the
@@ -56,17 +56,21 @@ func (h *HTTPHandler) Serve(
 		return
 	}
 
-	// All custom concurrency logic is replaced by io.Copy.
-	// HTTP is a request/response flow. After the request is sent,
-	// we only need to copy the response back from the server to the client.
-	// This one line replaces the complex and buggy copyData and sync logic.
-	if _, err := io.Copy(lConn, rConn); err != nil {
-		// io.EOF is a clean shutdown (the server finished sending data),
-		// so it's not an error we need to log.
-		if err != io.EOF {
-			logger.Debug().Msgf("server->client copy error: %v", err)
-		}
-	}
+	// Start the tunnel using the refactored helper function.
+	go tunnel(ctx, logger, rConn, lConn, domain, true)
+	tunnel(ctx, logger, lConn, rConn, domain, false)
 
+	// // All custom concurrency logic is replaced by io.Copy.
+	// // HTTP is a request/response flow. After the request is sent,
+	// // we only need to copy the response back from the server to the client.
+	// // This one line replaces the complex and buggy copyData and sync logic.
+	// if _, err := io.Copy(lConn, rConn); err != nil {
+	// 	// io.EOF is a clean shutdown (the server finished sending data),
+	// 	// so it's not an error we need to log.
+	// 	if err != io.EOF {
+	// 		logger.Debug().Msgf("server->client copy error: %v", err)
+	// 	}
+	// }
+	//
 	// When Serve returns, both lConn and rConn will be closed by their defers.
 }

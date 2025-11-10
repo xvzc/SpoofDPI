@@ -16,38 +16,41 @@ import (
 // PacketInjector is capable of crafting and injecting L2-L7 packets
 // by manually building headers, bypassing the OS network stack.
 type PacketInjector struct {
+	logger zerolog.Logger
+
+	gatewayMAC net.HardwareAddr // The MAC of the default gateway
 	handle     *pcap.Handle
 	iface      *net.Interface
-	gatewayMAC net.HardwareAddr // The MAC of the default gateway
-	logger     zerolog.Logger
 }
 
 // NewPacketInjector creates a new packet injector for a specific interface.
 // It requires the pcap handle, the interface name, and the gateway's MAC address.
 func NewPacketInjector(
+	logger zerolog.Logger,
+	gatewayMAC net.HardwareAddr, // Gateway MAC is now injected
 	handle *pcap.Handle,
 	iface *net.Interface,
-	gatewayMAC net.HardwareAddr, // Gateway MAC is now injected
-	logger zerolog.Logger,
 ) (*PacketInjector, error) {
 	return &PacketInjector{
+		logger:     logger,
+		gatewayMAC: gatewayMAC, // Store the injected MAC
 		handle:     handle,
 		iface:      iface,
-		gatewayMAC: gatewayMAC, // Store the injected MAC
-		logger:     logger,
 	}, nil
 }
 
-// InjectPacket crafts and injects a full TCP packet from a payload.
+// WriteCraftedPacket crafts and injects a full TCP packet from a payload.
 // It uses the pre-configured gateway MAC address.
-func (inj *PacketInjector) InjectPacket(
+func (inj *PacketInjector) WriteCraftedPacket(
 	ctx context.Context,
 	src *net.TCPAddr,
 	dst *net.TCPAddr,
 	ttl uint8,
 	payload []byte,
 	repeat uint8,
-) (int, error) {
+) error {
+	logger := inj.logger.With().Ctx(ctx).Logger()
+
 	// set variables for src/dst
 	srcMAC := inj.iface.HardwareAddr
 	dstMAC := inj.gatewayMAC // Use the stored MAC
@@ -57,7 +60,7 @@ func (inj *PacketInjector) InjectPacket(
 	dstPort := dst.Port
 
 	if srcIP == nil || dstIP == nil {
-		return 0, errors.New("'InjectPakcet()' currently only supports IPv4")
+		return errors.New("'InjectPakcet()' currently only supports IPv4")
 	}
 
 	totalSent := 0
@@ -89,7 +92,7 @@ func (inj *PacketInjector) InjectPacket(
 			Window:  12345,
 		}
 		if err := tcpLayer.SetNetworkLayerForChecksum(ipLayer); err != nil {
-			return totalSent, fmt.Errorf("failed to set network layer for checksum: %w", err)
+			return fmt.Errorf("failed to set network layer for checksum: %w", err)
 		}
 
 		// serialize the packet (L2 + L3 + L4 + payload)
@@ -106,16 +109,20 @@ func (inj *PacketInjector) InjectPacket(
 			gopacket.Payload(payload),
 		)
 		if err != nil {
-			return totalSent, fmt.Errorf("failed to serialize packet: %w", err)
+			return fmt.Errorf("failed to serialize packet: %w", err)
 		}
 
 		// inject the raw L2 packet
 		if err := inj.handle.WritePacketData(buf.Bytes()); err != nil {
-			return totalSent, fmt.Errorf("failed to inject packet: %w", err)
+			return fmt.Errorf("failed to inject packet: %w", err)
 		}
 
 		totalSent += len(payload)
 	}
 
-	return totalSent, nil
+	logger.Debug().Msgf(
+		"fake packets sent; dest=%s; ttl=%d; len=%d;", dstIP, ttl, totalSent,
+	)
+
+	return nil
 }
