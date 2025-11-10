@@ -34,6 +34,24 @@ func (u *Uint8Number) UnmarshalText(text []byte) error {
 	return nil
 }
 
+type LogLevel struct {
+	value string
+}
+
+func (l *LogLevel) Value() string {
+	return l.value
+}
+
+func (l *LogLevel) UnmarshalText(text []byte) error {
+	if err := validateLogLevel(string(text)); err != nil {
+		return err
+	}
+
+	l.value = string(text)
+
+	return nil
+}
+
 // ┌────────┐
 // │ UINT16 │
 // └────────┘

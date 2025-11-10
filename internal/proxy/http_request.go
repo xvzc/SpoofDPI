@@ -60,6 +60,10 @@ func NewHttpRequest(req *http.Request) *HttpRequest {
 func readHttpRequest(rdr io.Reader) (*HttpRequest, error) {
 	req, err := http.ReadRequest(bufio.NewReader(rdr))
 	if err != nil {
+		if err == io.EOF {
+			return nil, err
+		}
+
 		return nil, fmt.Errorf("failed to read HTTP request: %w", err)
 	}
 	return NewHttpRequest(req), nil
@@ -96,4 +100,12 @@ func (r *HttpRequest) IsValidMethod() bool {
 // IsConnectMethod returns true if the request method is CONNECT
 func (r *HttpRequest) IsConnectMethod() bool {
 	return r.Method == http.MethodConnect
+}
+
+func (r *HttpRequest) ResBadGateway() []byte {
+	return []byte(r.Proto + " 502 Bad Gateway\r\n\r\n")
+}
+
+func (r *HttpRequest) ResConnectionEstablished() []byte {
+	return []byte(r.Proto + " 200 Connection Established\r\n\r\n")
 }

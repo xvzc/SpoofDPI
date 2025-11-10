@@ -47,7 +47,7 @@ func readTLSMessage(r io.Reader) (*TLSMessage, error) {
 	if header.PayloadLen > TLSMaxPayloadLen {
 		// Corrupted header? Check for integer overflow.
 		return nil, fmt.Errorf(
-			"invalid TLS header. Type: %x, ProtoVersion: %x, PayloadLen: %x",
+			"invalid TLS header; Type=%x, ProtoVersion: %x, PayloadLen: %x",
 			header.Type,
 			header.ProtoVersion,
 			header.PayloadLen,

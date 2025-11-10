@@ -2,61 +2,66 @@ package dns
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"strconv"
 
 	"github.com/miekg/dns"
 	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/internal/appctx"
 )
 
 var _ Resolver = (*PlainResolver)(nil)
 
 type PlainResolver struct {
-	client *dns.Client
-	server string
-	qTypes []uint16
 	logger zerolog.Logger
+
+	upstream string
+
+	client *dns.Client
 }
 
 func NewPlainResolver(
+	logger zerolog.Logger,
 	server net.IP,
 	port uint16,
-	qTypes []uint16,
-	logger zerolog.Logger,
 ) *PlainResolver {
 	return &PlainResolver{
-		client: &dns.Client{},
-		server: net.JoinHostPort(server.String(), strconv.Itoa(int(port))),
-		qTypes: qTypes,
-		logger: logger,
+		client:   &dns.Client{},
+		upstream: net.JoinHostPort(server.String(), strconv.Itoa(int(port))),
+		logger:   logger,
 	}
+}
+
+func (pr *PlainResolver) Route(ctx context.Context) (Resolver, bool) {
+	patternMatched, ok := appctx.PatternMatchedFrom(ctx)
+	if !ok {
+		return nil, false
+	}
+
+	if patternMatched {
+		return pr, true
+	}
+
+	return nil, true
 }
 
 func (pr *PlainResolver) Info() []ResolverInfo {
 	return []ResolverInfo{
 		{
 			Name:   "plain",
-			Dest:   pr.server,
-			Cached: false,
+			Dest:   pr.upstream,
+			Cached: CachedStatus{false},
 		},
 	}
-}
-
-func (pr *PlainResolver) String() string {
-	return fmt.Sprintf("plain-resolver(%s)", pr.server)
 }
 
 func (pr *PlainResolver) Resolve(
 	ctx context.Context,
 	domain string,
+	qTypes []uint16,
 ) (RecordSet, error) {
-	logger := pr.logger.With().Ctx(ctx).Logger()
-
-	resCh := lookupAllTypes(ctx, domain, pr.qTypes, pr.exchange)
+	resCh := lookupAllTypes(ctx, domain, qTypes, pr.exchange)
 	rSet, err := processMessages(ctx, resCh)
-
-	logger.Debug().Msgf("resolved %d records for %s", rSet.Counts(), domain)
 
 	return rSet, err
 }
@@ -65,6 +70,6 @@ func (pr *PlainResolver) exchange(
 	ctx context.Context,
 	msg *dns.Msg,
 ) (*dns.Msg, error) {
-	resp, _, err := pr.client.ExchangeContext(ctx, msg, pr.server)
+	resp, _, err := pr.client.ExchangeContext(ctx, msg, pr.upstream)
 	return resp, err
 }

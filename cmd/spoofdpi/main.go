@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	"github.com/xvzc/SpoofDPI/internal/appctx"
 	"github.com/xvzc/SpoofDPI/internal/applog"
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/datastruct"
@@ -21,7 +23,8 @@ import (
 
 func main() {
 	cmd := config.CreateCommand(runApp)
-	if err := cmd.Run(context.Background(), os.Args); err != nil {
+	ctx := appctx.WithNewTraceID(context.Background())
+	if err := cmd.Run(ctx, os.Args); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -31,24 +34,24 @@ func runApp(ctx context.Context, cfg *config.Config) {
 	if !cfg.Silent {
 		printBanner()
 	}
+	applog.SetGlobalLogger(ctx, cfg.LogLevel.Value())
 
-	baseLogger := applog.NewLogger(cfg.Debug)
-	logger := applog.WithScope(baseLogger, "SETUP")
-	logger.Info().Msgf("started spoofdpi %s", version.Version())
+	logger := applog.WithScope(log.Logger, "APP(setup)").With().Ctx(ctx).Logger()
+	logger.Info().Msgf("started spoofdpi; %s;", version.Version())
 
-	resolver := createResolver(cfg, baseLogger)
-	p, err := createProxy(cfg, resolver, baseLogger, logger)
+	resolver := createResolver(logger, cfg)
+	p, err := createProxy(logger, cfg, resolver)
 	if err != nil {
 		logger.Fatal().Msgf("failed to build app: %s", err)
 	}
 
 	// start app
 	wait := make(chan struct{}) // wait for setup logs to be printed
-	go p.Start(wait)
+	go p.ListenAndServe(wait)
 
 	// set system-wide proxy configuration.
 	if cfg.SetSystemProxy {
-		if err := system.SetProxy(cfg.ListenPort.Value(), logger); err != nil {
+		if err := system.SetProxy(logger, cfg.ListenPort.Value()); err != nil {
 			logger.Fatal().Msgf("error while changing proxy settings: %s", err)
 		}
 		defer func() {
@@ -60,19 +63,22 @@ func runApp(ctx context.Context, cfg *config.Config) {
 		logger.Info().Msgf("use '--system-proxy' to automatically set system proxy")
 	}
 
-	if cfg.Timeout.Value() > 0 {
-		logger.Info().
-			Msgf("connection timeout is set to %d ms", cfg.Timeout.Value())
-	}
-
-	logger.Info().Msgf(
-		"patterns: allow %d, ignore %d", len(cfg.PatternsAllowed), len(cfg.PatternsIgnored),
-	)
-
-	logger.Info().Msgf("dns resolvers;")
+	logger.Info().Msgf("dns info;")
+	logger.Info().Msgf("query type; %d;", len(cfg.GenerateDnsQueryTypes()))
+	logger.Info().Msgf("resolvers;")
 	dnsInfo := resolver.Info()
 	for i := range dnsInfo {
 		logger.Info().Msgf(" • %s", dnsInfo[i].String())
+	}
+
+	logger.Info().Msgf("window size; %d;", cfg.WindowSize.Value())
+	logger.Info().Msgf(
+		"patterns; allow=%d; ignore=%d;", len(cfg.PatternsAllowed), len(cfg.PatternsIgnored),
+	)
+
+	if cfg.Timeout.Value() > 0 {
+		logger.Info().
+			Msgf("connection timeout; %dms;", cfg.Timeout.Value())
 	}
 
 	wait <- struct{}{}
@@ -95,26 +101,24 @@ func runApp(ctx context.Context, cfg *config.Config) {
 	<-done
 }
 
-func createResolver(cfg *config.Config, baseLogger zerolog.Logger) dns.Resolver {
+func createResolver(logger zerolog.Logger, cfg *config.Config) dns.Resolver {
 	// create a local resolver.
 	localResolver := dns.NewLocalResolver(
-		cfg.GenerateDnsQueryTypes(),
-		applog.WithScope(baseLogger, "DNS(LOCAL)"),
+		applog.WithScope(logger, "DNS(local)"),
 	)
 
 	// create a plain resolver that uses UDP on port 53.
 	plainResolver := dns.NewPlainResolver(
+		applog.WithScope(logger, "DNS(plain)"),
 		cfg.DnsAddr.Value(),
 		cfg.DnsPort.Value(),
-		cfg.GenerateDnsQueryTypes(),
-		applog.WithScope(baseLogger, "DNS(PLAIN)"),
 	)
 
 	// create a resolver for DNS over HTTPS (DoH).
 	httpsResolver := dns.NewHTTPSResolver(
+		applog.WithScope(logger, "DNS(https)"),
+		cfg.ShouldEnableDOH(),
 		cfg.GenerateDOHEndpoint(),
-		cfg.GenerateDnsQueryTypes(),
-		applog.WithScope(baseLogger, "DNS(HTTPS)"),
 	)
 
 	// create a TTL cache for storing DNS records.
@@ -125,27 +129,27 @@ func createResolver(cfg *config.Config, baseLogger zerolog.Logger) dns.Resolver 
 
 	// create a resolver that routes DNS queries based on rules.
 	return dns.NewRouteResolver(
-		cfg.ShouldEnableDOH(),
-		localResolver,
-		dns.NewCacheResolver(
-			dnsCache,
-			plainResolver,
-			applog.WithScope(baseLogger, "DNS(CACHE)"),
-		),
-		dns.NewCacheResolver(
-			dnsCache,
-			httpsResolver,
-			applog.WithScope(baseLogger, "DNS(CACHE)"),
-		),
-		applog.WithScope(baseLogger, "DNS(ROUTE)"),
+		applog.WithScope(logger, "DNS(route)"),
+		[]dns.Resolver{
+			dns.NewCacheResolver(
+				applog.WithScope(logger, "DNS(cache)"),
+				dnsCache,
+				httpsResolver,
+			),
+			dns.NewCacheResolver(
+				applog.WithScope(logger, "DNS(cache)"),
+				dnsCache,
+				plainResolver,
+			),
+			localResolver,
+		},
 	)
 }
 
 func createProxy(
+	logger zerolog.Logger,
 	cfg *config.Config,
 	resolver dns.Resolver,
-	baseLogger zerolog.Logger,
-	logger zerolog.Logger,
 ) (*proxy.Proxy, error) {
 	var packetInjector *packet.PacketInjector
 	var hopTracker *packet.HopTracker
@@ -153,48 +157,55 @@ func createProxy(
 		// find the default network interface.
 		iface, err := system.FindDefaultInterface()
 		if err != nil {
-			return nil, fmt.Errorf("could not find default interface: %s", err)
+			return nil, fmt.Errorf("could not find default interface: %w", err)
 		}
-
-		logger.Debug().Msgf("interface name is %s", iface.Name)
 
 		// get the IPv4 address for the default network interface.
 		ifaceIP, err := system.GetInterfaceIPv4(iface)
 		if err != nil {
-			return nil, fmt.Errorf("could not find ip address of nic: %s", err)
+			return nil, fmt.Errorf("could not find ip address of nic: %w", err)
 		}
+		logger.Info().Msgf("interface name; %s;", iface.Name)
+		logger.Info().Msgf("interface mac; %s;", iface.HardwareAddr)
+		logger.Info().Msgf("interface ip; %s;", ifaceIP)
 
 		// create a pcap handle for packet capturing.
 		handle, err := system.CreatePcapHandle(iface)
 		if err != nil {
 			return nil, fmt.Errorf(
-				"error opening pcap handle on interface %s: %s",
+				"error opening pcap handle on interface %s: %w",
 				iface.Name,
 				err,
 			)
 		}
 
 		// resolve the MAC address of the gateway.
-		gatewayMAC, err := system.ResolveGatewayMACAddr(handle, iface, ifaceIP, logger)
+		gatewayMAC, err := system.ResolveGatewayMACAddr(logger, handle, iface, ifaceIP)
 		if err != nil {
-			return nil, fmt.Errorf("could not find mac address of gateway: %s", err)
+			return nil, fmt.Errorf("could not find mac address of gateway: %w", err)
 		}
+		logger.Info().Msgf("gateway mac; %s;", gatewayMAC.String())
 
 		hopCache := datastruct.NewTTLCache[uint8](
 			cfg.CacheShards.Value(),
 			time.Duration(3)*time.Minute,
 		)
-		hopTracker = packet.NewHopTracker(handle, hopCache,
-			applog.WithScope(baseLogger, "HOP_TRACK"),
+		hopTracker = packet.NewHopTracker(
+			applog.WithScope(logger, "PKT(track)"),
+			hopCache,
+			handle,
 		)
 		hopTracker.StartCapturing()
 
 		// create a packet injector instance.
-		packetInjector, err = packet.NewPacketInjector(handle, iface, gatewayMAC,
-			applog.WithScope(baseLogger, "INJECT"),
+		packetInjector, err = packet.NewPacketInjector(
+			applog.WithScope(logger, "PKT(write)"),
+			gatewayMAC,
+			handle,
+			iface,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("error creating package injector: %s", err)
+			return nil, fmt.Errorf("error creating package injector: %w", err)
 		}
 	} else {
 		packetInjector = nil
@@ -202,28 +213,29 @@ func createProxy(
 
 	// create an HTTP handler.
 	httpHandler := proxy.NewHttpHandler(
-		applog.WithScope(baseLogger, "HTTP"),
+		applog.WithScope(logger, "PXY(.main)"),
 	)
 
 	// create an HTTPS handler.
 	httpsHandler := proxy.NewHttpsHandler(
-		cfg.WindowSize.Value(),
-		cfg.FakeHTTPSPackets.Value(),
+		applog.WithScope(logger, "HDL(https)"),
 		hopTracker,
 		packetInjector,
-		applog.WithScope(baseLogger, "HTTPS"),
+		cfg.WindowSize.Value(),
+		cfg.FakeHTTPSPackets.Value(),
 	)
 
 	return proxy.NewProxy(
+		applog.WithScope(logger, "HDL(.http)"),
+		resolver,
+		httpHandler,
+		httpsHandler,
 		cfg.ListenAddr.Value(),
 		cfg.ListenPort.Value(),
 		config.ParseRegexpSlices(cfg.PatternsAllowed),
 		config.ParseRegexpSlices(cfg.PatternsIgnored),
+		cfg.GenerateDnsQueryTypes(),
 		time.Duration(cfg.Timeout.Value())*time.Millisecond,
-		resolver,
-		httpHandler,
-		httpsHandler,
-		applog.WithScope(baseLogger, "PROXY"),
 	), nil
 }
 

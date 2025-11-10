@@ -38,7 +38,7 @@ type TTLCache[T any] struct {
 // cleanupInterval specifies how often the janitor should run.
 func NewTTLCache[T any](numShards uint8, cleanupInterval time.Duration) *TTLCache[T] {
 	if numShards == 0 {
-		panic(fmt.Errorf("ttlcache: numShards must be greater than 0, got %d", numShards))
+		panic(fmt.Errorf("numShards must be greater than 0, got %d", numShards))
 	}
 
 	c := &TTLCache[T]{

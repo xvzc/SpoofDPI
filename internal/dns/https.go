@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -12,15 +11,18 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/internal/appctx"
 )
 
 var _ Resolver = (*HTTPSResolver)(nil)
 
 type HTTPSResolver struct {
+	logger zerolog.Logger
+
+	client *http.Client
+
+	enabled  bool
 	endpoint string
-	client   *http.Client
-	qTypes   []uint16
-	logger   zerolog.Logger
 }
 
 func (hr *HTTPSResolver) Upstream() string {
@@ -28,12 +30,12 @@ func (hr *HTTPSResolver) Upstream() string {
 }
 
 func NewHTTPSResolver(
-	endpoint string,
-	qTypes []uint16,
 	logger zerolog.Logger,
+	enabled bool,
+	endpoint string,
 ) *HTTPSResolver {
 	return &HTTPSResolver{
-		endpoint: endpoint,
+		logger: logger,
 		client: &http.Client{
 			Timeout: 5 * time.Second,
 			Transport: &http.Transport{
@@ -46,8 +48,8 @@ func NewHTTPSResolver(
 				MaxIdleConns:        100,
 			},
 		},
-		qTypes: qTypes,
-		logger: logger,
+		enabled:  enabled,
+		endpoint: endpoint,
 	}
 }
 
@@ -56,28 +58,37 @@ func (hr *HTTPSResolver) Info() []ResolverInfo {
 		{
 			Name:   "https",
 			Dest:   hr.endpoint,
-			Cached: false,
+			Cached: CachedStatus{false},
 		},
 	}
 }
 
-func (hr *HTTPSResolver) String() string {
-	return fmt.Sprintf("https-resolver(%s)", hr.endpoint)
+func (hr *HTTPSResolver) Route(ctx context.Context) (Resolver, bool) {
+	patternMatched, ok := appctx.PatternMatchedFrom(ctx)
+	if !ok {
+		return nil, false
+	}
+
+	if hr.enabled && patternMatched {
+		return hr, true
+	}
+
+	return nil, true
 }
 
 func (hr *HTTPSResolver) Resolve(
 	ctx context.Context,
-	host string,
+	domain string,
+	qTypes []uint16,
 ) (RecordSet, error) {
-	logger := hr.logger.With().Ctx(ctx).Logger()
-	logger.Debug().Msgf("resolving %s", host)
-
-	resCh := lookupAllTypes(ctx, host, hr.qTypes, hr.exchange)
+	resCh := lookupAllTypes(ctx, domain, qTypes, hr.exchange)
 	rSet, err := processMessages(ctx, resCh)
 	return rSet, err
 }
 
 func (hr *HTTPSResolver) exchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
+	logger := hr.logger.With().Ctx(ctx).Logger()
+
 	pack, err := msg.Pack()
 	if err != nil {
 		return nil, err
@@ -86,7 +97,8 @@ func (hr *HTTPSResolver) exchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, 
 	url := fmt.Sprintf(
 		"%s?dns=%s",
 		hr.endpoint,
-		base64.RawStdEncoding.EncodeToString(pack),
+		base64.RawURLEncoding.EncodeToString(pack),
+		// base64.RawStdEncoding.EncodeToString(pack),
 	)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -102,14 +114,16 @@ func (hr *HTTPSResolver) exchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, 
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New("doh status error")
-	}
-
 	buf := bytes.Buffer{}
 	_, err = buf.ReadFrom(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		logger.Trace().
+			Msgf("dns error; resolver=https; body=%s", buf.String())
+		return nil, fmt.Errorf("doh status code(%d)", resp.StatusCode)
 	}
 
 	resultMsg := new(dns.Msg)
@@ -119,7 +133,7 @@ func (hr *HTTPSResolver) exchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, 
 	}
 
 	if resultMsg.Rcode != dns.RcodeSuccess {
-		return nil, errors.New("doh rcode wasn't successful")
+		return nil, fmt.Errorf("doh Rcode(%d)", resultMsg.Rcode)
 	}
 
 	return resultMsg, nil

@@ -6,22 +6,23 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/internal/appctx"
 )
 
 var _ Resolver = (*LocalResolver)(nil)
 
 type LocalResolver struct {
-	*net.Resolver
-
-	qTypes []uint16
 	logger zerolog.Logger
+
+	*net.Resolver
 }
 
-func NewLocalResolver(qTypes []uint16, logger zerolog.Logger) *LocalResolver {
+func NewLocalResolver(
+	logger zerolog.Logger,
+) *LocalResolver {
 	return &LocalResolver{
-		Resolver: &net.Resolver{PreferGo: true},
-		qTypes:   qTypes,
 		logger:   logger,
+		Resolver: &net.Resolver{PreferGo: true},
 	}
 }
 
@@ -30,13 +31,22 @@ func (lr *LocalResolver) Info() []ResolverInfo {
 		{
 			Name:   "local",
 			Dest:   "system-dns",
-			Cached: false,
+			Cached: CachedStatus{false},
 		},
 	}
 }
 
-func (lr *LocalResolver) String() string {
-	return "local-resolver"
+func (lr *LocalResolver) Route(ctx context.Context) (Resolver, bool) {
+	patternMatched, ok := appctx.PatternMatchedFrom(ctx)
+	if !ok {
+		return nil, false
+	}
+
+	if !patternMatched {
+		return lr, true
+	}
+
+	return nil, true
 }
 
 func filtterAddrs(addrs []net.IPAddr, qTypes []uint16) []net.IPAddr {
@@ -88,15 +98,12 @@ func filtterAddrs(addrs []net.IPAddr, qTypes []uint16) []net.IPAddr {
 func (lr *LocalResolver) Resolve(
 	ctx context.Context,
 	domain string,
+	qTypes []uint16,
 ) (RecordSet, error) {
-	logger := lr.logger.With().Ctx(ctx).Logger()
-
 	addrs, err := lr.LookupIPAddr(ctx, domain)
 	if err != nil {
 		return RecordSet{addrs: []net.IPAddr{}, ttl: 0}, err
 	}
 
-	logger.Debug().Msgf("resolved %d records for %s", len(addrs), domain)
-
-	return RecordSet{addrs: filtterAddrs(addrs, lr.qTypes), ttl: 0}, nil
+	return RecordSet{addrs: filtterAddrs(addrs, qTypes), ttl: 0}, nil
 }

@@ -13,27 +13,32 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/dns/addrselect"
 )
 
+type Resolver interface {
+	Info() []ResolverInfo
+	Resolve(ctx context.Context, domain string, qTypes []uint16) (RecordSet, error)
+	Route(ctx context.Context) (Resolver, bool)
+}
+
 type ResolverInfo struct {
-	Name   string `json:"name"`
-	Dest   string `json:"dest"`
-	Cached bool   `json:"cached"`
+	Name   string       `json:"name"`
+	Dest   string       `json:"dest"`
+	Cached CachedStatus `json:"cached"`
 }
 
 func (i *ResolverInfo) String() string {
-	var cached string
-	if i.Cached {
-		cached = "cached=1"
-	} else {
-		cached = "cached=0"
-	}
-
-	return fmt.Sprintf("%s; %s; %s;", i.Name, cached, i.Dest)
+	return fmt.Sprintf("name=%s; cached=%s; dest=%s;", i.Name, i.Cached.String(), i.Dest)
 }
 
-type Resolver interface {
-	Info() []ResolverInfo
-	Resolve(ctx context.Context, domain string) (RecordSet, error)
-	String() string
+type CachedStatus struct {
+	bool
+}
+
+func (s *CachedStatus) String() string {
+	if s.bool {
+		return "1"
+	} else {
+		return "0"
+	}
 }
 
 type exchangeFunc = func(ctx context.Context, msg *dns.Msg) (*dns.Msg, error)
@@ -60,9 +65,9 @@ func (rs *RecordSet) Counts() int {
 	return len(rs.addrs)
 }
 
-func newMsg(host string, qType uint16) *dns.Msg {
+func newMsg(domain string, qType uint16) *dns.Msg {
 	msg := new(dns.Msg)
-	msg.SetQuestion(dns.Fqdn(host), qType)
+	msg.SetQuestion(dns.Fqdn(domain), qType)
 
 	return msg
 }
@@ -80,14 +85,19 @@ func recordTypeIDToName(id uint16) string {
 
 func lookupType(
 	ctx context.Context,
-	host string,
+	domain string,
 	queryType uint16,
 	exchange exchangeFunc,
 ) *MsgEnvelope {
-	resMsg, err := exchange(ctx, newMsg(host, queryType))
+	resMsg, err := exchange(ctx, newMsg(domain, queryType))
 	if err != nil {
 		queryName := recordTypeIDToName(queryType)
-		err = fmt.Errorf("resolving %s, query type %s: %w", host, queryName, err)
+		err = fmt.Errorf(
+			"failed to resolve '%s', query type=%s: %w",
+			domain,
+			queryName,
+			err,
+		)
 
 		return &MsgEnvelope{msg: nil, err: err}
 	}
@@ -97,7 +107,7 @@ func lookupType(
 
 func lookupAllTypes(
 	ctx context.Context,
-	host string,
+	domain string,
 	qTypes []uint16,
 	exchange exchangeFunc,
 ) <-chan *MsgEnvelope {
@@ -113,7 +123,7 @@ func lookupAllTypes(
 			select {
 			case <-ctx.Done():
 				return
-			case resCh <- lookupType(ctx, host, qType, exchange):
+			case resCh <- lookupType(ctx, domain, qType, exchange):
 			}
 		}(qType)
 	}

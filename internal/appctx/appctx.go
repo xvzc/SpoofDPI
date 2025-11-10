@@ -53,11 +53,8 @@ func WithPatternMatched(ctx context.Context, patternMatched bool) context.Contex
 
 func PatternMatchedFrom(ctx context.Context) (bool, bool) {
 	patternMatched, ok := ctx.Value(patternMatchedCtxKey{}).(bool)
-	if ok {
-		return patternMatched, true
-	}
 
-	return false, false
+	return patternMatched, ok
 }
 
 // generateTraceId creates a new random trace ID.
@@ -68,7 +65,7 @@ func generateTraceId() string {
 
 	var q uint64
 	var r uint8
-	for i := 0; i < 32; i++ {
+	for i := range 32 {
 		if i%15 == 0 {
 			q = rand.Uint64()
 		}

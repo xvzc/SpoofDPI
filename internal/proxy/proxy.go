@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"io"
 	"net"
 	"os"
 	"regexp"
@@ -13,44 +14,49 @@ import (
 )
 
 type Proxy struct {
+	logger zerolog.Logger
+
+	resolver     dns.Resolver
+	httpHandler  Handler
+	httpsHandler Handler
+
 	listenAddr      net.IP
 	listenPort      uint16
 	patternsAllowed []*regexp.Regexp
 	patternsIgnored []*regexp.Regexp
+	dnsQueryTypes   []uint16
 	timeout         time.Duration
-
-	httpHandler  Handler
-	httpsHandler Handler
-	resolver     dns.Resolver
-	logger       zerolog.Logger
 }
 
 func NewProxy(
+	logger zerolog.Logger,
+
+	resolver dns.Resolver,
+	httpHandler Handler,
+	httpsHandler Handler,
+
 	listenAddr net.IP,
 	listenPort uint16,
 	patternsAllowed []*regexp.Regexp,
 	patternsIgnored []*regexp.Regexp,
+	dnsQueryTypes []uint16,
 	timeout time.Duration,
-	resolver dns.Resolver,
-	httpHandler Handler,
-	httpsHandler Handler,
-	logger zerolog.Logger,
 ) *Proxy {
 	return &Proxy{
+		logger:          logger,
+		resolver:        resolver,
+		httpHandler:     httpHandler,
+		httpsHandler:    httpsHandler,
 		listenAddr:      listenAddr,
 		listenPort:      listenPort,
-		timeout:         timeout,
 		patternsAllowed: patternsAllowed,
 		patternsIgnored: patternsIgnored,
-
-		resolver:     resolver,
-		httpHandler:  httpHandler,
-		httpsHandler: httpsHandler,
-		logger:       logger,
+		dnsQueryTypes:   dnsQueryTypes,
+		timeout:         timeout,
 	}
 }
 
-func (pxy *Proxy) Start(wait chan struct{}) {
+func (pxy *Proxy) ListenAndServe(wait chan struct{}) {
 	<-wait
 
 	logger := pxy.logger
@@ -79,24 +85,26 @@ func (pxy *Proxy) Start(wait chan struct{}) {
 }
 
 func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
-	ctx, cancel := context.WithCancel(appctx.WithNewTraceID(ctx))
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	logger := pxy.logger.With().Ctx(ctx).Logger()
 
 	req, err := readHttpRequest(conn)
 	if err != nil {
-		logger.Debug().Msgf("error while parsing request: %s", err)
+		if err != io.EOF {
+			logger.Warn().Msgf("error while parsing request: %s", err)
+		}
 		closeConns(conn)
 
 		return
 	}
 
 	logger.Debug().
-		Msgf("new request from %s, method: %s", conn.RemoteAddr(), req.Method)
+		Msgf("new request; from=%s; method=%s;", conn.RemoteAddr(), req.Method)
 
 	if !req.IsValidMethod() {
-		logger.Debug().Msgf("unsupported method: %s", req.Method)
+		logger.Warn().Msgf("unsupported method; %s; abort;", req.Method)
 		closeConns(conn)
 
 		return
@@ -105,11 +113,7 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 	domain := req.ExtractDomain()
 	port, err := req.ExtractPort()
 	if err != nil {
-		logger.Debug().Msgf(
-			"error while extracting port from request %s: %s",
-			req.Host,
-			err,
-		)
+		logger.Warn().Msgf("port extraction failed; host=%s; abort;", req.Host)
 		closeConns(conn)
 		return
 	}
@@ -120,21 +124,27 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 		pxy.patternsIgnored,
 	)
 
+	logger.Debug().Msgf("pattern matched; %v; %s;", patternMatched, domain)
+
 	ctx = appctx.WithPatternMatched(ctx, patternMatched)
 
-	rSet, err := pxy.resolver.Resolve(ctx, domain)
-	if err != nil {
-		logger.Debug().Msgf("error while dns lookup: %s %s", domain, err)
-		_, _ = conn.Write([]byte(req.Proto + " 502 Bad Gateway\r\n\r\n"))
+	t1 := time.Now()
+	rSet, err := pxy.resolver.Resolve(ctx, domain, pxy.dnsQueryTypes)
+	dt := time.Since(t1).Milliseconds()
+	if err != nil || rSet.Counts() == 0 {
+		logger.Warn().Msgf("dns result; name=%s; took=%dms; err=1;", domain, dt)
+		logger.Warn().Msgf("error while dns lookup: %s", err)
+		_, _ = conn.Write(req.ResBadGateway())
 		closeConns(conn)
 		return
 	}
+	logger.Debug().Msgf("dns result; name=%s; took=%dms; err=0;", domain, dt)
 
 	dstAddrs := rSet.CopyAddrs()
 
 	// Avoid recursively querying self.
 	if pxy.isRecursive(ctx, dstAddrs, port) {
-		logger.Error().Msg("detected a looped request. aborting.")
+		logger.Error().Msg("looped request detected; abort;")
 		closeConns(conn)
 		return
 	}
@@ -146,7 +156,7 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 		h = pxy.httpHandler
 	}
 
-	h.Serve(ctx, conn, req, domain, dstAddrs, port, pxy.timeout)
+	h.HandleRequest(ctx, conn, req, domain, dstAddrs, port, pxy.timeout)
 }
 
 func (pxy *Proxy) isRecursive(
