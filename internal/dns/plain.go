@@ -33,17 +33,27 @@ func NewPlainResolver(
 	}
 }
 
-func (gr *PlainResolver) String() string {
-	return fmt.Sprintf("plain-resolver(%s)", gr.server)
+func (pr *PlainResolver) Info() []ResolverInfo {
+	return []ResolverInfo{
+		{
+			Name:   "plain",
+			Dest:   pr.server,
+			Cached: false,
+		},
+	}
 }
 
-func (gr *PlainResolver) Resolve(
+func (pr *PlainResolver) String() string {
+	return fmt.Sprintf("plain-resolver(%s)", pr.server)
+}
+
+func (pr *PlainResolver) Resolve(
 	ctx context.Context,
 	domain string,
 ) (RecordSet, error) {
-	logger := gr.logger.With().Ctx(ctx).Logger()
+	logger := pr.logger.With().Ctx(ctx).Logger()
 
-	resCh := lookupAllTypes(ctx, domain, gr.qTypes, gr.exchange)
+	resCh := lookupAllTypes(ctx, domain, pr.qTypes, pr.exchange)
 	rSet, err := processMessages(ctx, resCh)
 
 	logger.Debug().Msgf("resolved %d records for %s", rSet.Counts(), domain)
@@ -51,10 +61,10 @@ func (gr *PlainResolver) Resolve(
 	return rSet, err
 }
 
-func (gr *PlainResolver) exchange(
+func (pr *PlainResolver) exchange(
 	ctx context.Context,
 	msg *dns.Msg,
 ) (*dns.Msg, error) {
-	resp, _, err := gr.client.ExchangeContext(ctx, msg, gr.server)
+	resp, _, err := pr.client.ExchangeContext(ctx, msg, pr.server)
 	return resp, err
 }

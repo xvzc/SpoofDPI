@@ -36,7 +36,7 @@ type TTLCache[T any] struct {
 // NewTTLCache creates a new sharded TTL cache with a background janitor goroutine.
 // numShards specifies the number of shards to create and must be greater than 0.
 // cleanupInterval specifies how often the janitor should run.
-func NewTTLCache[T any](numShards uint64, cleanupInterval time.Duration) *TTLCache[T] {
+func NewTTLCache[T any](numShards uint8, cleanupInterval time.Duration) *TTLCache[T] {
 	if numShards == 0 {
 		panic(fmt.Errorf("ttlcache: numShards must be greater than 0, got %d", numShards))
 	}

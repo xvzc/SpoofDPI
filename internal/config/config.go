@@ -1,165 +1,76 @@
 package config
 
 import (
-	"math"
-	"net"
-	"regexp"
-	"time"
+	"fmt"
+	"reflect"
+	"strings"
 
 	"github.com/miekg/dns"
-	"github.com/rs/zerolog"
 )
 
 type Config struct {
-	cacheShards      uint64
-	debug            bool
-	dnsAddr          net.IP
-	dnsPort          uint16
-	dnsQueryTypes    []uint16
-	dohEndpoint      string
-	enableDOH        bool
-	fakeHTTPSPackets uint8
-	listenAddr       net.IP
-	listenPort       uint16
-	patternsAllowed  []*regexp.Regexp
-	patternsIgnored  []*regexp.Regexp
-	setSystemProxy   bool
-	silent           bool
-	timeout          uint16
-	windowSize       uint16
+	CacheShards      Uint8Number    `toml:"cache-shards"`
+	Debug            bool           `toml:"debug"`
+	DnsAddr          IPAddress      `toml:"dns-addr"`
+	DnsIPv4Only      bool           `toml:"dns-ipv4-only"`
+	DnsPort          Uint16Number   `toml:"dns-port"`
+	DOHEndpoint      HTTPSEndpoint  `toml:"doh-endpoint"`
+	EnableDOH        bool           `toml:"endble-doh"`
+	FakeHTTPSPackets Uint8Number    `toml:"fake-https-packets"`
+	ListenAddr       IPAddress      `toml:"listen-addr"`
+	ListenPort       Uint16Number   `toml:"listen-port"`
+	PatternsAllowed  []RegexPattern `toml:"allow"`
+	PatternsIgnored  []RegexPattern `toml:"ignore"`
+	SetSystemProxy   bool           `toml:"system-proxy"`
+	Silent           bool           `toml:"silent"`
+	Timeout          Uint16Number   `toml:"timeout"`
+	WindowSize       Uint8Number    `toml:"window-size"`
 }
 
-func LoadConfigurationFromArgs(args *Args, logger zerolog.Logger) *Config {
-	dnsAddr := net.ParseIP(args.DnsAddr)
-	if dnsAddr == nil {
-		logger.Fatal().Msgf("invalid dns addr: %s", args.DnsAddr)
+func (c *Config) GenerateDnsQueryTypes() []uint16 {
+	if c.DnsIPv4Only {
+		return []uint16{dns.TypeA}
+	} else {
+		return []uint16{dns.TypeA, dns.TypeAAAA}
 	}
+}
 
-	listenAddr := net.ParseIP(args.ListenAddr)
-	if listenAddr == nil {
-		logger.Fatal().Msgf("invalid listen addr: %s", args.ListenAddr)
+func (c *Config) GenerateDOHEndpoint() string {
+	if c.DOHEndpoint.Value() == "" {
+		return fmt.Sprintf("https://%s/dns-query", c.DnsAddr.value.String())
+	} else {
+		return c.DOHEndpoint.Value()
 	}
+}
 
-	if args.ListenPort > math.MaxUint16 {
-		logger.Fatal().Msgf("listen-port value %d is out of range", args.ListenPort)
-	}
+func (c *Config) ShouldEnableDOH() bool {
+	return c.EnableDOH || (c.DOHEndpoint.Value() != "")
+}
 
-	if args.DnsPort > math.MaxUint16 {
-		logger.Fatal().Msgf("dns-port value %d is out of range", args.DnsPort)
-	}
+func mergeConfig(argsCfg *Config, tomlCfg *Config, args []string) *Config {
+	final := tomlCfg
 
-	if args.Timeout > math.MaxUint16 {
-		logger.Fatal().Msgf("timeout value %d is out of range", args.Timeout)
-	}
+	finalVal := reflect.ValueOf(final).Elem()
+	argsVal := reflect.ValueOf(argsCfg).Elem()
+	structType := finalVal.Type()
 
-	if args.WindowSize > math.MaxUint16 {
-		logger.Fatal().Msgf("window-size value %d is out of range", args.WindowSize)
-	}
+	for i := 0; i < finalVal.NumField(); i++ {
+		tag := structType.Field(i).Tag.Get("toml")
 
-	if args.CacheShards < 1 || args.CacheShards > 256 {
-		logger.Fatal().
-			Msgf("cache-shards value %d is out of range, it must be between 1 and 256", args.CacheShards)
-	}
+		finalField := finalVal.Field(i)
+		argsField := argsVal.Field(i)
 
-	if args.FakeHTTPSPackets > 50 {
-		logger.Fatal().
-			Msgf("fake-https-packets value %d is out of range, it must be between 0 and 50", args.FakeHTTPSPackets)
-	}
+		if finalField.CanSet() && finalField.IsZero() {
+			finalField.Set(argsField)
+		}
 
-	if args.DOHEndpoint != "" {
-		if ok, err := regexp.MatchString("^https?://", args.DOHEndpoint); !ok ||
-			err != nil {
-			logger.Fatal().
-				Msgf("doh-enpoint value should be https scheme: '%s' does not start with 'https://'", args.DOHEndpoint)
+		for i := range args {
+			if strings.Contains(args[i], tag) {
+				finalField.Set(argsField)
+				break
+			}
 		}
 	}
 
-	cfg := &Config{
-		cacheShards:      uint64(args.CacheShards),
-		debug:            args.Debug,
-		dnsAddr:          dnsAddr,
-		dnsPort:          uint16(args.DnsPort),
-		enableDOH:        args.EnableDOH,
-		listenAddr:       listenAddr,
-		listenPort:       uint16(args.ListenPort),
-		patternsAllowed:  parseAllowedPatterns(args.PatternsAllowed),
-		patternsIgnored:  parseAllowedPatterns(args.PatternsIgnored),
-		setSystemProxy:   args.SystemProxy,
-		silent:           args.Silent,
-		timeout:          uint16(args.Timeout),
-		windowSize:       uint16(args.WindowSize),
-		fakeHTTPSPackets: uint8(args.FakeHTTPSPackets),
-	}
-
-	if args.DnsIPv4Only {
-		cfg.dnsQueryTypes = []uint16{dns.TypeA}
-	} else {
-		cfg.dnsQueryTypes = []uint16{dns.TypeA, dns.TypeAAAA}
-	}
-
-	return cfg
-}
-
-func (c *Config) CacheShards() uint64 {
-	return c.cacheShards
-}
-
-func (c *Config) Debug() bool {
-	return c.debug
-}
-
-func (c *Config) DnsAddr() net.IP {
-	return c.dnsAddr
-}
-
-func (c *Config) DnsPort() uint16 {
-	return c.dnsPort
-}
-
-func (c *Config) DnsQueryTypes() []uint16 {
-	return c.dnsQueryTypes
-}
-
-func (c *Config) DOHEndpoint() string {
-	return c.dohEndpoint
-}
-
-func (c *Config) EnableDOH() bool {
-	return c.enableDOH
-}
-
-func (c *Config) FakeHTTPSPackets() uint8 {
-	return c.fakeHTTPSPackets
-}
-
-func (c *Config) ListenAddr() net.IP {
-	return c.listenAddr
-}
-
-func (c *Config) ListenPort() uint16 {
-	return c.listenPort
-}
-
-func (c *Config) PatternsAllowed() []*regexp.Regexp {
-	return c.patternsAllowed
-}
-
-func (c *Config) PatternsIgnored() []*regexp.Regexp {
-	return c.patternsIgnored
-}
-
-func (c *Config) SetSystemProxy() bool {
-	return c.setSystemProxy
-}
-
-func (c *Config) Silent() bool {
-	return c.silent
-}
-
-func (c *Config) Timeout() time.Duration {
-	return time.Duration(c.timeout) * time.Millisecond
-}
-
-func (c *Config) WindowSize() uint16 {
-	return c.windowSize
+	return final
 }

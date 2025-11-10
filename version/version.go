@@ -1,12 +1,19 @@
 package version
 
-import _ "embed"
+import (
+	_ "embed"
+	"strings"
+)
 
 //go:embed VERSION
 var VERSION string
 
+func Version() string {
+	return "v" + strings.Trim(VERSION, "\n\t ")
+}
+
 func PrintVersion() {
-	println("spoofdpi", "v"+VERSION)
-	println("A simple and fast anti-censorship tool written in Go.")
+	println("spoofdpi- Simple and fast anti-censorship tool written in Go")
+	println(Version())
 	println("https://github.com/xvzc/SpoofDPI")
 }
