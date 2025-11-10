@@ -30,6 +30,12 @@ func NewCacheResolver(
 	}
 }
 
+func (cr *CacheResolver) Info() []ResolverInfo {
+	info := cr.next.Info()
+	info[0].Cached = true
+	return info
+}
+
 func (cr *CacheResolver) String() string {
 	return fmt.Sprintf("cached %s", cr.next)
 }

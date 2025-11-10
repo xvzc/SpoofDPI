@@ -7,22 +7,16 @@ A simple and fast software designed to bypass **Deep Packet Inspection**.
  ❯ spoofdpi
 
  .d8888b.                              .d888 8888888b.  8888888b. 8888888
-d88P  Y88b                            d88P"  888  "Y88b 888   Y88b  888
+d88P  Y88b                            d88P'  888  'Y88b 888   Y88b  888
 Y88b.                                 888    888    888 888    888  888
- "Y888b.   88888b.   .d88b.   .d88b.  888888 888    888 888   d88P  888
-    "Y88b. 888 "88b d88""88b d88""88b 888    888    888 8888888P"   888
-      "888 888  888 888  888 888  888 888    888    888 888         888
+ 'Y888b.   88888b.   .d88b.   .d88b.  888888 888    888 888   d88P  888
+    'Y88b. 888 '88b d88''88b d88''88b 888    888    888 8888888P'   888
+      '888 888  888 888  888 888  888 888    888    888 888         888
 Y88b  d88P 888 d88P Y88..88P Y88..88P 888    888  .d88P 888         888
- "Y8888P"  88888P"   "Y88P"   "Y88P"  888    8888888P"  888       8888888
+ 'Y8888P'  88888P'   'Y88P'   'Y88P'  888    8888888P'  888       8888888
            888
            888
            888
-
- • LISTEN_ADDR : 127.0.0.1
- • LISTEN_PORT : 8080
- • DNS_ADDR    : 8.8.8.8
- • DNS_PORT    : 53
- • DEBUG       : false
 
 Press 'CTRL + c' to quit
 ```
@@ -55,47 +49,47 @@ CGO_ENABLED=1 go build -ldflags="-w -s" ./cmd/...
 ```
 Usage: spoofdpi [options...]
   -allow value
-        perform DPI circumvention only on domains matching this regex pattern;
-        can be given multiple times
+    	perform DPI circumvention only on domains matching this regex pattern;
+    	can be given multiple times
   -cache-shards uint
-        number of shards to use for ttlcache; it is recommended to set
-        this to be >= the number of CPU cores for optimal performance (max 256) (default 32)
+    	number of shards to use for ttlcache; it is recommended to set
+    	this to be >= the number of CPU cores for optimal performance (max 256) (default 32)
   -debug
-        enable debug output
+    	enable debug output
   -dns-addr string
-        dns address (default "8.8.8.8")
+    	dns address (default "8.8.8.8")
   -dns-ipv4-only
-        resolve only IPv4 addresses
+    	resolve only IPv4 addresses
   -dns-port uint
-        port number for dns (default 53)
+    	port number for dns (default 53)
   -doh-endpoint string
-        endpoint for 'dns over https'
+    	endpoint for 'dns over https'
   -enable-doh
-        enable 'dns-over-https'
+    	enable 'dns-over-https'
   -fake-https-packets uint
-        number of fake packets to send before the client hello (max 50) (default 0)
-        higher values may increase success, but the lowest possible value is recommended.
-        try this if tcp-level fragmentation (via --window-size) does not work.
-        this feature requires root privilege and the 'libpcap' dependency
+    	number of fake packets to send before the client hello (max 50) (default 0)
+    	higher values may increase success, but the lowest possible value is recommended.
+    	try this if tcp-level fragmentation (via --window-size) does not work.
+    	this feature requires root privilege and the 'libpcap' dependency
   -ignore value
-        do not perform DPI circumvention on domains matching this regex pattern;
-        can be given multiple times. ignored patterns have higher priority than allowed patterns
+    	do not perform DPI circumvention on domains matching this regex pattern;
+    	can be given multiple times. ignored patterns have higher priority than allowed patterns
   -listen-addr string
-        IP address to listen on (default "127.0.0.1")
+    	IP address to listen on (default "127.0.0.1")
   -listen-port uint
-        port number to listen on (default 8080)
+    	port number to listen on (default 8080)
   -silent
-        do not show the banner and server information at start up
+    	do not show the banner and server information at start up
   -system-proxy
-        enable system-wide proxy (default true)
+    	enable system-wide proxy
   -timeout uint
-        timeout in milliseconds; no timeout when not given
-  -v    print spoofdpi's version; this may contain some other relevant information
+    	timeout in milliseconds; no timeout when not given
+  -v	print spoofdpi's version; this may contain some other relevant information
   -window-size uint
-        chunk size, in number of bytes, for fragmented client hello,
-        try lower values if the default value doesn't bypass the DPI;
-        when not given, the client hello packet will be sent in two parts:
-        fragmentation for the first data packet and the rest
+    	chunk size, in number of bytes, for fragmented client hello,
+    	try lower values if the default value doesn't bypass the DPI;
+    	when not given, the client hello packet will be sent in two parts:
+    	fragmentation for the first data packet and the rest
 ```
 > If you are using any vpn extensions such as Hotspot Shield in Chrome browser,
   go to Settings > Extensions, and disable them.

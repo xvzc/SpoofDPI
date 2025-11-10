@@ -25,6 +25,16 @@ func NewLocalResolver(qTypes []uint16, logger zerolog.Logger) *LocalResolver {
 	}
 }
 
+func (lr *LocalResolver) Info() []ResolverInfo {
+	return []ResolverInfo{
+		{
+			Name:   "local",
+			Dest:   "system-dns",
+			Cached: false,
+		},
+	}
+}
+
 func (lr *LocalResolver) String() string {
 	return "local-resolver"
 }

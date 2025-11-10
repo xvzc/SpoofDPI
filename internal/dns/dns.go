@@ -13,9 +13,27 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/dns/addrselect"
 )
 
+type ResolverInfo struct {
+	Name   string `json:"name"`
+	Dest   string `json:"dest"`
+	Cached bool   `json:"cached"`
+}
+
+func (i *ResolverInfo) String() string {
+	var cached string
+	if i.Cached {
+		cached = "cached=1"
+	} else {
+		cached = "cached=0"
+	}
+
+	return fmt.Sprintf("%s; %s; %s;", i.Name, cached, i.Dest)
+}
+
 type Resolver interface {
-	String() string
+	Info() []ResolverInfo
 	Resolve(ctx context.Context, domain string) (RecordSet, error)
+	String() string
 }
 
 type exchangeFunc = func(ctx context.Context, msg *dns.Msg) (*dns.Msg, error)

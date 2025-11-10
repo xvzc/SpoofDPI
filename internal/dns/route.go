@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"slices"
 	"strconv"
 	"time"
 
@@ -33,6 +34,10 @@ func NewRouteResolver(
 		https:     https,
 		logger:    logger,
 	}
+}
+
+func (rr *RouteResolver) Info() []ResolverInfo {
+	return slices.Concat(rr.local.Info(), rr.plain.Info(), rr.https.Info())
 }
 
 func (rr *RouteResolver) String() string {
