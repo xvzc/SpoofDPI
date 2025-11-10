@@ -24,7 +24,7 @@ const (
 		" -system-proxy=false."
 )
 
-func SetProxy(port uint16, logger zerolog.Logger) error {
+func SetProxy(logger zerolog.Logger, port uint16) error {
 	network, err := getDefaultNetwork()
 	if err != nil {
 		return err
@@ -88,7 +88,7 @@ func networkSetup(args []string) error {
 		if isMacOSPermissionError(err) {
 			msg += permissionErrorHelpTextMacOS
 		}
-		return fmt.Errorf("%s: %s", cmd.String(), msg)
+		return fmt.Errorf("%s", msg)
 	}
 	return nil
 }

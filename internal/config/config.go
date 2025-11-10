@@ -10,7 +10,6 @@ import (
 
 type Config struct {
 	CacheShards      Uint8Number    `toml:"cache-shards"`
-	Debug            bool           `toml:"debug"`
 	DnsAddr          IPAddress      `toml:"dns-addr"`
 	DnsIPv4Only      bool           `toml:"dns-ipv4-only"`
 	DnsPort          Uint16Number   `toml:"dns-port"`
@@ -19,6 +18,7 @@ type Config struct {
 	FakeHTTPSPackets Uint8Number    `toml:"fake-https-packets"`
 	ListenAddr       IPAddress      `toml:"listen-addr"`
 	ListenPort       Uint16Number   `toml:"listen-port"`
+	LogLevel         LogLevel       `toml:"log-level"`
 	PatternsAllowed  []RegexPattern `toml:"allow"`
 	PatternsIgnored  []RegexPattern `toml:"ignore"`
 	SetSystemProxy   bool           `toml:"system-proxy"`

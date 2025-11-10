@@ -1,11 +1,13 @@
 package applog
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/xvzc/SpoofDPI/internal/appctx"
 )
 
@@ -16,10 +18,12 @@ const (
 	traceIDFieldName = "trace_id"
 )
 
-// NewLogger creates and configures a new zerolog.Logger instance
+// SetGlobalLogger creates and configures the global zerolog.Logger instance
 // based on the application configuration.
-// This instance is intended to be passed to other components via Dependency Injection.
-func NewLogger(debug bool) zerolog.Logger {
+func SetGlobalLogger(ctx context.Context, level string) {
+	l, _ := zerolog.ParseLevel(level)
+	zerolog.SetGlobalLevel(l)
+
 	// Define the order of parts in the console output.
 	partsOrder := []string{
 		zerolog.LevelFieldName,
@@ -61,15 +65,7 @@ func NewLogger(debug bool) zerolog.Logger {
 	// Create the base logger instance with the console writer and attach the hook.
 	logger := zerolog.New(consoleWriter).Hook(ctxHook{})
 
-	// Set the appropriate log level based on the configuration.
-	if debug {
-		logger = logger.Level(zerolog.DebugLevel)
-	} else {
-		logger = logger.Level(zerolog.InfoLevel)
-	}
-
-	// Add a timestamp to all log events and return the final logger.
-	return logger.With().Timestamp().Logger()
+	log.Logger = logger.With().Timestamp().Ctx(ctx).Logger()
 }
 
 // WithScope is a helper for components (like HttpHandler or DnsResolver)

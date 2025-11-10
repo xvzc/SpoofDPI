@@ -5,6 +5,8 @@ import (
 	"math"
 	"net"
 	"regexp"
+
+	"github.com/rs/zerolog"
 )
 
 func validateUint8(v int) error {
@@ -22,8 +24,17 @@ func validateUint16(v int) error {
 	return nil
 }
 
-func validateRegexpPattern(p string) (err error) {
-	_, err = regexp.Compile(p)
+func validateLogLevel(v string) error {
+	_, err := zerolog.ParseLevel(v)
+	if err != nil {
+		return fmt.Errorf("invalid level string %s", v)
+	}
+
+	return nil
+}
+
+func validateRegexpPattern(v string) error {
+	_, err := regexp.Compile(v)
 	if err != nil {
 		return fmt.Errorf("failed to compile regexp")
 	}

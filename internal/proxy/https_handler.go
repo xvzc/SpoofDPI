@@ -2,10 +2,8 @@ package proxy
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 
@@ -28,30 +26,33 @@ var bufferPool = sync.Pool{
 }
 
 type HTTPSHandler struct {
+	logger zerolog.Logger
+
+	hopTracker     *packet.HopTracker
+	packetInjector *packet.PacketInjector
+
 	windowSize       uint8
 	fakeHTTPSPackets uint8
-	hopTracker       *packet.HopTracker
-	packetInjector   *packet.PacketInjector
-	logger           zerolog.Logger
 }
 
 func NewHttpsHandler(
-	windowSize uint8,
-	fakeHTTPSPackets uint8,
+	logger zerolog.Logger,
 	hopTrakcer *packet.HopTracker,
 	packetInjector *packet.PacketInjector,
-	logger zerolog.Logger,
+
+	windowSize uint8,
+	fakeHTTPSPackets uint8,
 ) *HTTPSHandler {
 	return &HTTPSHandler{
-		windowSize:       windowSize,
-		fakeHTTPSPackets: fakeHTTPSPackets,
+		logger:           logger,
 		hopTracker:       hopTrakcer,
 		packetInjector:   packetInjector,
-		logger:           logger,
+		windowSize:       windowSize,
+		fakeHTTPSPackets: fakeHTTPSPackets,
 	}
 }
 
-func (h *HTTPSHandler) Serve(
+func (h *HTTPSHandler) HandleRequest(
 	ctx context.Context,
 	lConn net.Conn,
 	req *HttpRequest,
@@ -67,8 +68,7 @@ func (h *HTTPSHandler) Serve(
 
 	rConn, err := dialFirstSuccessful(ctx, dstAddrs, dstPort, timeout)
 	if err != nil {
-		logger.Debug().
-			Msgf("dial to %s failed: %s", domain, err)
+		logger.Debug().Msgf("all dial attempts to %s failed: %s", domain, err)
 
 		return
 	}
@@ -76,31 +76,31 @@ func (h *HTTPSHandler) Serve(
 	// The remote connection must be closed as soon as it's successfully dialed.
 	defer closeConns(rConn)
 
-	logger.Debug().Msgf("new conn to the server %s -> %s(%s)",
+	logger.Debug().Msgf("new conn; https; %s -> %s(%s);",
 		rConn.LocalAddr(), domain, rConn.RemoteAddr(),
 	)
 
 	// Send "200 Connection Established" to the client.
-	_, err = lConn.Write([]byte(req.Proto + " 200 Connection Established\r\n\r\n"))
+	_, err = lConn.Write(req.ResConnectionEstablished())
 	if err != nil {
 		logger.Debug().Msgf("error sending 200 conn established to the client: %s", err)
 		return // Both connections are closed by their defers.
 	}
 
-	logger.Debug().Msgf("sent a conn established to %s", lConn.RemoteAddr())
+	logger.Debug().Msgf("connection established sent; %s;", lConn.RemoteAddr())
 
 	// Read the client hello, which is specific to SpoofDPI logic.
 	tlsMsg, err := readTLSMessage(lConn)
 	if err != nil {
-		logger.Debug().Msgf("error reading client hello from %s: %s",
-			lConn.RemoteAddr().String(), err,
-		)
+		if err != io.EOF {
+			logger.Debug().Msgf("error reading client hello: %s", err)
+		}
 
 		return
 	}
 
 	if !tlsMsg.IsClientHello() {
-		logger.Debug().Msgf("received non-client-hello message from %s, skipping..",
+		logger.Debug().Msgf("received unknown packet; %s; abort;",
 			lConn.RemoteAddr().String(),
 		)
 
@@ -108,17 +108,17 @@ func (h *HTTPSHandler) Serve(
 	}
 
 	clientHello := tlsMsg.Raw
-	logger.Debug().Msgf("client sent hello %d bytes", len(clientHello))
+	logger.Debug().Msgf("received client hello; %d bytes;", len(clientHello))
 
 	patternMatched, ok := appctx.PatternMatchedFrom(ctx)
 	if !ok {
-		logger.Debug().Msg("failed to retrieve patternMatched value from ctx")
+		logger.Error().Msg("error retrieving 'patternMatched' value from ctx")
 	}
 
 	shouldExploit := patternMatched
-
-	logger.Debug().
-		Msgf("value of 'shouldExploit' is %s", strconv.FormatBool(shouldExploit))
+	//
+	// logger.Debug().
+	// 	Msgf("value of 'shouldExploit' is %s", strconv.FormatBool(shouldExploit))
 
 	// The Client Hello must be sent to the server before starting the
 	// bidirectional copy tunnel.
@@ -130,20 +130,12 @@ func (h *HTTPSHandler) Serve(
 			src := rConn.LocalAddr().(*net.TCPAddr)
 			dst := rConn.RemoteAddr().(*net.TCPAddr)
 
-			nhops, ok := h.hopTracker.GetHops(dst.String())
-			if !ok {
-				nhops = 255
-			}
-
-			n, err := h.packetInjector.InjectPacket(
-				ctx, src, dst, nhops-1, packet.FakeClientHello, h.fakeHTTPSPackets,
+			nhops := h.hopTracker.GetOptimalHops(dst.String())
+			err := h.packetInjector.WriteCraftedPacket(
+				ctx, src, dst, nhops, packet.FakeClientHello, h.fakeHTTPSPackets,
 			)
 			if err != nil {
-				logger.Debug().Msgf("error sending fake packet to %s: %s", domain, err)
-			} else {
-				logger.Debug().Msgf(
-					"sent %d bytes of fake packets to %s, nhops: %d", n, domain, nhops,
-				)
+				logger.Debug().Msgf("error sending fake packets to %s: %s", domain, err)
 			}
 		}
 
@@ -154,11 +146,11 @@ func (h *HTTPSHandler) Serve(
 
 		var cFunc fragmentationFunc
 		if h.windowSize == 0 {
-			logger.Debug().Msgf("using legacy fragmentation strategy")
+			logger.Debug().Msgf("fragmentation strategy; legacy;")
 			cFunc = legacyFragmentationStrategy
 		} else {
-			logger.Debug().Msgf("using modern fragmentation strategy")
-			cFunc = modernFragmentaionStrategy
+			logger.Debug().Msgf("fragmentation strategy; chunk;")
+			cFunc = chunkFragmentationStrategy
 		}
 
 		if _, err := writeChunks(rConn, cFunc(clientHello, int(h.windowSize))); err != nil {
@@ -176,55 +168,11 @@ func (h *HTTPSHandler) Serve(
 	}
 
 	// Start the tunnel using the refactored helper function.
-	go h.tunnel(ctx, rConn, lConn, domain, true)
-	h.tunnel(ctx, lConn, rConn, domain, false)
+	go tunnel(ctx, logger, rConn, lConn, domain, true)
+	tunnel(ctx, logger, lConn, rConn, domain, false)
 }
 
-// tunnel handles the bidirectional io.Copy between the client and server.
-func (h *HTTPSHandler) tunnel(
-	ctx context.Context,
-	dst net.Conn, // Renamed for io.Copy clarity (Destination)
-	src net.Conn, // Renamed for io.Copy clarity (Source)
-	domain string,
-	closeOnReturn bool,
-) {
-	logger := h.logger.With().Ctx(ctx).Logger()
-
-	// The client-to-server goroutine is responsible for closing both connections
-	// when it finishes, which will unblock the server-to-client copy.
-	if closeOnReturn {
-		defer closeConns(dst, src)
-	}
-
-	// Use a buffer from the pool to reduce allocations.
-	// 1. Get a buffer from the pool (zero allocation).
-	bufPtr := bufferPool.Get().(*[]byte)
-	// 2. Ensure the buffer is returned to the pool when the tunnel closes.
-	defer bufferPool.Put(bufPtr)
-
-	// 3. Use the borrowed buffer with io.CopyBuffer.
-	// This copies from src to dst.
-	n, err := io.CopyBuffer(dst, src, *bufPtr)
-	if err != nil {
-		if !errors.Is(err, net.ErrClosed) && err != io.EOF {
-			logger.Debug().Msgf("error while copying data from %s to %s: %s",
-				src.RemoteAddr().String(), dst.RemoteAddr().String(), err,
-			)
-		}
-	}
-
-	if n > 0 {
-		logger.Debug().Msgf("copied %d bytes from %s to %s",
-			n, src.RemoteAddr().String(), dst.RemoteAddr().String(),
-		)
-	}
-
-	logger.Debug().Msgf("closing tunnel %s -> %s for %s",
-		src.RemoteAddr().String(), dst.RemoteAddr().String(), domain,
-	)
-}
-
-func modernFragmentaionStrategy(
+func chunkFragmentationStrategy(
 	bytes []byte,
 	size int,
 ) [][]byte {
