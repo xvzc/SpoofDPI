@@ -4,6 +4,7 @@ exclude-labels:
   - 'chore'
   - 'documentation'
   - 'help'
+  - 'docs'
 template: |
   ## Changes
   $CHANGES

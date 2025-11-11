@@ -1,0 +1,11 @@
+allow = [
+    "youtube.com",
+    "discord.*",
+]
+cache-shards = 16
+log-level = 'info'
+dns-addr = "8.8.4.4"
+doh-endpoint = "https://dns.google/dns-query"
+dns-port = 53
+dns-ipv4-only = true
+window-size = 1
