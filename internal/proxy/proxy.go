@@ -136,6 +136,7 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 		logger.Warn().Msgf("error while dns lookup: %s", err)
 		_, _ = conn.Write(req.ResBadGateway())
 		closeConns(conn)
+
 		return
 	}
 	logger.Debug().Msgf("dns result; name=%s; took=%dms; err=0;", domain, dt)
@@ -143,11 +144,14 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 	dstAddrs := rSet.CopyAddrs()
 
 	// Avoid recursively querying self.
-	if pxy.isRecursive(ctx, dstAddrs, port) {
-		logger.Error().Msg("looped request detected; abort;")
+	if pxy.isRecursiveDst(ctx, dstAddrs, port) {
 		closeConns(conn)
+
 		return
 	}
+
+	isPrivate := pxy.isPrivateDst(ctx, dstAddrs)
+	ctx = appctx.WithShouldExploit(ctx, (!isPrivate && patternMatched))
 
 	var h Handler
 	if req.IsConnectMethod() {
@@ -159,7 +163,7 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 	h.HandleRequest(ctx, conn, req, domain, dstAddrs, port, pxy.timeout)
 }
 
-func (pxy *Proxy) isRecursive(
+func (pxy *Proxy) isRecursiveDst(
 	ctx context.Context,
 	dstAddrs []net.IPAddr,
 	dstPort int,
@@ -171,8 +175,11 @@ func (pxy *Proxy) isRecursive(
 	}
 
 	for _, dstAddr := range dstAddrs {
-		ip := net.ParseIP(dstAddr.String())
+		ip := dstAddr.IP
 		if ip.IsLoopback() {
+			logger.Trace().Msgf("recursive dst; ip=%s; port=%d; abort;",
+				ip.String(), dstPort,
+			)
 			return true
 		}
 
@@ -180,16 +187,34 @@ func (pxy *Proxy) isRecursive(
 		// See `ip -4 ifAddrs show`
 		ifAddrs, err := net.InterfaceAddrs() // Needs AF_NETLINK on Linux.
 		if err != nil {
-			logger.Error().Msgf("error retrieving addrs of network interfaces: %s", err)
+			logger.Error().
+				Msgf("recursive dst; error retrieving addrs of network interfaces: %s", err)
 			return false
 		}
 
 		for _, addr := range ifAddrs {
 			if ipnet, ok := addr.(*net.IPNet); ok {
 				if ipnet.IP.Equal(ip) {
+					logger.Trace().Msgf("recursive dst; ip=%s; port=%d; abort;",
+						ip.String(), dstPort,
+					)
 					return true
 				}
 			}
+		}
+	}
+
+	return false
+}
+
+func (pxy *Proxy) isPrivateDst(ctx context.Context, dstAddrs []net.IPAddr) bool {
+	logger := pxy.logger.With().Ctx(ctx).Logger()
+
+	for _, dstAddr := range dstAddrs {
+		ip := dstAddr.IP
+		if ip.IsPrivate() {
+			logger.Trace().Msgf("private dst; ip=%s;", ip.String())
+			return true
 		}
 	}
 

@@ -3,8 +3,8 @@ change-title-escapes: '\<*_&#@`'
 exclude-labels:
   - 'chore'
   - 'documentation'
-  - 'help'
-  - 'docs'
+  - 'ci'
+  - 'style'
 template: |
   ## Changes
   $CHANGES

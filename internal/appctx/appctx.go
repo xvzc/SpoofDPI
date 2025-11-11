@@ -11,6 +11,7 @@ type (
 	scopeCtxKey          struct{}
 	traceIDCtxKey        struct{}
 	patternMatchedCtxKey struct{}
+	shouldExploitCtxKey  struct{}
 )
 
 // WithScope returns a new context carrying the given scope string.
@@ -55,6 +56,16 @@ func PatternMatchedFrom(ctx context.Context) (bool, bool) {
 	patternMatched, ok := ctx.Value(patternMatchedCtxKey{}).(bool)
 
 	return patternMatched, ok
+}
+
+func WithShouldExploit(ctx context.Context, shouldExploit bool) context.Context {
+	return context.WithValue(ctx, shouldExploitCtxKey{}, shouldExploit)
+}
+
+func ShouldExploitFrom(ctx context.Context) (bool, bool) {
+	shouldExploit, ok := ctx.Value(shouldExploitCtxKey{}).(bool)
+
+	return shouldExploit, ok
 }
 
 // generateTraceId creates a new random trace ID.

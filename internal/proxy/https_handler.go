@@ -110,15 +110,10 @@ func (h *HTTPSHandler) HandleRequest(
 	clientHello := tlsMsg.Raw
 	logger.Debug().Msgf("received client hello; %d bytes;", len(clientHello))
 
-	patternMatched, ok := appctx.PatternMatchedFrom(ctx)
+	shouldExploit, ok := appctx.ShouldExploitFrom(ctx)
 	if !ok {
-		logger.Error().Msg("error retrieving 'patternMatched' value from ctx")
+		logger.Error().Msg("error retrieving 'shouldExploit' value from ctx")
 	}
-
-	shouldExploit := patternMatched
-	//
-	// logger.Debug().
-	// 	Msgf("value of 'shouldExploit' is %s", strconv.FormatBool(shouldExploit))
 
 	// The Client Hello must be sent to the server before starting the
 	// bidirectional copy tunnel.
@@ -126,11 +121,11 @@ func (h *HTTPSHandler) HandleRequest(
 		// ┌──────────────────┐
 		// │ SEND FAKE_PACKET │
 		// └──────────────────┘
-		if h.hopTracker != nil && h.packetInjector != nil && h.fakeHTTPSPackets > 0 {
+		if h.hopTracker != nil && h.packetInjector != nil {
 			src := rConn.LocalAddr().(*net.TCPAddr)
 			dst := rConn.RemoteAddr().(*net.TCPAddr)
 
-			nhops := h.hopTracker.GetOptimalHops(dst.String())
+			nhops := h.hopTracker.GetOptimalTTL(dst.String())
 			err := h.packetInjector.WriteCraftedPacket(
 				ctx, src, dst, nhops, packet.FakeClientHello, h.fakeHTTPSPackets,
 			)
@@ -142,15 +137,16 @@ func (h *HTTPSHandler) HandleRequest(
 		// ┌───────────────────────────┐
 		// │ SEND CHUNKED_CLIENT_HELLO │
 		// └───────────────────────────┘
-		logger.Debug().Msgf("writing chunked client hello to %s", domain)
-
+		var fragmentationStrategy string
 		var cFunc fragmentationFunc
 		if h.windowSize == 0 {
-			logger.Debug().Msgf("fragmentation strategy; legacy;")
+			fragmentationStrategy = "legacy"
 			cFunc = legacyFragmentationStrategy
+			logger.Debug().Msgf("fragmentation strategy; %s;", fragmentationStrategy)
 		} else {
-			logger.Debug().Msgf("fragmentation strategy; chunk;")
+			fragmentationStrategy = "chunk"
 			cFunc = chunkFragmentationStrategy
+			logger.Debug().Msgf("fragmentation strategy; %s;", fragmentationStrategy)
 		}
 
 		if _, err := writeChunks(rConn, cFunc(clientHello, int(h.windowSize))); err != nil {
@@ -159,12 +155,17 @@ func (h *HTTPSHandler) HandleRequest(
 			)
 			return
 		}
+
+		logger.Debug().Msgf("client hello sent; strategy=%s; dst=%s",
+			fragmentationStrategy, domain,
+		)
 	} else {
-		logger.Debug().Msgf("writing plain client hello to %s", domain)
 		if _, err := rConn.Write(clientHello); err != nil {
 			logger.Debug().Msgf("error writing plain client hello to %s: %s", domain, err)
 			return
 		}
+
+		logger.Debug().Msgf("client hello sent; strategy=plain; dst=%s", domain)
 	}
 
 	// Start the tunnel using the refactored helper function.
