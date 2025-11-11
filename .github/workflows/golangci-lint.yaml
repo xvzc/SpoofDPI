@@ -11,9 +11,9 @@ on:
       - master
 
 permissions:
-  contents: read      
-  pull-requests: read 
-  checks: write       
+  contents: read      # To check out the PR code
+  pull-requests: read # To read PR metadata (for annotations)
+  checks: write       # To post annotations back to the PR
 
 jobs:
   golangci-lint:
@@ -23,21 +23,36 @@ jobs:
       - name: Check out PR code
         uses: actions/checkout@v4
         with:
+          # We must fetch the merge commit (the state of the PR)
+          # to avoid linting old commits.
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0 
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22 
-          cache: true      
+          go-version: 1.22 # Match the version from your build YAML
+          cache: true      # Enable Go module cache
+
+      # cache the apt packages
+      - name: Cache apt-get dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/apt/archives
+            /var/lib/apt/lists
+          # The key is based on the runner OS and the specific package(s)
+          # If libpcap-dev updates, 'apt-get install' will still fetch the new version
+          # after 'apt-get update' refreshes the lists.
+          key: ${{ runner.os }}-apt-libpcap-dev
 
       - name: Install C dependencies (libpcap)
-        # The linter needs to parse Cgo, which requires the C libraries.
+        # We still run 'update' (it's fast if lists are cached)
+        # and 'install' (it's fast if archives are cached).
         run: sudo apt-get update && sudo apt-get install -y libpcap-dev
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v6
         with:
           # Version of golangci-lint to use
           version: latest 
