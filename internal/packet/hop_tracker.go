@@ -56,12 +56,12 @@ func (ht *HopTracker) StartCapturing() {
 	}()
 }
 
-// GetOptimalHops retrieves the estimated hop count for a given key from the cache.
+// GetOptimalTTL retrieves the estimated hop count for a given key from the cache.
 // It returns the hop count and true if found, or 0 and false if not found.
-func (ht *HopTracker) GetOptimalHops(key string) uint8 {
+func (ht *HopTracker) GetOptimalTTL(key string) uint8 {
 	nhops, ok := ht.cache.Get(key)
-	if !ok || nhops < 1 {
-		return math.MaxUint8 - 1
+	if !ok || nhops <= 1 {
+		nhops = math.MaxUint8
 	}
 
 	return nhops - 1

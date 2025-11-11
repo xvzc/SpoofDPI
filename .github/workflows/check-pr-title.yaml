@@ -1,0 +1,79 @@
+# This workflow validates that Pull Request titles adhere to the
+# Conventional Commit specification defined in the project.
+# It runs on PRs being opened, edited, or synchronized.
+name: Lint PR Title
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - edited
+      - synchronize
+
+permissions:
+  pull-requests: read
+  statuses: write # Required to set the "check" status on the PR
+
+jobs:
+  lint_pr_title:
+    name: Validate PR Title
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        with:
+          # --- Allowed Types ---
+          # Define the list of allowed types.
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            chore
+            ci
+            revert
+
+          # --- Rule 2: Subject Case Validation ---
+          # Enforce "subject (message after colon) must start with a lowercase letter."
+          subjectPattern: '^[^A-Z].*'
+
+          # [HELP MESSAGE 2] Show this *only* if the subject case is wrong.
+          subjectPatternError: |
+            The subject (message after the colon) must start with a lowercase letter.
+
+            **Examples:**
+            - (Good) `docs: update README with new instructions`
+            - (Bad)  `docs: Update README with new instructions`
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Add labels IF lint_pr_title succeeds
+  label_pr:
+    name: Auto-label PR (Type)
+    runs-on: ubuntu-latest
+    # This job only runs if the 'lint_pr_title' job completes successfully.
+    needs: lint_pr_title 
+    steps:
+      - uses: tim-actions/conventional-pr-labeler@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+          # Define the mapping from 'type' (from the PR title) 
+          # to the 'label' (in your GitHub repo).
+          # You can adjust the label names (right side) to match your repository.
+          label-mapping: |
+            "feat": "feature"
+            "fix": "bug"
+            "docs": "documentation"
+            "style": "style"
+            "refactor": "refactor"
+            "perf": "enhancement"
+            "test": "test"
+            "chore": "chore"
+            "ci": "ci"
+            "revert": "revert"
