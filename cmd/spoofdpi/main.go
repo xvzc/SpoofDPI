@@ -30,7 +30,7 @@ func main() {
 	}
 }
 
-func runApp(ctx context.Context, cfg *config.Config) {
+func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 	if !cfg.Silent {
 		printBanner()
 	}
@@ -38,6 +38,9 @@ func runApp(ctx context.Context, cfg *config.Config) {
 
 	logger := applog.WithScope(log.Logger, "APP(setup)").With().Ctx(ctx).Logger()
 	logger.Info().Msgf("started spoofdpi; %s;", version.Version())
+	if configDir != "" {
+		logger.Info().Msgf("config file; %s;", configDir)
+	}
 
 	resolver := createResolver(logger, cfg)
 	p, err := createProxy(logger, cfg, resolver)
@@ -64,11 +67,11 @@ func runApp(ctx context.Context, cfg *config.Config) {
 	}
 
 	logger.Info().Msgf("dns info;")
-	logger.Info().Msgf("query type; %d;", len(cfg.GenerateDnsQueryTypes()))
-	logger.Info().Msgf("resolvers;")
+	logger.Info().Msgf(" query type; %d;", len(cfg.GenerateDnsQueryTypes()))
+	logger.Info().Msgf(" resolvers;")
 	dnsInfo := resolver.Info()
 	for i := range dnsInfo {
-		logger.Info().Msgf(" • %s", dnsInfo[i].String())
+		logger.Info().Msgf("  • %s", dnsInfo[i].String())
 	}
 
 	logger.Info().Msgf("window size; %d;", cfg.WindowSize.Value())

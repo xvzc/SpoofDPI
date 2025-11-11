@@ -1,14 +1,15 @@
 package config
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/BurntSushi/toml"
 )
 
-func parseTomlConfig(path string) (*Config, error) {
+func parseTomlConfig(dir string) (*Config, error) {
 	var cfg *Config
-	_, err := toml.DecodeFile(path, &cfg)
+	_, err := toml.DecodeFile(dir, &cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -16,13 +17,14 @@ func parseTomlConfig(path string) (*Config, error) {
 	return cfg, nil
 }
 
-func readFirstFoundConfigFiles(customDir string, lookupDirs []string) (*Config, error) {
+func findConfigFileToLoad(customDir string, lookupDirs []string) (string, error) {
 	if customDir != "" {
-		if _, err := os.Stat(customDir); err != nil { // Path exists
-			return nil, err
+		_, err := os.Stat(customDir)
+		if err != nil { // Path exists
+			return "", fmt.Errorf("no such file: %s", customDir)
+		} else {
+			return customDir, nil
 		}
-
-		return parseTomlConfig(customDir)
 	}
 
 	for _, p := range lookupDirs {
@@ -31,10 +33,10 @@ func readFirstFoundConfigFiles(customDir string, lookupDirs []string) (*Config, 
 		}
 
 		if _, err := os.Stat(p); err == nil { // Path exists
-			return parseTomlConfig(p)
+			return p, nil
 		}
 	}
 
-	// Don't care even if any configuration file in lookupDirs is not found
-	return nil, nil
+	// Don't care even if config files are not found in lookupDirs
+	return "", nil
 }

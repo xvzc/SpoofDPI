@@ -6,12 +6,15 @@ import (
 	"net"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/urfave/cli/v3"
 	"github.com/xvzc/SpoofDPI/version"
 )
 
-func CreateCommand(runFunc func(ctx context.Context, cfg *Config)) *cli.Command {
+func CreateCommand(
+	runFunc func(ctx context.Context, configDir string, cfg *Config),
+) *cli.Command {
 	cli.RootCommandHelpTemplate = createHelpTemplate()
 
 	cmd := &cli.Command{
@@ -24,8 +27,7 @@ func CreateCommand(runFunc func(ctx context.Context, cfg *Config)) *cli.Command 
 				Usage: `
 				perform DPI circumvention only on domains matching this regex pattern; 
 				can be given multiple times. these values have have higher priority 
-				than the values given with '--ignore' flag
-				`,
+				than the values given with '--ignore' flag`,
 				Validator: func(ss []string) error {
 					for _, s := range ss {
 						err := validateRegexpPattern(s)
@@ -59,9 +61,11 @@ func CreateCommand(runFunc func(ctx context.Context, cfg *Config)) *cli.Command 
 				Name:    "config",
 				Aliases: []string{"c"},
 				Usage: `
-				custom location of the config file to load. when not given, it will search
-        sequentially in the following locations: 
-				$SPOOFDPI_CONFIG, /etc/spoofdpi.toml, $HOME/.config/spoofdpi/spoofdpi.toml`,
+				custom location of the config file to load. options given through the command 
+				line flags will override the options set in this file. when not given, it will 
+				search sequentially in the following locations: 
+				$SPOOFDPI_CONFIG, /etc/spoofdpi.toml, $XDG_CONFIG_HOME/spoofdpi/spoofdpi.toml 
+				and $HOME/.config/spoofdpi/spoofdpi.toml`,
 				OnlyOnce: true,
 				Sources:  cli.EnvVars("SPOOFDPI_CONFIG"),
 			},
@@ -220,19 +224,29 @@ func CreateCommand(runFunc func(ctx context.Context, cfg *Config)) *cli.Command 
 				os.Exit(0)
 			}
 
-			var configDirs []string
+			var tomlCfg *Config
+			var configDir string
 			if !cmd.Bool("clean") {
 				configFilename := "spoofdpi.toml"
 
-				configDirs = []string{
+				configDirs := []string{
 					path.Join(string(os.PathSeparator), "etc", configFilename),
+					path.Join(os.Getenv("XDG_CONFIG_HOME"), "spoofdpi", configFilename),
 					path.Join(os.Getenv("HOME"), ".config", "spoofdpi", configFilename),
 				}
-			}
 
-			tomlCfg, err := readFirstFoundConfigFiles(cmd.String("config"), configDirs)
-			if err != nil {
-				return fmt.Errorf("error parsing toml confuguration: %s", err)
+				c, err := findConfigFileToLoad(cmd.String("config"), configDirs)
+				if err != nil {
+					return err
+				}
+
+				if c != "" {
+					configDir = c
+					tomlCfg, err = parseTomlConfig(c)
+					if err != nil {
+						return fmt.Errorf("error parsing toml config: %s", err)
+					}
+				}
 			}
 
 			argsCfg, err := parseConfigFromArgs(cmd)
@@ -251,7 +265,7 @@ func CreateCommand(runFunc func(ctx context.Context, cfg *Config)) *cli.Command 
 				return fmt.Errorf("invalid statement: '--allow' cannot be used with '--ignore'")
 			}
 
-			runFunc(ctx, finalCfg)
+			runFunc(ctx, strings.Replace(configDir, os.Getenv("HOME"), "~", 1), finalCfg)
 			return nil
 		},
 	}
