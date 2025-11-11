@@ -23,13 +23,13 @@ Press 'CTRL + c' to quit
     <img src="https://repology.org/badge/vertical-allrepos/spoofdpi.svg?columns=1" alt="Packaging status">
 </a>
 
-# Dependencies
+# 📦 Dependencies
 ```
 go >= 1.22
 libpcap
 ```
 
-# Installation
+# 🛠️ Installation
 ## Using go install
 ```sh
 # Installs the 'spoofdpi' executable to $GOBIN (or $GOPATH/bin if $GOBIN is not set)
@@ -44,7 +44,7 @@ GOBIN=~/.local/bin go install github.com/xvzc/SpoofDPI/cmd/spoofdpi@latest
 CGO_ENABLED=1 go build -ldflags="-w -s" ./cmd/...
 ```
 
-# Usage
+# 📋 Usage
 ```
 Usage: spoofdpi [options...]
 DESCRIPTION:
@@ -143,15 +143,15 @@ SpoofDPI also supports configuration via a `TOML` file. The configuration file i
 
 > **Note:** An example configuration file can be found at [**example\_config.toml**](https://github.com/xvzc/SpoofDPI/blob/main/example_config.toml).
 
-# How it works
-### HTTP
+# 🧠 How it works
+## HTTP
 Given that most websites now support HTTPS, SpoofDPI does not implement Deep Packet Inspection bypass for HTTP requests. However, it still proxies all HTTP traffic.
 
-### HTTPS
+## HTTPS
 HTTPS encrypts your data, but the very first packet (the Client Hello) still sends the website name you're visiting (the SNI) in plain text. This lets any network spy (DPI) easily see and block where you are going.
 
 SpoofDPI stops this by messing with the connection before the DPI can read the SNI. It breaks the Client Hello into tiny fragments and injects junk packets at the TCP level, confusing the inspection and letting your connection slip through.
 
-# Inspirations
+# 💡 Inspirations
 [Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) by @SadeghHayeri  
 [GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) by @ValdikSS
