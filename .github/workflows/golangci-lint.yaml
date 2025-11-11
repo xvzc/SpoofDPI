@@ -32,9 +32,9 @@ jobs:
           go-version: 1.22 
           cache: true      
 
-      # - name: Install C dependencies (libpcap)
-      #   # The linter needs to parse Cgo, which requires the C libraries.
-      #   run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+      - name: Install C dependencies (libpcap)
+        # The linter needs to parse Cgo, which requires the C libraries.
+        run: sudo apt-get update && sudo apt-get install -y libpcap-dev
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v8
@@ -48,5 +48,5 @@ jobs:
           # We must explicitly enable Cgo for this action,
           # otherwise it will fail on gopacket/pcap.
           skip-cache: true # Caching is complex with Cgo, disable it
-        # env:
-        #   CGO_ENABLED: 1 # Force Cgo to be enabled
+        env:
+          CGO_ENABLED: 1 # Force Cgo to be enabled
