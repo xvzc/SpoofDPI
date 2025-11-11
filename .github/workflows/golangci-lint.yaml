@@ -35,16 +35,10 @@ jobs:
           cache: true      # Enable Go module cache
 
       # cache the apt packages
-      - name: Cache apt-get dependencies
-        uses: actions/cache@v4
+      - uses: awalsh128/cache-apt-pkgs-action@latest
         with:
-          path: |
-            /var/cache/apt/archives
-            /var/lib/apt/lists
-          # The key is based on the runner OS and the specific package(s)
-          # If libpcap-dev updates, 'apt-get install' will still fetch the new version
-          # after 'apt-get update' refreshes the lists.
-          key: ${{ runner.os }}-apt-libpcap-dev
+          packages: libpcap-dev
+          version: 1.0
 
       - name: Install C dependencies (libpcap)
         # We still run 'update' (it's fast if lists are cached)
