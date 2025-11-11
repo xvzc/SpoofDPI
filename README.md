@@ -113,11 +113,12 @@ GLOBAL OPTIONS:
 > If you are using any vpn extensions such as Hotspot Shield in Chrome browser,
   go to Settings > Extensions, and disable them.
 
-### OSX
+## OSX
 Run `spoofdpi` with `--system-proxy` flag, and it will automatically setup your system proxy configuration.
 
-### Linux
+## Linux
 SpoofDPI does not support automatic system-wide proxy setup on Linux. Therefore, you must set the system proxy manually or run programs with the necessary environment variables or proxy options as shown below.
+
 ```sh
 # Google Chrome
 google-chrome --proxy-server="http://127.0.0.1:8080"
@@ -130,6 +131,17 @@ env \
 
 # ...
 ```
+
+# ⚙️ Configuration
+
+SpoofDPI also supports configuration via a `TOML` file. The configuration file is searched for in the following order of precedence:
+
+1.  The path specified by the `--config` (or `-c`) flag, or the `SPOOFDPI_CONFIG` environment variable.
+2.  `/etc/spoofdpi.toml`
+3.  `$XDG_CONFIG_HOME/spoofdpi/spoofdpi.toml`
+4.  `$HOME/.config/spoofdpi/spoofdpi.toml`
+
+> **Note:** An example configuration file can be found at [**example\_config.toml**](https://github.com/xvzc/SpoofDPI/blob/main/example_config.toml).
 
 # How it works
 ### HTTP
