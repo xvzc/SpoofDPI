@@ -1,0 +1,52 @@
+# This workflow runs golangci-lint on all pull requests
+# to check for style issues, bugs, and code smells.
+name: Go Linter
+
+on:
+  # Run on pull requests targeting the main branches
+  pull_request:
+    types: [opened, edited, synchronize]
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read      
+  pull-requests: read 
+  checks: write       
+
+jobs:
+  golangci-lint:
+    name: Run golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out PR code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0 
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.22 
+          cache: true      
+
+      # - name: Install C dependencies (libpcap)
+      #   # The linter needs to parse Cgo, which requires the C libraries.
+      #   run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          # Version of golangci-lint to use
+          version: latest 
+          
+          # Arguments to pass to 'golangci-lint run'
+          args: --verbose
+          
+          # We must explicitly enable Cgo for this action,
+          # otherwise it will fail on gopacket/pcap.
+          skip-cache: true # Caching is complex with Cgo, disable it
+        # env:
+        #   CGO_ENABLED: 1 # Force Cgo to be enabled
