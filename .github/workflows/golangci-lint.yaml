@@ -29,10 +29,11 @@ jobs:
           fetch-depth: 0 
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: 1.22 # Match the version from your build YAML
-          cache: true      # Enable Go module cache
+          go-version: '1.24' # Match the version from your build YAML
+
+      - run: go version
 
       # cache the apt packages
       - uses: awalsh128/cache-apt-pkgs-action@latest
