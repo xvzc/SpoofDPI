@@ -63,17 +63,12 @@ func (hr *HTTPSResolver) Info() []ResolverInfo {
 	}
 }
 
-func (hr *HTTPSResolver) Route(ctx context.Context) (Resolver, bool) {
-	patternMatched, ok := appctx.PatternMatchedFrom(ctx)
-	if !ok {
-		return nil, false
+func (hr *HTTPSResolver) Route(ctx context.Context) Resolver {
+	if include, ok := appctx.DomainIncludedFrom(ctx); ok && include && hr.enabled {
+		return hr
 	}
 
-	if hr.enabled && patternMatched {
-		return hr, true
-	}
-
-	return nil, true
+	return nil
 }
 
 func (hr *HTTPSResolver) Resolve(

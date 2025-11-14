@@ -48,10 +48,10 @@ func (rr *RouteResolver) Resolve(
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	resolver, ok := rr.Route(ctx)
-	if !ok {
+	resolver := rr.Route(ctx)
+	if resolver == nil {
 		return RecordSet{addrs: []net.IPAddr{}, ttl: 0}, fmt.Errorf(
-			"error routing resolver",
+			"error routing dns resolver",
 		)
 	}
 
@@ -68,19 +68,14 @@ func (rr *RouteResolver) Resolve(
 	return rSet, nil
 }
 
-func (rr *RouteResolver) Route(ctx context.Context) (Resolver, bool) {
+func (rr *RouteResolver) Route(ctx context.Context) Resolver {
 	for _, r := range rr.neighbors {
-		next, ok := r.Route(ctx)
-		if !ok {
-			return nil, false
-		}
-
-		if next != nil {
-			return next, true
+		if next := r.Route(ctx); next != nil {
+			return next
 		}
 	}
 
-	return nil, false
+	return nil
 }
 
 func parseIpAddr(addr string) (*net.IPAddr, error) {
