@@ -36,17 +36,12 @@ func (lr *LocalResolver) Info() []ResolverInfo {
 	}
 }
 
-func (lr *LocalResolver) Route(ctx context.Context) (Resolver, bool) {
-	patternMatched, ok := appctx.PatternMatchedFrom(ctx)
-	if !ok {
-		return nil, false
+func (lr *LocalResolver) Route(ctx context.Context) Resolver {
+	if include, ok := appctx.DomainIncludedFrom(ctx); ok && !include {
+		return lr
 	}
 
-	if !patternMatched {
-		return lr, true
-	}
-
-	return nil, true
+	return nil
 }
 
 func filtterAddrs(addrs []net.IPAddr, qTypes []uint16) []net.IPAddr {

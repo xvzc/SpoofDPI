@@ -9,22 +9,21 @@ import (
 )
 
 type Config struct {
-	CacheShards      Uint8Number    `toml:"cache-shards"`
-	DnsAddr          IPAddress      `toml:"dns-addr"`
-	DnsIPv4Only      bool           `toml:"dns-ipv4-only"`
-	DnsPort          Uint16Number   `toml:"dns-port"`
-	DOHEndpoint      HTTPSEndpoint  `toml:"doh-endpoint"`
-	EnableDOH        bool           `toml:"endble-doh"`
-	FakeHTTPSPackets Uint8Number    `toml:"fake-https-packets"`
-	ListenAddr       IPAddress      `toml:"listen-addr"`
-	ListenPort       Uint16Number   `toml:"listen-port"`
-	LogLevel         LogLevel       `toml:"log-level"`
-	PatternsAllowed  []RegexPattern `toml:"allow"`
-	PatternsIgnored  []RegexPattern `toml:"ignore"`
-	SetSystemProxy   bool           `toml:"system-proxy"`
-	Silent           bool           `toml:"silent"`
-	Timeout          Uint16Number   `toml:"timeout"`
-	WindowSize       Uint8Number    `toml:"window-size"`
+	CacheShards       Uint8Number    `toml:"cache-shards"`
+	DnsAddr           IPAddress      `toml:"dns-addr"`
+	DnsIPv4Only       bool           `toml:"dns-ipv4-only"`
+	DnsPort           Uint16Number   `toml:"dns-port"`
+	DOHEndpoint       HTTPSEndpoint  `toml:"doh-endpoint"`
+	EnableDOH         bool           `toml:"endble-doh"`
+	FakeHTTPSPackets  Uint8Number    `toml:"fake-https-packets"`
+	ListenAddr        IPAddress      `toml:"listen-addr"`
+	ListenPort        Uint16Number   `toml:"listen-port"`
+	LogLevel          LogLevel       `toml:"log-level"`
+	DomainPolicySlice []DomainPolicy `toml:"policy"`
+	SetSystemProxy    bool           `toml:"system-proxy"`
+	Silent            bool           `toml:"silent"`
+	Timeout           Uint16Number   `toml:"timeout"`
+	WindowSize        Uint8Number    `toml:"window-size"`
 }
 
 func (c *Config) GenerateDnsQueryTypes() []uint16 {

@@ -6,21 +6,21 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/datastruct"
+	"github.com/xvzc/SpoofDPI/internal/datastruct/cache"
 )
 
 // CacheResolver is a decorator that adds caching functionality to another Resolver.
 type CacheResolver struct {
 	logger zerolog.Logger
 
-	cache *datastruct.TTLCache[RecordSet] // Owns the cache
-	next  Resolver                        // The "worker" resolver
+	cache cache.Cache // Owns the cache
+	next  Resolver    // The "worker" resolver
 }
 
 // NewCacheResolver wraps a "worker" resolver with a cache.
 func NewCacheResolver(
 	logger zerolog.Logger,
-	cache *datastruct.TTLCache[RecordSet],
+	cache cache.Cache,
 	next Resolver, // The resolver to be wrapped (e.g., GeneralResolver)
 ) *CacheResolver {
 	return &CacheResolver{
@@ -36,17 +36,12 @@ func (cr *CacheResolver) Info() []ResolverInfo {
 	return info
 }
 
-func (cr *CacheResolver) Route(ctx context.Context) (Resolver, bool) {
-	r, ok := cr.next.Route(ctx)
-	if !ok {
-		return nil, false
+func (cr *CacheResolver) Route(ctx context.Context) Resolver {
+	if next := cr.next.Route(ctx); next != nil {
+		return cr
 	}
 
-	if r != nil {
-		return cr, true
-	}
-
-	return nil, true
+	return nil
 }
 
 // Resolve implements the Resolver interface.
@@ -60,7 +55,7 @@ func (cr *CacheResolver) Resolve(
 	// 1. [Cache Read]
 	if item, ok := cr.cache.Get(domain); ok {
 		cr.logger.Debug().Ctx(ctx).Msgf("cache hit; key=%s;", domain)
-		return item, nil
+		return item.(RecordSet), nil
 	}
 
 	// 2. [Cache Miss]
@@ -78,7 +73,7 @@ func (cr *CacheResolver) Resolve(
 		domain, rSet.Counts(), rSet.TTL(),
 	)
 
-	cr.cache.Set(domain, rSet, time.Duration(rSet.TTL())*time.Second)
+	cr.cache.Set(domain, rSet, cache.WithTTL(time.Duration(rSet.TTL())*time.Second))
 
 	return rSet, nil
 }

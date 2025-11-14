@@ -16,7 +16,7 @@ import (
 type Resolver interface {
 	Info() []ResolverInfo
 	Resolve(ctx context.Context, domain string, qTypes []uint16) (RecordSet, error)
-	Route(ctx context.Context) (Resolver, bool)
+	Route(ctx context.Context) Resolver
 }
 
 type ResolverInfo struct {
@@ -186,10 +186,10 @@ func processMessages(
 
 	select {
 	case <-ctx.Done():
-		return RecordSet{addrs: []net.IPAddr{}, ttl: 0}, ErrorContextCanceled
+		return RecordSet{}, ErrorContextCanceled
 	default:
 		if len(addrs) == 0 {
-			return RecordSet{addrs: []net.IPAddr{}, ttl: 0}, errors.Join(errs...)
+			return RecordSet{}, errors.Join(errs...)
 		}
 	}
 

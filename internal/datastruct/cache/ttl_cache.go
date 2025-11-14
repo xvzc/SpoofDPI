@@ -1,4 +1,4 @@
-package datastruct
+package cache
 
 import (
 	"fmt"
@@ -7,14 +7,16 @@ import (
 	"time"
 )
 
+var _ Cache = (*TTLCache)(nil)
+
 // ttlCacheItem represents a single cached item using generics.
-type ttlCacheItem[T any] struct {
-	value     T         // The cached data of type T.
+type ttlCacheItem struct {
+	value     any       // The cached data of type T.
 	expiresAt time.Time // The time when the item expires.
 }
 
 // isExpired checks if the item has expired.
-func (i ttlCacheItem[T]) isExpired() bool {
+func (i ttlCacheItem) isExpired() bool {
 	if i.expiresAt.IsZero() {
 		// zero time means no expiration.
 		return false
@@ -23,31 +25,31 @@ func (i ttlCacheItem[T]) isExpired() bool {
 }
 
 // ttlCacheShard represents a single, thread-safe shard of the cache.
-type ttlCacheShard[T any] struct {
-	items map[string]ttlCacheItem[T] // items holds the cache data for this shard.
+type ttlCacheShard struct {
+	items map[string]ttlCacheItem // items holds the cache data for this shard.
 	mu    sync.RWMutex
 }
 
 // TTLCache is a high-performance, sharded, generic TTL cache.
-type TTLCache[T any] struct {
-	shards []*ttlCacheShard[T] // A slice of cache shards.
+type TTLCache struct {
+	shards []*ttlCacheShard // A slice of cache shards.
 }
 
 // NewTTLCache creates a new sharded TTL cache with a background janitor goroutine.
 // numShards specifies the number of shards to create and must be greater than 0.
 // cleanupInterval specifies how often the janitor should run.
-func NewTTLCache[T any](numShards uint8, cleanupInterval time.Duration) *TTLCache[T] {
+func NewTTLCache(numShards uint8, cleanupInterval time.Duration) *TTLCache {
 	if numShards == 0 {
 		panic(fmt.Errorf("numShards must be greater than 0, got %d", numShards))
 	}
 
-	c := &TTLCache[T]{
-		shards: make([]*ttlCacheShard[T], numShards),
+	c := &TTLCache{
+		shards: make([]*ttlCacheShard, numShards),
 	}
 
 	for i := range numShards {
-		c.shards[i] = &ttlCacheShard[T]{
-			items: make(map[string]ttlCacheItem[T]),
+		c.shards[i] = &ttlCacheShard{
+			items: make(map[string]ttlCacheItem),
 		}
 	}
 
@@ -59,7 +61,7 @@ func NewTTLCache[T any](numShards uint8, cleanupInterval time.Duration) *TTLCach
 }
 
 // janitor runs the cleanup goroutine, calling ForceCleanup at the specified interval.
-func (c *TTLCache[T]) janitor(interval time.Duration) {
+func (c *TTLCache) janitor(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for range ticker.C {
@@ -68,7 +70,7 @@ func (c *TTLCache[T]) janitor(interval time.Duration) {
 }
 
 // getShard maps a key to its corresponding cache shard using a hash function.
-func (c *TTLCache[T]) getShard(key string) *ttlCacheShard[T] {
+func (c *TTLCache) getShard(key string) *ttlCacheShard {
 	hasher := fnv.New64a()
 	hasher.Write([]byte(key))
 	hash := hasher.Sum64()
@@ -80,15 +82,22 @@ func (c *TTLCache[T]) getShard(key string) *ttlCacheShard[T] {
 // └─────────────┘
 // Set adds an item to the cache, replacing any existing item.
 // If ttl is 0 or negative, the item will never expire (passive-only).
-func (c *TTLCache[T]) Set(key string, value T, ttl time.Duration) {
-	var expiresAt time.Time
-	if ttl > 0 {
-		expiresAt = time.Now().Add(ttl)
+func (c *TTLCache) Set(key string, value any, opts ...SetOption) {
+	// 1. Apply all provided options to get the final options struct.
+	opt := applyOpts(opts...)
+
+	if opt.ttl == 0 {
+		return
 	}
-	newItem := ttlCacheItem[T]{
+
+	// 3. Use the options that this cache cares about
+	expiresAt := time.Now().Add(opt.ttl)
+
+	newItem := ttlCacheItem{
 		value:     value,
 		expiresAt: expiresAt,
 	}
+
 	shard := c.getShard(key)
 	shard.mu.Lock()
 	shard.items[key] = newItem
@@ -98,15 +107,14 @@ func (c *TTLCache[T]) Set(key string, value T, ttl time.Duration) {
 // Get retrieves an item from the cache.
 // It returns the item (of type T) and true if found and not expired.
 // Otherwise, it returns the zero value of T and false.
-func (c *TTLCache[T]) Get(key string) (T, bool) {
+func (c *TTLCache) Get(key string) (any, bool) {
 	shard := c.getShard(key)
 	shard.mu.RLock()
 	i, ok := shard.items[key]
 	shard.mu.RUnlock()
 
 	if !ok {
-		var zero T
-		return zero, false // 1. Cache miss.
+		return nil, false // 1. Cache miss.
 	}
 
 	// 2. Passive expiration: item found but is expired.
@@ -121,8 +129,7 @@ func (c *TTLCache[T]) Get(key string) (T, bool) {
 			}
 		}
 		shard.mu.Unlock()
-		var zero T
-		return zero, false // Return as expired.
+		return nil, false // Return as expired.
 	}
 
 	// 3. Cache hit.
@@ -130,7 +137,7 @@ func (c *TTLCache[T]) Get(key string) (T, bool) {
 }
 
 // Delete removes an item from the cache.
-func (c *TTLCache[T]) Delete(key string) {
+func (c *TTLCache) Delete(key string) {
 	shard := c.getShard(key)
 	shard.mu.Lock()
 	delete(shard.items, key)
@@ -139,7 +146,7 @@ func (c *TTLCache[T]) Delete(key string) {
 
 // ForceCleanup actively scans all shards and deletes expired items.
 // This is called periodically by the janitor but can also be called manually.
-func (c *TTLCache[T]) ForceCleanup() {
+func (c *TTLCache) ForceCleanup() {
 	now := time.Now()
 	for _, shard := range c.shards {
 		shard.mu.Lock()

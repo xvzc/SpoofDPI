@@ -54,12 +54,8 @@ COPYRIGHT:
 USAGE:
   spoofdpi [global options]
 GLOBAL OPTIONS:
-  --allow string
-        perform DPI circumvention only on domains matching this regex pattern;
-        can be given multiple times. these values have have higher priority
-        than the values given with '--ignore' flag
   --cache-shards int
-        number of shards to use for ttlcache; it is recommended to set this to be
+        number of shards to use for ttlcache. it is recommended to set this to be
         at least the number of CPU cores for optimal performance (default: 32, max: 255)
   --clean bool
         if set, all configuration files will be ignored
@@ -85,21 +81,28 @@ GLOBAL OPTIONS:
         try this if tcp-level fragmentation (via --window-size) does not
         work. this feature requires root privilege and the 'libpcap'
         dependency (default: 0, max: 255)
-  --ignore string
-        do not perform DPI circumvention on domains matching this regex
-        pattern; can be given multiple times.
   --listen-addr string
         IP address to listen on (default: 127.0.0.1)
   --listen-port int
         port number to listen on (default: 8080)
   --log-level string
         set log level (default: 'info')
+  --policy string
+        domain rules that determine whether to perform DPI circumvention on match.
+        supports wildcards, but the main domain name must not contain a wildcard.
+        this flag can be given multiple times. policies start with 'i:' to include
+        or 'x:' to exclude the matching domain. when rules overlap, a more specific
+        rule (e.g., static) overrides a less specific one (e.g., wildcard).
+        e.g. Given 'i:*.discordapp.com' and 'x:cdn.discordapp.com', traffic for
+        'api.discordapp.com' and 'www.discordapp.com' will be circumvented,
+        but 'cdn.discordapp.com' will be passed through.
   --silent bool
         do not show the banner and server information at start up
   --system-proxy bool
         automatically set system-wide proxy configuration
   --timeout int
-        timeout in milliseconds; no effect when the value is 0 (default: 0, max: 66535)
+        timeout for tcp connection in milliseconds.
+        no effect when the value is 0 (default: 0, max: 66535)
   --version, -v bool
         print version; this may contain some other relevant information
   --window-size int

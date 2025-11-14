@@ -11,7 +11,7 @@ import (
 	"github.com/google/gopacket/pcap"
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/appctx"
-	"github.com/xvzc/SpoofDPI/internal/datastruct"
+	"github.com/xvzc/SpoofDPI/internal/datastruct/cache"
 )
 
 // HopTracker monitors a pcap handle to find SYN/ACK packets and
@@ -19,14 +19,14 @@ import (
 type HopTracker struct {
 	logger zerolog.Logger
 
-	cache  *datastruct.TTLCache[uint8] // The cache stores hop counts (uint8)
+	cache  cache.Cache // The cache stores hop counts (uint8)
 	handle *pcap.Handle
 }
 
 // NewHopTracker creates a new HopTracker.
 func NewHopTracker(
 	logger zerolog.Logger,
-	cache *datastruct.TTLCache[uint8],
+	cache cache.Cache,
 	handle *pcap.Handle,
 ) *HopTracker {
 	// Error checking for nil handle and cache has been removed
@@ -59,12 +59,11 @@ func (ht *HopTracker) StartCapturing() {
 // GetOptimalTTL retrieves the estimated hop count for a given key from the cache.
 // It returns the hop count and true if found, or 0 and false if not found.
 func (ht *HopTracker) GetOptimalTTL(key string) uint8 {
-	nhops, ok := ht.cache.Get(key)
-	if !ok || nhops <= 1 {
-		nhops = math.MaxUint8
+	if nhops, ok := ht.cache.Get(key); ok {
+		return max(nhops.(uint8), 2) - 1
 	}
 
-	return nhops - 1
+	return math.MaxUint8 - 1
 }
 
 // processPacket analyzes a single packet to find SYN/ACKs and store hop counts.
@@ -100,7 +99,7 @@ func (ht *HopTracker) processPacket(ctx context.Context, p gopacket.Packet) {
 
 			// Calculate hop count from the TTL
 			nhops := calculateHops(ttl)
-			ht.cache.Set(key, nhops, 180*time.Second)
+			ht.cache.Set(key, nhops, cache.WithTTL(180*time.Second))
 			logger.Trace().
 				Msgf("received syn+ack; src=%s; ttl=%d; nhops=%d;",
 					key, ttl, nhops,

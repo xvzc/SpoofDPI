@@ -2,6 +2,7 @@ package dns
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"strconv"
 
@@ -32,17 +33,12 @@ func NewPlainResolver(
 	}
 }
 
-func (pr *PlainResolver) Route(ctx context.Context) (Resolver, bool) {
-	patternMatched, ok := appctx.PatternMatchedFrom(ctx)
-	if !ok {
-		return nil, false
+func (pr *PlainResolver) Route(ctx context.Context) Resolver {
+	if include, ok := appctx.DomainIncludedFrom(ctx); ok && include {
+		return pr
 	}
 
-	if patternMatched {
-		return pr, true
-	}
-
-	return nil, true
+	return nil
 }
 
 func (pr *PlainResolver) Info() []ResolverInfo {
@@ -62,6 +58,9 @@ func (pr *PlainResolver) Resolve(
 ) (RecordSet, error) {
 	resCh := lookupAllTypes(ctx, domain, qTypes, pr.exchange)
 	rSet, err := processMessages(ctx, resCh)
+	if rSet.Counts() == 0 {
+		return RecordSet{}, fmt.Errorf("could not resolve '%s'", domain)
+	}
 
 	return rSet, err
 }

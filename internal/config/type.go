@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"math"
 	"net"
-	"regexp"
 	"strconv"
+
+	"github.com/xvzc/SpoofDPI/internal/datastruct/tree"
 )
 
 // ┌───────┐
@@ -124,42 +125,70 @@ func (e *HTTPSEndpoint) UnmarshalText(text []byte) error {
 }
 
 // ┌──────────────┐
-// │ RegexPattern │
+// │ DomainPolicy │
 // └──────────────┘
-type RegexPattern struct {
-	value *regexp.Regexp
+// DomainPolicyAction defines the type of action to take for a domain.
+type DomainPolicy struct {
+	value   string
+	include bool
 }
 
-func (r *RegexPattern) Value() *regexp.Regexp {
-	return r.value
+func (dp *DomainPolicy) Value() string {
+	return dp.value
 }
 
-func (r *RegexPattern) UnmarshalText(text []byte) error {
+func (dp *DomainPolicy) IsIncluded() bool {
+	return dp.include
+}
+
+func (dp *DomainPolicy) UnmarshalText(text []byte) error {
 	s := string(text)
-	err := validateRegexpPattern(s)
+	err := validatePolicy(s)
 	if err != nil {
 		return err
 	}
 
-	r.value = regexp.MustCompile(s)
+	parsed := parseDomainPolicy(string(text))
+
+	dp.value = parsed.Value()
+	dp.include = parsed.IsIncluded()
 
 	return nil
 }
 
-func ParseRegexPatterns(ss []string) []RegexPattern {
-	var ret []RegexPattern
-	for i := range ss {
-		ret = append(ret, RegexPattern{regexp.MustCompile(ss[i])})
+func parseDomainPolicy(s string) DomainPolicy {
+	prefix, value := string(s[0]), s[2:]
+
+	var action bool
+	switch prefix {
+	case "i":
+		action = true
+	case "x":
+		action = false
+	default:
+		action = false
+	}
+
+	return DomainPolicy{
+		value:   value,
+		include: action,
+	}
+}
+
+func parseDomainPolicySlice(ss []string) []DomainPolicy {
+	var ret []DomainPolicy
+	for _, s := range ss {
+		ret = append(ret, parseDomainPolicy(s))
 	}
 
 	return ret
 }
 
-func ParseRegexpSlices(rs []RegexPattern) []*regexp.Regexp {
-	var ret []*regexp.Regexp
-	for i := range rs {
-		ret = append(ret, rs[i].Value())
+func ParseDomainSearchTree(ps []DomainPolicy) tree.RadixTree {
+	rt := tree.NewDomainSearchTree()
+	for _, p := range ps {
+		rt.Insert(p.Value(), p.IsIncluded())
 	}
 
-	return ret
+	return rt
 }

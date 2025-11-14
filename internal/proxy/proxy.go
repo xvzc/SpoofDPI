@@ -5,11 +5,11 @@ import (
 	"io"
 	"net"
 	"os"
-	"regexp"
 	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/appctx"
+	"github.com/xvzc/SpoofDPI/internal/datastruct/tree"
 	"github.com/xvzc/SpoofDPI/internal/dns"
 )
 
@@ -19,13 +19,12 @@ type Proxy struct {
 	resolver     dns.Resolver
 	httpHandler  Handler
 	httpsHandler Handler
+	domainTree   tree.RadixTree
 
-	listenAddr      net.IP
-	listenPort      uint16
-	patternsAllowed []*regexp.Regexp
-	patternsIgnored []*regexp.Regexp
-	dnsQueryTypes   []uint16
-	timeout         time.Duration
+	listenAddr    net.IP
+	listenPort    uint16
+	dnsQueryTypes []uint16
+	timeout       time.Duration
 }
 
 func NewProxy(
@@ -34,25 +33,23 @@ func NewProxy(
 	resolver dns.Resolver,
 	httpHandler Handler,
 	httpsHandler Handler,
+	domainTree tree.RadixTree,
 
 	listenAddr net.IP,
 	listenPort uint16,
-	patternsAllowed []*regexp.Regexp,
-	patternsIgnored []*regexp.Regexp,
 	dnsQueryTypes []uint16,
 	timeout time.Duration,
 ) *Proxy {
 	return &Proxy{
-		logger:          logger,
-		resolver:        resolver,
-		httpHandler:     httpHandler,
-		httpsHandler:    httpsHandler,
-		listenAddr:      listenAddr,
-		listenPort:      listenPort,
-		patternsAllowed: patternsAllowed,
-		patternsIgnored: patternsIgnored,
-		dnsQueryTypes:   dnsQueryTypes,
-		timeout:         timeout,
+		logger:        logger,
+		resolver:      resolver,
+		httpHandler:   httpHandler,
+		httpsHandler:  httpsHandler,
+		domainTree:    domainTree,
+		listenAddr:    listenAddr,
+		listenPort:    listenPort,
+		dnsQueryTypes: dnsQueryTypes,
+		timeout:       timeout,
 	}
 }
 
@@ -118,15 +115,11 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 		return
 	}
 
-	patternMatched := patternMatches(
-		[]byte(domain),
-		pxy.patternsAllowed,
-		pxy.patternsIgnored,
-	)
+	domainIncluded := pxy.checkDomainPolicy([]byte(domain))
 
-	logger.Debug().Msgf("pattern matched; %v; %s;", patternMatched, domain)
+	logger.Debug().Msgf("domain policy; name=%s; include=%v;", domain, domainIncluded)
 
-	ctx = appctx.WithPatternMatched(ctx, patternMatched)
+	ctx = appctx.WithDomainIncluded(ctx, domainIncluded)
 
 	t1 := time.Now()
 	rSet, err := pxy.resolver.Resolve(ctx, domain, pxy.dnsQueryTypes)
@@ -151,7 +144,7 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 	}
 
 	isPrivate := pxy.isPrivateDst(ctx, dstAddrs)
-	ctx = appctx.WithShouldExploit(ctx, (!isPrivate && patternMatched))
+	ctx = appctx.WithShouldExploit(ctx, (!isPrivate && domainIncluded))
 
 	var h Handler
 	if req.IsConnectMethod() {
@@ -221,34 +214,18 @@ func (pxy *Proxy) isPrivateDst(ctx context.Context, dstAddrs []net.IPAddr) bool 
 	return false
 }
 
-func patternMatches(
+func (pxy *Proxy) checkDomainPolicy(
 	bytes []byte,
-	allow []*regexp.Regexp,
-	ignore []*regexp.Regexp,
 ) bool {
-	// always true when there's no patterns to check
-	if len(allow) == 0 && len(ignore) == 0 {
+	// always return true when there's no patterns to check
+	if pxy.domainTree == nil {
 		return true
 	}
 
-	// use whitelist strategy when allow patterns exist
-	// skip checking for ignore patterns this case
-	if len(allow) > 0 {
-		for _, p := range allow {
-			if p.Match(bytes) {
-				return true
-			}
-		}
-
-		return false
+	value, found := pxy.domainTree.Lookup(string(bytes))
+	if found {
+		return value.(bool)
 	}
 
-	// use blacklist strategy when only ignore patterns exist
-	for _, p := range ignore {
-		if p.Match(bytes) {
-			return false
-		}
-	}
-
-	return true
+	return false
 }
