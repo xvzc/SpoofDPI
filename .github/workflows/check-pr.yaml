@@ -53,27 +53,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Add labels IF lint_pr_title succeeds
-  label_pr:
-    name: Auto-label PR (Type)
+  enforce-label:
     runs-on: ubuntu-latest
-    # This job only runs if the 'lint_pr_title' job completes successfully.
-    needs: lint_pr_title 
     steps:
-      - uses: tim-actions/conventional-pr-labeler@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          
-          # Define the mapping from 'type' (from the PR title) 
-          # to the 'label' (in your GitHub repo).
-          # You can adjust the label names (right side) to match your repository.
-          label-mapping: |
-            "feat": "feature"
-            "fix": "bug"
-            "docs": "documentation"
-            "style": "style"
-            "refactor": "refactor"
-            "perf": "enhancement"
-            "test": "test"
-            "chore": "chore"
-            "ci": "ci"
-            "revert": "revert"
+    - uses: yogevbd/enforce-label-action@2.1.0
+      with:
+        REQUIRED_LABELS_ANY: "feature,bug,documentation,style,refactor,enhancement,test,chore,ci,revert"
+        REQUIRED_LABELS_ANY_DESCRIPTION: "Select at least one label ['feature', 'bug', 'documentation', 'style', 'refactor', 'enhancement', 'test', 'chore', 'ci', 'revert']"

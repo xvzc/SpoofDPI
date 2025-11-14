@@ -10,7 +10,7 @@ import (
 type (
 	scopeCtxKey          struct{}
 	traceIDCtxKey        struct{}
-	patternMatchedCtxKey struct{}
+	domainIncludedCtxKey struct{}
 	shouldExploitCtxKey  struct{}
 )
 
@@ -48,12 +48,12 @@ func TraceIDFrom(ctx context.Context) (string, bool) {
 	return "", false
 }
 
-func WithPatternMatched(ctx context.Context, patternMatched bool) context.Context {
-	return context.WithValue(ctx, patternMatchedCtxKey{}, patternMatched)
+func WithDomainIncluded(ctx context.Context, patternMatched bool) context.Context {
+	return context.WithValue(ctx, domainIncludedCtxKey{}, patternMatched)
 }
 
-func PatternMatchedFrom(ctx context.Context) (bool, bool) {
-	patternMatched, ok := ctx.Value(patternMatchedCtxKey{}).(bool)
+func DomainIncludedFrom(ctx context.Context) (bool, bool) {
+	patternMatched, ok := ctx.Value(domainIncludedCtxKey{}).(bool)
 
 	return patternMatched, ok
 }

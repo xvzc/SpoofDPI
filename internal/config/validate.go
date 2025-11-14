@@ -33,10 +33,15 @@ func validateLogLevel(v string) error {
 	return nil
 }
 
-func validateRegexpPattern(v string) error {
-	_, err := regexp.Compile(v)
+func validatePolicy(v string) error {
+	rs := `^(i|x):((\*|[a-zA-Z0-9-]+)\.)*[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+$`
+	r, err := regexp.Compile(rs)
 	if err != nil {
-		return fmt.Errorf("failed to compile regexp")
+		return fmt.Errorf("wrong format")
+	}
+
+	if !r.MatchString(v) {
+		return fmt.Errorf("wrong format")
 	}
 
 	return nil

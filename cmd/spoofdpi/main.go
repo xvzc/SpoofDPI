@@ -13,7 +13,8 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/appctx"
 	"github.com/xvzc/SpoofDPI/internal/applog"
 	"github.com/xvzc/SpoofDPI/internal/config"
-	"github.com/xvzc/SpoofDPI/internal/datastruct"
+	"github.com/xvzc/SpoofDPI/internal/datastruct/cache"
+	"github.com/xvzc/SpoofDPI/internal/datastruct/tree"
 	"github.com/xvzc/SpoofDPI/internal/dns"
 	"github.com/xvzc/SpoofDPI/internal/packet"
 	"github.com/xvzc/SpoofDPI/internal/proxy"
@@ -75,9 +76,7 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 	}
 
 	logger.Info().Msgf("window size; %d;", cfg.WindowSize.Value())
-	logger.Info().Msgf(
-		"patterns; allow=%d; ignore=%d;", len(cfg.PatternsAllowed), len(cfg.PatternsIgnored),
-	)
+	logger.Info().Msgf("policy; %d;", len(cfg.DomainPolicySlice))
 
 	if cfg.Timeout.Value() > 0 {
 		logger.Info().
@@ -125,7 +124,7 @@ func createResolver(logger zerolog.Logger, cfg *config.Config) dns.Resolver {
 	)
 
 	// create a TTL cache for storing DNS records.
-	dnsCache := datastruct.NewTTLCache[dns.RecordSet](
+	dnsCache := cache.NewTTLCache(
 		cfg.CacheShards.Value(),
 		time.Duration(1*time.Minute),
 	)
@@ -189,7 +188,7 @@ func createProxy(
 		}
 		logger.Info().Msgf("gateway mac; %s;", gatewayMAC.String())
 
-		hopCache := datastruct.NewTTLCache[uint8](
+		hopCache := cache.NewTTLCache(
 			cfg.CacheShards.Value(),
 			time.Duration(3)*time.Minute,
 		)
@@ -216,7 +215,7 @@ func createProxy(
 
 	// create an HTTP handler.
 	httpHandler := proxy.NewHttpHandler(
-		applog.WithScope(logger, "PXY(.main)"),
+		applog.WithScope(logger, "HDL(.http)"),
 	)
 
 	// create an HTTPS handler.
@@ -228,15 +227,19 @@ func createProxy(
 		cfg.FakeHTTPSPackets.Value(),
 	)
 
+	var domainTree tree.RadixTree
+	if len(cfg.DomainPolicySlice) > 0 {
+		domainTree = config.ParseDomainSearchTree(cfg.DomainPolicySlice)
+	}
+
 	return proxy.NewProxy(
-		applog.WithScope(logger, "HDL(.http)"),
+		applog.WithScope(logger, "PXY(.main)"),
 		resolver,
 		httpHandler,
 		httpsHandler,
+		domainTree,
 		cfg.ListenAddr.Value(),
 		cfg.ListenPort.Value(),
-		config.ParseRegexpSlices(cfg.PatternsAllowed),
-		config.ParseRegexpSlices(cfg.PatternsIgnored),
 		cfg.GenerateDnsQueryTypes(),
 		time.Duration(cfg.Timeout.Value())*time.Millisecond,
 	), nil

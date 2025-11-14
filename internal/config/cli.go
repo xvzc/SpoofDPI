@@ -22,28 +22,10 @@ func CreateCommand(
 		Description: "Simple and fast anti-censorship tool to bypass DPI",
 		Copyright:   "Apache License, Version 2.0, January 2004",
 		Flags: []cli.Flag{
-			&cli.StringSliceFlag{
-				Name: "allow",
-				Usage: `
-				perform DPI circumvention only on domains matching this regex pattern; 
-				can be given multiple times. these values have have higher priority 
-				than the values given with '--ignore' flag`,
-				Validator: func(ss []string) error {
-					for _, s := range ss {
-						err := validateRegexpPattern(s)
-						if err != nil {
-							return err
-						}
-					}
-
-					return nil
-				},
-			},
-
 			&cli.IntFlag{
 				Name: "cache-shards",
 				Usage: `
-				number of shards to use for ttlcache; it is recommended to set this to be 
+				number of shards to use for ttlcache. it is recommended to set this to be 
 				at least the number of CPU cores for optimal performance (default: 32, max: 255)`,
 				Value:     32,
 				OnlyOnce:  true,
@@ -124,23 +106,6 @@ func CreateCommand(
 				Validator: validateUint8,
 			},
 
-			&cli.StringSliceFlag{
-				Name: "ignore",
-				Usage: `
-				do not perform DPI circumvention on domains matching this regex
-        pattern; can be given multiple times. `,
-				Validator: func(ss []string) error {
-					for _, s := range ss {
-						err := validateRegexpPattern(s)
-						if err != nil {
-							return err
-						}
-					}
-
-					return nil
-				},
-			},
-
 			&cli.StringFlag{
 				Name: "listen-addr",
 				Usage: `
@@ -175,6 +140,29 @@ func CreateCommand(
 				Validator: validateLogLevel,
 			},
 
+			&cli.StringSliceFlag{
+				Name: "policy",
+				Usage: `
+				domain rules that determine whether to perform DPI circumvention on match.
+        supports wildcards, but the main domain name must not contain a wildcard.
+        this flag can be given multiple times. policies start with 'i:' to include 
+				or 'x:' to exclude the matching domain. when rules overlap, a more specific 
+				rule (e.g., static) overrides a less specific one (e.g., wildcard).
+        e.g. Given 'i:*.discordapp.com' and 'x:cdn.discordapp.com', traffic for
+        'api.discordapp.com' and 'www.discordapp.com' will be circumvented, 
+				but 'cdn.discordapp.com' will be passed through.`,
+				OnlyOnce: true,
+				Validator: func(ss []string) error {
+					for _, s := range ss {
+						if err := validatePolicy(s); err != nil {
+							return err
+						}
+					}
+
+					return nil
+				},
+			},
+
 			&cli.BoolFlag{
 				Name: "silent",
 				Usage: `
@@ -192,7 +180,8 @@ func CreateCommand(
 			&cli.IntFlag{
 				Name: "timeout",
 				Usage: `
-				timeout in milliseconds; no effect when the value is 0 (default: 0, max: 66535)`,
+				timeout for tcp connection in milliseconds. 
+				no effect when the value is 0 (default: 0, max: 66535)`,
 				Value:     0,
 				OnlyOnce:  true,
 				Validator: validateUint16,
@@ -261,10 +250,6 @@ func CreateCommand(
 				finalCfg = mergeConfig(argsCfg, tomlCfg, os.Args[1:])
 			}
 
-			if len(finalCfg.PatternsAllowed) > 0 && len(finalCfg.PatternsIgnored) > 0 {
-				return fmt.Errorf("invalid statement: '--allow' cannot be used with '--ignore'")
-			}
-
 			runFunc(ctx, strings.Replace(configDir, os.Getenv("HOME"), "~", 1), finalCfg)
 			return nil
 		},
@@ -304,22 +289,21 @@ GLOBAL OPTIONS:
 
 func parseConfigFromArgs(cmd *cli.Command) (*Config, error) {
 	cfg := &Config{
-		CacheShards:      Uint8Number{uint8(cmd.Int("cache-shards"))},
-		DnsAddr:          IPAddress{net.ParseIP(cmd.String("dns-addr"))},
-		DnsPort:          Uint16Number{uint16(cmd.Int("dns-port"))},
-		DnsIPv4Only:      cmd.Bool("dns-ipv4-only"),
-		DOHEndpoint:      HTTPSEndpoint{cmd.String("doh-endpoint")},
-		EnableDOH:        cmd.Bool("enable-doh"),
-		ListenAddr:       IPAddress{net.ParseIP(cmd.String("listen-addr"))},
-		ListenPort:       Uint16Number{uint16(cmd.Int("listen-port"))},
-		LogLevel:         LogLevel{cmd.String("log-level")},
-		PatternsAllowed:  ParseRegexPatterns(cmd.StringSlice("allow")),
-		PatternsIgnored:  ParseRegexPatterns(cmd.StringSlice("ignore")),
-		SetSystemProxy:   cmd.Bool("system-proxy"),
-		Silent:           cmd.Bool("silent"),
-		Timeout:          Uint16Number{uint16(cmd.Int("timeout"))},
-		WindowSize:       Uint8Number{uint8(cmd.Int("window-size"))},
-		FakeHTTPSPackets: Uint8Number{uint8(cmd.Int("fake-https-packets"))},
+		CacheShards:       Uint8Number{uint8(cmd.Int("cache-shards"))},
+		DnsAddr:           IPAddress{net.ParseIP(cmd.String("dns-addr"))},
+		DnsPort:           Uint16Number{uint16(cmd.Int("dns-port"))},
+		DnsIPv4Only:       cmd.Bool("dns-ipv4-only"),
+		DOHEndpoint:       HTTPSEndpoint{cmd.String("doh-endpoint")},
+		DomainPolicySlice: parseDomainPolicySlice(cmd.StringSlice("policy")),
+		EnableDOH:         cmd.Bool("enable-doh"),
+		ListenAddr:        IPAddress{net.ParseIP(cmd.String("listen-addr"))},
+		ListenPort:        Uint16Number{uint16(cmd.Int("listen-port"))},
+		LogLevel:          LogLevel{cmd.String("log-level")},
+		SetSystemProxy:    cmd.Bool("system-proxy"),
+		Silent:            cmd.Bool("silent"),
+		Timeout:           Uint16Number{uint16(cmd.Int("timeout"))},
+		WindowSize:        Uint8Number{uint8(cmd.Int("window-size"))},
+		FakeHTTPSPackets:  Uint8Number{uint8(cmd.Int("fake-https-packets"))},
 	}
 
 	return cfg, nil
