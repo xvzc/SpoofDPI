@@ -96,9 +96,7 @@ func tunnel(
 	n, err := io.CopyBuffer(dst, src, *bufPtr)
 	if err != nil {
 		if !errors.Is(err, net.ErrClosed) && err != io.EOF {
-			logger.Debug().Msgf("error while copying data from %s to %s: %s",
-				src.RemoteAddr().String(), dst.RemoteAddr().String(), err,
-			)
+			logger.Debug().Msgf("error while copying data: %s", err)
 		}
 	}
 

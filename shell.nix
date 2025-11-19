@@ -15,6 +15,7 @@ pkgs.mkShell {
     gopls
     golangci-lint-langserver
     unstablePkgs.golangci-lint
+    (pkgs.python312.withPackages (pyPkgs: with pyPkgs; [ mkdocs-material ]))
   ];
 
   shellHook = # sh
