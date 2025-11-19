@@ -6,7 +6,8 @@
 
 Specifies whether to automatically set up system-wide proxy. `(default: false)`
 
-This option is currently only supported on `macOS`
+!!! important 
+    This option is currently only supported on `macOS`
 
 ## Usage
 
