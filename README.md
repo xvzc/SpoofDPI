@@ -6,7 +6,7 @@ SpoofDPI is a simple proxy tool, mainly designed to neutralize the *Deep Packet 
 
 For more detailed information, please refer to the [Official Documentation](https://spoofdpi.xvzc.dev).
 
-## Packaging Status
+## 📦 Packaging Status
 
 <a href="https://repology.org/project/spoofdpi/versions">
     <img src="https://repology.org/badge/vertical-allrepos/spoofdpi.svg?columns=1" alt="Packaging status">
