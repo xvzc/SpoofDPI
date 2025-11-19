@@ -1,7 +1,8 @@
 spoofdpi
 spoofdpi-*
 spoofdpi.*
-!*/spoofdpi/
+!cmd/spoofdpi/
+!_assets/*
 out/**
 
 .DS_Store

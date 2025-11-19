@@ -34,7 +34,7 @@ func validateLogLevel(v string) error {
 }
 
 func validatePolicy(v string) error {
-	rs := `^(i|x):((\*|[a-zA-Z0-9-]+)\.)*[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+$`
+	rs := `^([i|x]):([a-zA-Z0-9\-]+|\*{2}|\*)(?:\.([a-zA-Z0-9\-]+|\*{2}|\*))*$`
 	r, err := regexp.Compile(rs)
 	if err != nil {
 		return fmt.Errorf("wrong format")

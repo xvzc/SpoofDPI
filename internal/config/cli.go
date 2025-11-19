@@ -151,7 +151,6 @@ func CreateCommand(
         e.g. Given 'i:*.discordapp.com' and 'x:cdn.discordapp.com', traffic for
         'api.discordapp.com' and 'www.discordapp.com' will be circumvented, 
 				but 'cdn.discordapp.com' will be passed through.`,
-				OnlyOnce: true,
 				Validator: func(ss []string) error {
 					for _, s := range ss {
 						if err := validatePolicy(s); err != nil {
