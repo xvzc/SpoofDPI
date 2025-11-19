@@ -13,7 +13,7 @@ extra_css:
 theme:
   name: material
   logo: static/logo.png
-  favicon: static/favicon2.ico
+  favicon: static/favicon.ico
   language: en
   custom_dir: docs/overrides
   icon:
