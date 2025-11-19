@@ -1,0 +1,97 @@
+# Site configuration
+site_name: SpoofDPI
+site_description: 'Lightweight and fast DPI circumvention tool.'
+site_author: 'xvzc'
+copyright: Copyright © 2025 xvzc. All rights reserved.
+repo_url: https://github.com/xvzc/SpoofDPI
+repo_name: 'xvzc/SpoofDPI'
+
+extra_css:
+ - style.css
+
+# Theme configuration
+theme:
+  name: material
+  logo: static/logo.png
+  favicon: static/favicon2.ico
+  language: en
+  custom_dir: docs/overrides
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+  - media: '(prefers-color-scheme: light)'
+    scheme: default
+    primary: black
+    accent: indigo
+    toggle:
+      icon: material/weather-night
+      name: Switch to dark mode
+  - media: '(prefers-color-scheme: dark)'
+    scheme: slate
+    primary: black
+    accent: indigo
+    toggle:
+      icon: material/weather-sunny
+      name: Switch to light mode
+  features:
+    - toc.follow
+    - navigation.expand
+    # - navigation.indexes
+    # - navigation.sections
+    - navigation.tabs
+    - navigation.top
+    - navigation.tracking
+    - search.suggest
+    - search.highlight
+    - content.code.annotate
+    - content.code.copy
+    - content.code.collapse
+
+# Navigation menu
+nav:
+  - 'Getting Started':
+    - 'Introduction': getting-started/introduction.md
+    - 'Install': getting-started/install.md
+    - 'Quick Start': getting-started/quick-start.md
+  - 'User Guide':
+    - 'Configuration': user-guide/configuration.md
+    - 'CLI Reference':
+      - 'listen-addr': user-guide/cli-reference/listen-addr.md
+      - 'listen-port': user-guide/cli-reference/listen-port.md
+      - 'dns-addr': user-guide/cli-reference/dns-addr.md
+      - 'dns-port': user-guide/cli-reference/dns-port.md
+      - 'dns-ipv4-only': user-guide/cli-reference/dns-ipv4-only.md
+      - 'enable-doh': user-guide/cli-reference/enable-doh.md
+      - 'doh-endpoint': user-guide/cli-reference/doh-endpoint.md
+      - 'policy': user-guide/cli-reference/policy.md
+      - 'window-size': user-guide/cli-reference/window-size.md
+      - 'fake-https-packets': user-guide/cli-reference/fake-https-packets.md
+      - 'cache-shards': user-guide/cli-reference/cache-shards.md
+      - 'system-proxy': user-guide/cli-reference/system-proxy.md
+      - 'timeout': user-guide/cli-reference/timeout.md
+      - 'config': user-guide/cli-reference/config.md
+      - 'clean': user-guide/cli-reference/clean.md
+      - 'log-level': user-guide/cli-reference/log-level.md
+      - 'silent': user-guide/cli-reference/silent.md
+      - 'version': user-guide/cli-reference/version.md
+    - 'Configuration Recipes': 
+      - 'South Korea': user-guide/configuration-recipes/south-korea.md
+  - 'Developer Guide':
+    - 'Convention': developer-guide/convention.md
+    - 'Build and Run': developer-guide/build-and-run.md
+    - 'Documentation': developer-guide/documentation.md
+
+# Extensions
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - toc:
+      toc_depth: 2
+      permalink: true
+  - attr_list
+  - md_in_html
+  - pymdownx.blocks.caption
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - admonition
