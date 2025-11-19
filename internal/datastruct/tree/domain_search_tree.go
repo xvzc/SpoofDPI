@@ -116,6 +116,12 @@ func (t *domainSearchTree) lookupRecursive(
 		if node.wildcardChild != nil && node.wildcardChild.hasValue {
 			return node.wildcardChild.value, true
 		}
+
+		// 2. Check for a root domain wildcard match (e.g., "*.net" for "net")
+		if node.globstarChild != nil && node.globstarChild.hasValue {
+			return node.globstarChild.value, true
+		}
+
 		// 3. No match.
 		return nil, false
 	}
@@ -146,14 +152,33 @@ func (t *domainSearchTree) lookupRecursive(
 		// If this path failed, continue to check globstar.
 	}
 
-	// Priority 3: Check globstar match.
-	// This is terminal: it matches all remaining segments.
-	if node.globstarChild != nil && node.globstarChild.hasValue {
-		return node.globstarChild.value, true
+	// Priority 3: Check globstar match (Recursive)
+	// This logic handles 'api.**.firefox.com'
+	if node.globstarChild != nil {
+		nodeGlobstar := node.globstarChild
+
+		// Path A: The globstar itself has a value (e.g., "**.firefox.com").
+		// This matches *all* remaining segments.
+		if nodeGlobstar.hasValue {
+			return nodeGlobstar.value, true
+		}
+
+		// Path B: The globstar matches 0 or more segments,
+		// and a *subsequent* part of the pattern matches.
+		// (e.g., "api.**.firefox.com" matching "api.prod.main.firefox.com")
+		//
+		// We loop from i=0 (globstar matches 0 segments) up to
+		// i=len(segments) (globstar matches all remaining segments).
+		for i := 0; i <= len(segments); i++ {
+			// Try to match the rest of the pattern (at node_globstar)
+			// against the segments remaining (segments[i:]).
+			val, found := t.lookupRecursive(nodeGlobstar, segments[i:])
+			if found {
+				return val, true
+			}
+		}
 	}
 
 	// 4. No match found on any path from this node.
 	return nil, false
 }
-
-// --- Main Function (Demonstration) ---
