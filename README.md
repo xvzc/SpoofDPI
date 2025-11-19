@@ -12,7 +12,7 @@ For more detailed information, please refer to the [Official Documentation](http
     <img src="https://repology.org/badge/vertical-allrepos/spoofdpi.svg?columns=1" alt="Packaging status">
 </a>
 
-## Github Sponsord
+## ☕ Github Sponsors
 Your sponsorship directly fuels the motivation required for continued project maintenance. If you find SpoofDPI valuable, please consider supporting [@xvzc on Github](https://github.com/sponsors/xvzc).
 
 ## 💡 Inspirations
