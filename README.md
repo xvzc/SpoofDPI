@@ -2,9 +2,9 @@
   <img alt="SpoofDPI" src="./docs/static/banner.jpg" height="200" />
 </p>
 
-SpoofDPI is a simple proxy tool, mainly designed to neutralize the Deep Packet Inspection (DPI) techniques that power many internet censorship systems.  
-  
-See the [Officical Document](https://spoofdpi.xvzc.dev) for more information
+SpoofDPI is a simple proxy tool, mainly designed to neutralize the *Deep Packet Inspection (DPI)* techniques that power many internet censorship systems.
+
+For more detailed information, please refer to the [Official Documentation](https://spoofdpi.xvzc.dev).
 
 ## Packaging Status
 
