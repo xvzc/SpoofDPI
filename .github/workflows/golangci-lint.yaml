@@ -1,6 +1,6 @@
 # This workflow runs golangci-lint on all pull requests
 # to check for style issues, bugs, and code smells.
-name: Lint
+name: golangci-lint
 
 on:
   # Run on pull requests targeting the main branches

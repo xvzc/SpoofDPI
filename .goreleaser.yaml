@@ -1,14 +1,168 @@
+# This configuration leverages the Zig compiler for explicit Cgo cross-compilation
+# across multiple platforms using the 'zig cc' toolchain.
+
 version: 2
 
-project_name: SpoofDPI
+project_name: spoofdpi
 
-
+# --- Before Hook ---
 before:
   hooks:
-  - go mod download all
+    - go mod tidy
+    # GoReleaser will use Zig's built-in toolchain for CGO/cross-compilation.
+
+release:
+  draft: true
+  prerelease: auto
+
+builds:
+  # --- 1. Dynamic Linking Builds using ZIG (macOS, Windows, Linux GLIBC) ---
+  # Each build block defines a specific GOOS/GOARCH target and sets
+  # the appropriate ZIG target flag via the CC/CXX environment variables.
+  - id: 'linux-amd64'
+    goos: [linux]
+    goarch: [amd64]
+    env:
+      - CGO_ENABLED=1
+      # Explicitly targeting x86_64 Linux (GLIBC is assumed by default)
+      - CC=zig cc -target x86_64-linux-gnu
+      - CXX=zig c++ -target x86_64-linux-gnu
+    ldflags:
+      - -s -w
+      - -X "main.Version={{.Version}}"
+      - -X "main.Commit={{.ShortCommit}}"
+    main: ./cmd/spoofdpi
+    binary: '{{ .ProjectName }}'
+
+  - id: 'darwin-amd64'
+    goos: [darwin]
+    goarch: [amd64]
+    env:
+      - CGO_ENABLED=1
+      # Explicitly targeting x86_64 macOS
+      - CC=zig cc -target x86_64-macos
+      - CXX=zig c++ -target x86_64-macos
+    ldflags:
+      - -s -w
+      - -X "main.Version={{.Version}}"
+      - -X "main.Commit={{.ShortCommit}}"
+    main: ./cmd/spoofdpi
+    binary: '{{ .ProjectName }}'
+
+  - id: 'darwin-arm64'
+    goos: [darwin]
+    goarch: [arm64]
+    env:
+      - CGO_ENABLED=1
+      # Explicitly targeting aarch64 macOS (Apple Silicon)
+      - CC=zig cc -target aarch64-macos
+      - CXX=zig c++ -target aarch64-macos
+    ldflags:
+      - -s -w
+      - -X "main.Version={{.Version}}"
+      - -X "main.Commit={{.ShortCommit}}"
+    main: ./cmd/spoofdpi
+    binary: '{{ .ProjectName }}'
+
+  - id: 'windows-amd64'
+    goos: [windows]
+    goarch: [amd64]
+    env:
+      - CGO_ENABLED=1
+      # Explicitly targeting x86_64 Windows (MinGW/Clang/MSVC toolchain is wrapped)
+      - CC=zig cc -target x86_64-windows-gnu
+      - CXX=zig c++ -target x86_64-windows-gnu
+    ldflags:
+      - -s -w
+      - -X "main.Version={{.Version}}"
+      - -X "main.Commit={{.ShortCommit}}"
+    main: ./cmd/spoofdpi
+    binary: '{{ .ProjectName }}'
+    
+  - id: 'linux-arm64'
+    goos: [linux]
+    goarch: [arm64]
+    env:
+      - CGO_ENABLED=1
+      # Explicitly targeting aarch64 Linux (GLIBC is assumed)
+      - CC=zig cc -target aarch64-linux-gnu
+      - CXX=zig c++ -target aarch64-linux-gnu
+    ldflags:
+      - -s -w
+      - -X "main.Version={{.Version}}"
+      - -X "main.Commit={{.ShortCommit}}"
+    main: ./cmd/spoofdpi
+    binary: '{{ .ProjectName }}'
+
+  # --- [NEW] Linux MIPS/MIPSLE Builds (IoT/Embedded) ---
+  # These are challenging targets, but Zig supports them.
+  - id: 'linux-mips'
+    goos: [linux]
+    goarch: [mips]
+    env:
+      - CGO_ENABLED=1
+      - CC=zig cc -target mips-linux-gnu
+      - CXX=zig c++ -target mips-linux-gnu
+    ldflags:
+      - -s -w
+      - -X "main.Version={{.Version}}"
+      - -X "main.Commit={{.ShortCommit}}"
+    main: ./cmd/spoofdpi
+    binary: '{{ .ProjectName }}'
+
+  - id: 'linux-mipsle'
+    goos: [linux]
+    goarch: [mipsle]
+    env:
+      - CGO_ENABLED=1
+      - CC=zig cc -target mipsel-linux-gnu
+      - CXX=zig c++ -target mipsel-linux-gnu
+    ldflags:
+      - -s -w
+      - -X "main.Version={{.Version}}"
+      - -X "main.Commit={{.ShortCommit}}"
+    main: ./cmd/spoofdpi
+    binary: '{{ .ProjectName }}'
+
+  # --- [NEW] FreeBSD Build (Tier 2 OS) ---
+  - id: 'freebsd-amd64'
+    goos: [freebsd]
+    goarch: [amd64]
+    env:
+      - CGO_ENABLED=1
+      - CC=zig cc -target x86_64-freebsd
+      - CXX=zig c++ -target x86_64-freebsd
+    ldflags:
+      - -s -w
+      - -X "main.Version={{.Version}}"
+      - -X "main.Commit={{.ShortCommit}}"
+    main: ./cmd/spoofdpi
+    binary: '{{ .ProjectName }}'
 
 
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [ 'tar.gz' ]
+    format_overrides:
+      - goos: windows
+        formats: [ 'zip' ]
+    ids:
+      - linux-amd64
+      - darwin-amd64
+      - darwin-arm64
+      - windows-amd64
+      - linux-arm64
+      - linux-mips
+      - linux-mipsle
+      - freebsd-amd64
+
+checksum:
+  name_template: 'checksums.txt'
+
+# --- Changelog Configuration (for release notes) ---
 changelog:
+  sort: asc
   groups:
   - title: Features
     regexp: ^.*?feat(\([[:word:]]+\))??!?:.+$
@@ -23,4 +177,5 @@ changelog:
     order: 999
   filters:
     exclude:
-    - ^.*?chore(\(.*\))??!?:.+$
+    - '^.*?chore(\(.*\))??!?:.+$'
+
