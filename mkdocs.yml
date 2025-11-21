@@ -64,6 +64,7 @@ nav:
       - 'enable-doh': user-guide/cli-reference/enable-doh.md
       - 'doh-endpoint': user-guide/cli-reference/doh-endpoint.md
       - 'policy': user-guide/cli-reference/policy.md
+      - 'auto-policy': user-guide/cli-reference/auto-policy.md
       - 'window-size': user-guide/cli-reference/window-size.md
       - 'fake-https-packets': user-guide/cli-reference/fake-https-packets.md
       - 'cache-shards': user-guide/cli-reference/cache-shards.md
