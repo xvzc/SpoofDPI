@@ -56,7 +56,18 @@ func (h *HTTPHandler) HandleRequest(
 		return
 	}
 
-	// Start the tunnel using the refactored helper function.
-	go tunnel(ctx, logger, nil, rConn, lConn, domain, true)
-	tunnel(ctx, logger, nil, lConn, rConn, domain, false)
+	errCh := make(chan error, 2)
+	go tunnel(ctx, logger, errCh, rConn, lConn, domain, true)
+	go tunnel(ctx, logger, errCh, lConn, rConn, domain, false)
+
+	for range 2 {
+		e := <-errCh
+		if e == nil {
+			continue
+		}
+
+		logger.Error().Msgf("tunnel error; src=%s; dst=%s; name=%s; %s",
+			lConn.RemoteAddr().String(), rConn.RemoteAddr().String(), domain, err,
+		)
+	}
 }

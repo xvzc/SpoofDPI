@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -16,17 +15,6 @@ import (
 var _ Handler = (*HTTPSHandler)(nil)
 
 type fragmentationFunc func(bytes []byte, size int) [][]byte
-
-// bufferPool is a package-level pool of 32KB buffers used by io.CopyBuffer
-// to reduce memory allocations and GC pressure in the tunnel hot path.
-var bufferPool = sync.Pool{
-	New: func() any {
-		// We allocate a pointer to a byte slice.
-		// 32KB is the default buffer size for io.Copy.
-		b := make([]byte, 32*1024)
-		return &b
-	},
-}
 
 type HTTPSHandler struct {
 	logger zerolog.Logger
@@ -178,22 +166,35 @@ func (h *HTTPSHandler) HandleRequest(
 	}
 
 	// Start the tunnel using the refactored helper function.
-	errCh := make(chan error, 1)
-	go tunnel(ctx, logger, nil, rConn, lConn, domain, true)
+	errCh := make(chan error, 2)
+	go tunnel(ctx, logger, errCh, rConn, lConn, domain, true)
 	go tunnel(ctx, logger, errCh, lConn, rConn, domain, false)
 
-	err = <-errCh
+	blocked := false
+	for range 2 {
+		e := <-errCh
+		if e == nil {
+			continue
+		}
+
+		if !blocked && isConnectionResetByPeer(e) {
+			blocked = true
+		} else {
+			logger.Error().Msgf("tunnel error; src=%s; dst=%s; name=%s; %s",
+				lConn.RemoteAddr().String(), rConn.RemoteAddr().String(), domain, err,
+			)
+		}
+	}
+
 	// Handle the error from the goroutine
-	if err != nil {
+	if blocked && h.autoPolicy && h.domainSearchTree != nil {
 		// Auto Policy Logic (copied from user query)
-		if h.autoPolicy && h.domainSearchTree != nil {
-			// Check if the domain is already known
-			_, found := h.domainSearchTree.Search(domain)
-			if !found {
-				// Insert the domain as blocked
-				h.domainSearchTree.Insert(domain, true)
-				logger.Info().Msgf("auto policy; name=%s; added;", domain)
-			}
+		// Check if the domain is already known
+		_, found := h.domainSearchTree.Search(domain)
+		if !found {
+			// Insert the domain as blocked
+			h.domainSearchTree.Insert(domain, true)
+			logger.Info().Msgf("auto policy; name=%s; added;", domain)
 		}
 	}
 }
