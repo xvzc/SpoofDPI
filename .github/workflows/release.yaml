@@ -1,4 +1,4 @@
-name: Release Drafter
+name: Go Releaser
 
 on: workflow_dispatch
 
