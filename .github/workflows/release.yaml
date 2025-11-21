@@ -39,7 +39,7 @@ jobs:
         run: sudo apt-get install libpcap-dev
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v6
         env:
           # GITHUB_TOKEN is required for creating releases and uploading artifacts
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -49,5 +49,6 @@ jobs:
         with:
           # Tell goreleaser to run the release process
           distribution: goreleaser
-          version: latest
+          # 'latest', 'nightly', or a semver
+          version: '~> v2'
           args: release --clean
