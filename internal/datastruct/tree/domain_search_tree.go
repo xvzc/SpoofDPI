@@ -1,6 +1,11 @@
 package tree
 
-import "strings"
+import (
+	"strings"
+	"sync"
+)
+
+var _ SearchTree = (*domainSearchTree)(nil)
 
 // domainNode represents a single node in the radix tree implementation.
 type domainNode struct {
@@ -34,11 +39,14 @@ func newDomainNode() *domainNode {
 
 // domainSearchTree is the concrete implementation of the DomainTree interface.
 type domainSearchTree struct {
+	// Mutex protects the entire tree structure during write operations (Insert).
+	// Read operations (Search) can safely run concurrently.
+	mu   sync.RWMutex
 	root *domainNode
 }
 
 // NewDomainSearchTree creates a new, empty domain tree.
-func NewDomainSearchTree() RadixTree {
+func NewDomainSearchTree() SearchTree {
 	return &domainSearchTree{root: newDomainNode()}
 }
 
@@ -62,7 +70,12 @@ func splitAndReverseDomain(domain string) []string {
 }
 
 // Insert adds a domain and its associated value to the tree.
+// This method is thread-safe using a Write Lock.
 func (t *domainSearchTree) Insert(domain string, value any) {
+	// Acquire Write Lock to prevent concurrent map access during tree modification
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	segments := splitAndReverseDomain(domain)
 	node := t.root
 
@@ -94,8 +107,13 @@ func (t *domainSearchTree) Insert(domain string, value any) {
 	node.hasValue = true
 }
 
-// Lookup searches for the domain in the tree.
-func (t *domainSearchTree) Lookup(domain string) (any, bool) {
+// Search searches for the domain in the tree.
+// This method is concurrently safe using a Read Lock.
+func (t *domainSearchTree) Search(domain string) (any, bool) {
+	// Acquire Read Lock to allow multiple concurrent readers.
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
 	segments := splitAndReverseDomain(domain)
 	// Start the recursive lookup from the root node.
 	return t.lookupRecursive(t.root, segments)
@@ -108,21 +126,21 @@ func (t *domainSearchTree) lookupRecursive(
 ) (any, bool) {
 	// If no segments are left, we are at the target node.
 	if len(segments) == 0 {
-		// 1. Check for a specific value at this node.
+		// Check for a specific value at this node.
 		if node.hasValue {
 			return node.value, true
 		}
-		// 2. Check for a root domain wildcard match (e.g., "*.net" for "net")
+		// Check for a root domain wildcard match (e.g., "*.net" for "net")
 		if node.wildcardChild != nil && node.wildcardChild.hasValue {
 			return node.wildcardChild.value, true
 		}
 
-		// 2. Check for a root domain wildcard match (e.g., "*.net" for "net")
+		// Check for a root domain globstar match (e.g., "**.net" for "net")
 		if node.globstarChild != nil && node.globstarChild.hasValue {
 			return node.globstarChild.value, true
 		}
 
-		// 3. No match.
+		// No match.
 		return nil, false
 	}
 
@@ -133,7 +151,7 @@ func (t *domainSearchTree) lookupRecursive(
 	if child, ok := node.children[segment]; ok {
 		// Found a static path, recurse.
 		val, found := t.lookupRecursive(child, remainingSegments)
-		// If this path (e.g., "api") leads to a match, return it.
+		// If this path leads to a match, return it immediately.
 		if found {
 			return val, true
 		}
@@ -145,7 +163,7 @@ func (t *domainSearchTree) lookupRecursive(
 	if node.wildcardChild != nil {
 		// Found a wildcard path, recurse.
 		val, found := t.lookupRecursive(node.wildcardChild, remainingSegments)
-		// If the wildcard path leads to a match, return it.
+		// If the wildcard path leads to a match, return it immediately.
 		if found {
 			return val, true
 		}
@@ -153,20 +171,15 @@ func (t *domainSearchTree) lookupRecursive(
 	}
 
 	// Priority 3: Check globstar match (Recursive)
-	// This logic handles 'api.**.firefox.com'
 	if node.globstarChild != nil {
 		nodeGlobstar := node.globstarChild
 
-		// Path A: The globstar itself has a value (e.g., "**.firefox.com").
-		// This matches *all* remaining segments.
+		// Path A: The globstar itself has a value, matching all remaining segments.
 		if nodeGlobstar.hasValue {
 			return nodeGlobstar.value, true
 		}
 
-		// Path B: The globstar matches 0 or more segments,
-		// and a *subsequent* part of the pattern matches.
-		// (e.g., "api.**.firefox.com" matching "api.prod.main.firefox.com")
-		//
+		// Path B: The globstar matches 0 or more segments, and a subsequent part of the pattern matches.
 		// We loop from i=0 (globstar matches 0 segments) up to
 		// i=len(segments) (globstar matches all remaining segments).
 		for i := 0; i <= len(segments); i++ {
@@ -179,6 +192,6 @@ func (t *domainSearchTree) lookupRecursive(
 		}
 	}
 
-	// 4. No match found on any path from this node.
+	// No match found on any path from this node.
 	return nil, false
 }

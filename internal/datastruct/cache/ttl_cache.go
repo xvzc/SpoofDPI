@@ -82,26 +82,31 @@ func (c *TTLCache) getShard(key string) *ttlCacheShard {
 // └─────────────┘
 // Set adds an item to the cache, replacing any existing item.
 // If ttl is 0 or negative, the item will never expire (passive-only).
-func (c *TTLCache) Set(key string, value any, opts ...SetOption) {
-	// 1. Apply all provided options to get the final options struct.
-	opt := applyOpts(opts...)
+func (c *TTLCache) Set(key string, value any, opts *options) {
+	shard := c.getShard(key)
 
-	if opt.ttl == 0 {
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	if opts.ttl == 0 {
 		return
 	}
 
-	// 3. Use the options that this cache cares about
-	expiresAt := time.Now().Add(opt.ttl)
+	_, ok := shard.items[key]
+	if ok && opts.insertOnly {
+		return
+	}
 
+	if ok && !opts.override {
+		return
+	}
+
+	expiresAt := time.Now().Add(opts.ttl)
 	newItem := ttlCacheItem{
 		value:     value,
 		expiresAt: expiresAt,
 	}
-
-	shard := c.getShard(key)
-	shard.mu.Lock()
 	shard.items[key] = newItem
-	shard.mu.Unlock()
 }
 
 // Get retrieves an item from the cache.
@@ -114,10 +119,10 @@ func (c *TTLCache) Get(key string) (any, bool) {
 	shard.mu.RUnlock()
 
 	if !ok {
-		return nil, false // 1. Cache miss.
+		return nil, false
 	}
 
-	// 2. Passive expiration: item found but is expired.
+	// Passive expiration: item found but is expired.
 	if i.isExpired() {
 		// Item is expired, so acquire a write lock to delete it.
 		shard.mu.Lock()
@@ -128,11 +133,12 @@ func (c *TTLCache) Get(key string) (any, bool) {
 				delete(shard.items, key)
 			}
 		}
+
 		shard.mu.Unlock()
 		return nil, false // Return as expired.
 	}
 
-	// 3. Cache hit.
+	// Cache hit.
 	return i.value, true
 }
 

@@ -57,20 +57,6 @@ func (h *HTTPHandler) HandleRequest(
 	}
 
 	// Start the tunnel using the refactored helper function.
-	go tunnel(ctx, logger, rConn, lConn, domain, true)
-	tunnel(ctx, logger, lConn, rConn, domain, false)
-
-	// // All custom concurrency logic is replaced by io.Copy.
-	// // HTTP is a request/response flow. After the request is sent,
-	// // we only need to copy the response back from the server to the client.
-	// // This one line replaces the complex and buggy copyData and sync logic.
-	// if _, err := io.Copy(lConn, rConn); err != nil {
-	// 	// io.EOF is a clean shutdown (the server finished sending data),
-	// 	// so it's not an error we need to log.
-	// 	if err != io.EOF {
-	// 		logger.Debug().Msgf("server->client copy error: %v", err)
-	// 	}
-	// }
-	//
-	// When Serve returns, both lConn and rConn will be closed by their defers.
+	go tunnel(ctx, logger, nil, rConn, lConn, domain, true)
+	tunnel(ctx, logger, nil, lConn, rConn, domain, false)
 }

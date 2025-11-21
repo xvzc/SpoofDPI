@@ -5,36 +5,30 @@ import "time"
 // options holds all possible settings for a Set operation.
 // Both caches will use this, but will only read what they need.
 type options struct {
-	ttl time.Duration
+	ttl        time.Duration
+	insertOnly bool
+	override   bool
 	// We could add other options here later, e.g.:
 	// cost int
 }
 
-// SetOption is a function type that applies a setting to an options struct.
-// This is the core of the "functional options" pattern.
-type SetOption func(*options)
-
-// applyOpts creates an options struct, applies all SetOption functions,
-// and returns the result.
-func applyOpts(opts ...SetOption) options {
-	// Load default options
-	opt := options{
-		ttl: 0, // 0 means no expiry (or a default expiry)
-	}
-
-	// Apply all provided options
-	for _, applyOpt := range opts {
-		applyOpt(&opt)
-	}
-	return opt
+func Options() *options {
+	return &options{}
 }
 
-// WithTTL returns a SetOption function.
-// When called, this function sets the TTL value in the options.
-func WithTTL(ttl time.Duration) SetOption {
-	return func(o *options) {
-		o.ttl = ttl
-	}
+func (o *options) WithTTL(ttl time.Duration) *options {
+	o.ttl = ttl
+	return o
+}
+
+func (o *options) WithOverride(override bool) *options {
+	o.override = override
+	return o
+}
+
+func (o *options) InsertOnly(insertOnly bool) *options {
+	o.insertOnly = insertOnly
+	return o
 }
 
 // Cache is the unified interface for all cache implementations.
@@ -43,5 +37,5 @@ type Cache interface {
 	// Get retrieves a value from the cache.
 	Get(key string) (any, bool)
 	// Set adds a value to the cache, applying any provided options.
-	Set(key string, value any, opts ...SetOption)
+	Set(key string, value any, opts *options)
 }

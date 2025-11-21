@@ -13,8 +13,8 @@ import (
 type CacheResolver struct {
 	logger zerolog.Logger
 
-	cache cache.Cache // Owns the cache
-	next  Resolver    // The "worker" resolver
+	ttlCache cache.Cache // Owns the cache
+	next     Resolver    // The "worker" resolver
 }
 
 // NewCacheResolver wraps a "worker" resolver with a cache.
@@ -24,9 +24,9 @@ func NewCacheResolver(
 	next Resolver, // The resolver to be wrapped (e.g., GeneralResolver)
 ) *CacheResolver {
 	return &CacheResolver{
-		logger: logger,
-		cache:  cache,
-		next:   next,
+		logger:   logger,
+		ttlCache: cache,
+		next:     next,
 	}
 }
 
@@ -53,14 +53,15 @@ func (cr *CacheResolver) Resolve(
 ) (RecordSet, error) {
 	logger := cr.logger.With().Ctx(ctx).Logger()
 	// 1. [Cache Read]
-	if item, ok := cr.cache.Get(domain); ok {
-		cr.logger.Debug().Ctx(ctx).Msgf("cache hit; key=%s;", domain)
+	if item, ok := cr.ttlCache.Get(domain); ok {
+		cr.logger.Debug().Ctx(ctx).Msgf("dns cache hit; name=%s;", domain)
 		return item.(RecordSet), nil
 	}
 
 	// 2. [Cache Miss]
 	//    Delegate the actual network request to 'r.next' (the worker).
-	logger.Debug().Msgf("cache miss; key=%s; next=%s;", domain, cr.next.Info()[0].Name)
+	logger.Debug().
+		Msgf("dns cache miss; name=%s; next=%s;", domain, cr.next.Info()[0].Name)
 	rSet, err := cr.next.Resolve(ctx, domain, qTypes)
 	if err != nil {
 		return RecordSet{addrs: []net.IPAddr{}, ttl: 0}, err
@@ -73,7 +74,13 @@ func (cr *CacheResolver) Resolve(
 		domain, rSet.Counts(), rSet.TTL(),
 	)
 
-	cr.cache.Set(domain, rSet, cache.WithTTL(time.Duration(rSet.TTL())*time.Second))
+	cr.ttlCache.Set(
+		domain,
+		rSet,
+		cache.Options().
+			WithOverride(true).
+			WithTTL(time.Duration(rSet.TTL())*time.Second),
+	)
 
 	return rSet, nil
 }
