@@ -13,20 +13,41 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required to fetch all history for proper git tag handling
+
       - name: Read version
         id: read_version
         run: |
           echo "version=$(cat version/VERSION | tr -d '[:space:]')" >> $GITHUB_OUTPUT
+
       - name: Print version
         run: |
           echo ${{ steps.read_version.outputs.version }}
-      - uses: release-drafter/release-drafter@v6
-        id: release
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          version: ${{ steps.read_version.outputs.version }}
-          name: v${{ steps.read_version.outputs.version }}
-          tag: v${{ steps.read_version.outputs.version }}
+          go-version: '1.22' # Using the Go version requested by the user
+
+      # Install libpcap-dev dependency required for CGO compilation (for gopacket/raw socket access)
+      - name: Install libpcap-dev dependency
+        run: sudo apt-get install libpcap-dev
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v5
         env:
+          # GITHUB_TOKEN is required for creating releases and uploading artifacts
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: v${{ steps.read_version.outputs.version }}
+          # CGO_ENABLED is required for linking libpcap
+          CGO_ENABLED: 1
+        with:
+          # Tell goreleaser to run the release process
+          distribution: goreleaser
+          version: latest
+          args: release --clean
