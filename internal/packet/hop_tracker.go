@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"time"
+	"net"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -19,8 +19,12 @@ import (
 type HopTracker struct {
 	logger zerolog.Logger
 
-	cache  cache.Cache // The cache stores hop counts (uint8)
-	handle *pcap.Handle
+	nhopCache cache.Cache // The cache stores hop counts (uint8)
+	handle    *pcap.Handle
+}
+
+func (ht *HopTracker) Cache() cache.Cache {
+	return ht.nhopCache
 }
 
 // NewHopTracker creates a new HopTracker.
@@ -33,9 +37,9 @@ func NewHopTracker(
 	// as per the request.
 
 	return &HopTracker{
-		logger: logger,
-		cache:  cache,
-		handle: handle,
+		logger:    logger,
+		nhopCache: cache,
+		handle:    handle,
 	}
 }
 
@@ -58,8 +62,20 @@ func (ht *HopTracker) StartCapturing() {
 
 // GetOptimalTTL retrieves the estimated hop count for a given key from the cache.
 // It returns the hop count and true if found, or 0 and false if not found.
+func (ht *HopTracker) RegisterUntracked(addrs []net.IPAddr) {
+	for _, v := range addrs {
+		ht.nhopCache.Set(
+			v.String(),
+			math.MaxUint8,
+			cache.Options().WithOverride(false).InsertOnly(true),
+		)
+	}
+}
+
+// GetOptimalTTL retrieves the estimated hop count for a given key from the cache.
+// It returns the hop count and true if found, or 0 and false if not found.
 func (ht *HopTracker) GetOptimalTTL(key string) uint8 {
-	if nhops, ok := ht.cache.Get(key); ok {
+	if nhops, ok := ht.nhopCache.Get(key); ok {
 		return max(nhops.(uint8), 2) - 1
 	}
 
@@ -70,42 +86,45 @@ func (ht *HopTracker) GetOptimalTTL(key string) uint8 {
 func (ht *HopTracker) processPacket(ctx context.Context, p gopacket.Packet) {
 	logger := ht.logger.With().Ctx(ctx).Logger()
 
-	// Check for a TCP layer
-	if tcpLayer := p.Layer(layers.LayerTypeTCP); tcpLayer != nil {
-		tcp, _ := tcpLayer.(*layers.TCP)
-
-		// Check if both SYN and ACK flags are set (a SYN/ACK response)
-		if tcp.SYN && tcp.ACK {
-			var srcIP string
-			var ttl uint8
-
-			// Handle IPv4
-			if ipLayer := p.Layer(layers.LayerTypeIPv4); ipLayer != nil {
-				ip, _ := ipLayer.(*layers.IPv4)
-				srcIP = ip.SrcIP.String()
-				ttl = ip.TTL
-			} else if ipLayer := p.Layer(layers.LayerTypeIPv6); ipLayer != nil {
-				// Handle IPv6
-				ip, _ := ipLayer.(*layers.IPv6)
-				srcIP = ip.SrcIP.String()
-				ttl = ip.HopLimit
-			} else {
-				return // No IP layer found
-			}
-
-			// Create the cache key: ServerIP:ServerPort
-			// (The source of the SYN/ACK is the server)
-			key := fmt.Sprintf("%s:%d", srcIP, tcp.SrcPort)
-
-			// Calculate hop count from the TTL
-			nhops := calculateHops(ttl)
-			ht.cache.Set(key, nhops, cache.WithTTL(180*time.Second))
-			logger.Trace().
-				Msgf("received syn+ack; src=%s; ttl=%d; nhops=%d;",
-					key, ttl, nhops,
-				)
-		}
+	tcpLayer := p.Layer(layers.LayerTypeTCP)
+	if tcpLayer == nil {
+		return
 	}
+
+	tcp, _ := tcpLayer.(*layers.TCP)
+	if !(tcp.SYN && tcp.ACK) {
+		return
+	}
+
+	// Check for a TCP layer
+	var srcIP string
+	var ttl uint8
+
+	// Handle IPv4
+	if ipLayer := p.Layer(layers.LayerTypeIPv4); ipLayer != nil {
+		ip, _ := ipLayer.(*layers.IPv4)
+		srcIP = ip.SrcIP.String()
+		ttl = ip.TTL
+	} else if ipLayer := p.Layer(layers.LayerTypeIPv6); ipLayer != nil {
+		// Handle IPv6
+		ip, _ := ipLayer.(*layers.IPv6)
+		srcIP = ip.SrcIP.String()
+		ttl = ip.HopLimit
+	} else {
+		return // No IP layer found
+	}
+
+	// Create the cache key: ServerIP:ServerPort
+	// (The source of the SYN/ACK is the server)
+	key := fmt.Sprintf("%s:%d", srcIP, tcp.SrcPort)
+
+	// Calculate hop count from the TTL
+	nhops := calculateHops(ttl)
+	ht.nhopCache.Set(key, nhops, cache.Options().WithOverride(true))
+	logger.Trace().
+		Msgf("received syn+ack; src=%s; ttl=%d; nhops=%d;",
+			key, ttl, nhops,
+		)
 }
 
 // calculateHops estimates the number of hops based on TTL.

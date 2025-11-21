@@ -11,6 +11,7 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/appctx"
 	"github.com/xvzc/SpoofDPI/internal/datastruct/tree"
 	"github.com/xvzc/SpoofDPI/internal/dns"
+	"github.com/xvzc/SpoofDPI/internal/packet"
 )
 
 type Proxy struct {
@@ -19,7 +20,8 @@ type Proxy struct {
 	resolver     dns.Resolver
 	httpHandler  Handler
 	httpsHandler Handler
-	domainTree   tree.RadixTree
+	domainTree   tree.SearchTree
+	hopTracker   *packet.HopTracker
 
 	listenAddr    net.IP
 	listenPort    uint16
@@ -33,7 +35,8 @@ func NewProxy(
 	resolver dns.Resolver,
 	httpHandler Handler,
 	httpsHandler Handler,
-	domainTree tree.RadixTree,
+	domainTree tree.SearchTree,
+	hopTracker *packet.HopTracker,
 
 	listenAddr net.IP,
 	listenPort uint16,
@@ -46,6 +49,7 @@ func NewProxy(
 		httpHandler:   httpHandler,
 		httpsHandler:  httpsHandler,
 		domainTree:    domainTree,
+		hopTracker:    hopTracker,
 		listenAddr:    listenAddr,
 		listenPort:    listenPort,
 		dnsQueryTypes: dnsQueryTypes,
@@ -144,7 +148,12 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 	}
 
 	isPrivate := pxy.isPrivateDst(ctx, dstAddrs)
-	ctx = appctx.WithShouldExploit(ctx, (!isPrivate && domainIncluded))
+	shouldExploit := (!isPrivate && domainIncluded)
+	ctx = appctx.WithShouldExploit(ctx, shouldExploit)
+
+	if shouldExploit {
+		pxy.hopTracker.RegisterUntracked(dstAddrs)
+	}
 
 	var h Handler
 	if req.IsConnectMethod() {
@@ -222,7 +231,7 @@ func (pxy *Proxy) checkDomainPolicy(
 		return true
 	}
 
-	value, found := pxy.domainTree.Lookup(string(bytes))
+	value, found := pxy.domainTree.Search(string(bytes))
 	if found {
 		return value.(bool)
 	}

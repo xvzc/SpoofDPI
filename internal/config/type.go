@@ -184,7 +184,7 @@ func parseDomainPolicySlice(ss []string) []DomainPolicy {
 	return ret
 }
 
-func ParseDomainSearchTree(ps []DomainPolicy) tree.RadixTree {
+func ParseDomainSearchTree(ps []DomainPolicy) tree.SearchTree {
 	rt := tree.NewDomainSearchTree()
 	for _, p := range ps {
 		rt.Insert(p.Value(), p.IsIncluded())

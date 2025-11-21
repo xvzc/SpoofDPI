@@ -9,8 +9,11 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/appctx"
+	"github.com/xvzc/SpoofDPI/internal/datastruct/tree"
 	"github.com/xvzc/SpoofDPI/internal/packet"
 )
+
+var _ Handler = (*HTTPSHandler)(nil)
 
 type fragmentationFunc func(bytes []byte, size int) [][]byte
 
@@ -28,9 +31,11 @@ var bufferPool = sync.Pool{
 type HTTPSHandler struct {
 	logger zerolog.Logger
 
-	hopTracker     *packet.HopTracker
-	packetInjector *packet.PacketInjector
+	hopTracker       *packet.HopTracker
+	packetInjector   *packet.PacketInjector
+	domainSearchTree tree.SearchTree
 
+	autoPolicy       bool
 	windowSize       uint8
 	fakeHTTPSPackets uint8
 }
@@ -39,7 +44,9 @@ func NewHttpsHandler(
 	logger zerolog.Logger,
 	hopTrakcer *packet.HopTracker,
 	packetInjector *packet.PacketInjector,
+	domainSearchTree tree.SearchTree,
 
+	autoPolicy bool,
 	windowSize uint8,
 	fakeHTTPSPackets uint8,
 ) *HTTPSHandler {
@@ -47,6 +54,8 @@ func NewHttpsHandler(
 		logger:           logger,
 		hopTracker:       hopTrakcer,
 		packetInjector:   packetInjector,
+		domainSearchTree: domainSearchTree,
+		autoPolicy:       autoPolicy,
 		windowSize:       windowSize,
 		fakeHTTPSPackets: fakeHTTPSPackets,
 	}
@@ -169,8 +178,24 @@ func (h *HTTPSHandler) HandleRequest(
 	}
 
 	// Start the tunnel using the refactored helper function.
-	go tunnel(ctx, logger, rConn, lConn, domain, true)
-	tunnel(ctx, logger, lConn, rConn, domain, false)
+	errCh := make(chan error, 1)
+	go tunnel(ctx, logger, nil, rConn, lConn, domain, true)
+	go tunnel(ctx, logger, errCh, lConn, rConn, domain, false)
+
+	err = <-errCh
+	// Handle the error from the goroutine
+	if err != nil {
+		// Auto Policy Logic (copied from user query)
+		if h.autoPolicy && h.domainSearchTree != nil {
+			// Check if the domain is already known
+			_, found := h.domainSearchTree.Search(domain)
+			if !found {
+				// Insert the domain as blocked
+				h.domainSearchTree.Insert(domain, true)
+				logger.Info().Msgf("auto policy; name=%s; added;", domain)
+			}
+		}
+	}
 }
 
 func chunkFragmentationStrategy(

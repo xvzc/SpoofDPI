@@ -9,6 +9,7 @@ import (
 )
 
 type Config struct {
+	AutoPolicy        bool           `toml:"auto-policy"`
 	CacheShards       Uint8Number    `toml:"cache-shards"`
 	DnsAddr           IPAddress      `toml:"dns-addr"`
 	DnsIPv4Only       bool           `toml:"dns-ipv4-only"`

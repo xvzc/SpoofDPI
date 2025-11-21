@@ -70,33 +70,39 @@ func dialFirstSuccessful(
 	return rConn, nil
 }
 
-// tunnel handles the bidirectional io.Copy between the client and server.
 func tunnel(
 	_ context.Context,
 	logger zerolog.Logger,
-	dst net.Conn, // Renamed for io.Copy clarity (Destination)
-	src net.Conn, // Renamed for io.Copy clarity (Source)
+	errCh chan<- error,
+	dst net.Conn, // Destination connection (io.Writer)
+	src net.Conn, // Source connection (io.Reader)
 	domain string,
 	closeOnReturn bool,
 ) {
-	// The client-to-server goroutine is responsible for closing both connections
-	// when it finishes, which will unblock the server-to-client copy.
+	// The copy routine is responsible for closing both connections
+	// when it finishes, which will unblock the peer copy routine.
 	if closeOnReturn {
 		defer closeConns(dst, src)
 	}
 
-	// Use a buffer from the pool to reduce allocations.
-	// 1. Get a buffer from the pool (zero allocation).
+	// Get a buffer from the pool (zero allocation).
 	bufPtr := bufferPool.Get().(*[]byte)
-	// 2. Ensure the buffer is returned to the pool when the tunnel closes.
+	// Ensure the buffer is returned to the pool when the tunnel closes.
 	defer bufferPool.Put(bufPtr)
 
-	// 3. Use the borrowed buffer with io.CopyBuffer.
-	// This copies from src to dst.
+	// Copy data from src to dst using the borrowed buffer.
 	n, err := io.CopyBuffer(dst, src, *bufPtr)
-	if err != nil {
-		if !errors.Is(err, net.ErrClosed) && err != io.EOF {
-			logger.Debug().Msgf("error while copying data: %s", err)
+
+	// Check for non-EOF and non-net.ErrClosed errors.
+	if err != nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.EOF) {
+		// Log the error locally for context.
+		logger.Debug().Msgf("error while copying data: %s", err)
+
+		// Report the wrapped error back to the main goroutine.
+		// Use %w to wrap the original error for inspection by the caller.
+		if errCh != nil {
+			errCh <- fmt.Errorf("tunnel copy error %s -> %s for %s: %w",
+				src.RemoteAddr().String(), dst.RemoteAddr().String(), domain, err)
 		}
 	}
 

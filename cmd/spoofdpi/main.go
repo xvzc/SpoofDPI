@@ -76,7 +76,7 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 	}
 
 	logger.Info().Msgf("window size; %d;", cfg.WindowSize.Value())
-	logger.Info().Msgf("policy; %d;", len(cfg.DomainPolicySlice))
+	logger.Info().Msgf("policy; %d; auto=%v", len(cfg.DomainPolicySlice), cfg.AutoPolicy)
 
 	if cfg.Timeout.Value() > 0 {
 		logger.Info().
@@ -188,10 +188,7 @@ func createProxy(
 		}
 		logger.Info().Msgf("gateway mac; %s;", gatewayMAC.String())
 
-		hopCache := cache.NewTTLCache(
-			cfg.CacheShards.Value(),
-			time.Duration(3)*time.Minute,
-		)
+		hopCache := cache.NewLRUCache(4096)
 		hopTracker = packet.NewHopTracker(
 			applog.WithScope(logger, "PKT(track)"),
 			hopCache,
@@ -213,6 +210,11 @@ func createProxy(
 		packetInjector = nil
 	}
 
+	var domainTree tree.SearchTree
+	if len(cfg.DomainPolicySlice) > 0 || cfg.AutoPolicy {
+		domainTree = config.ParseDomainSearchTree(cfg.DomainPolicySlice)
+	}
+
 	// create an HTTP handler.
 	httpHandler := proxy.NewHttpHandler(
 		applog.WithScope(logger, "HDL(.http)"),
@@ -223,14 +225,11 @@ func createProxy(
 		applog.WithScope(logger, "HDL(https)"),
 		hopTracker,
 		packetInjector,
+		domainTree,
+		cfg.AutoPolicy,
 		cfg.WindowSize.Value(),
 		cfg.FakeHTTPSPackets.Value(),
 	)
-
-	var domainTree tree.RadixTree
-	if len(cfg.DomainPolicySlice) > 0 {
-		domainTree = config.ParseDomainSearchTree(cfg.DomainPolicySlice)
-	}
 
 	return proxy.NewProxy(
 		applog.WithScope(logger, "PXY(.main)"),
@@ -238,6 +237,7 @@ func createProxy(
 		httpHandler,
 		httpsHandler,
 		domainTree,
+		hopTracker,
 		cfg.ListenAddr.Value(),
 		cfg.ListenPort.Value(),
 		cfg.GenerateDnsQueryTypes(),

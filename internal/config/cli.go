@@ -22,10 +22,17 @@ func CreateCommand(
 		Description: "Simple and fast anti-censorship tool to bypass DPI",
 		Copyright:   "Apache License, Version 2.0, January 2004",
 		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name: "auto-policy",
+				Usage: `
+				Automatically detect the blocked sites and add policies (default: false)`,
+				OnlyOnce: true,
+			},
+
 			&cli.IntFlag{
 				Name: "cache-shards",
 				Usage: `
-				number of shards to use for ttlcache. it is recommended to set this to be 
+				Number of shards to use for ttlcache. It is recommended to set this to be 
 				at least the number of CPU cores for optimal performance (default: 32, max: 255)`,
 				Value:     32,
 				OnlyOnce:  true,
@@ -43,11 +50,8 @@ func CreateCommand(
 				Name:    "config",
 				Aliases: []string{"c"},
 				Usage: `
-				custom location of the config file to load. options given through the command 
-				line flags will override the options set in this file. when not given, it will 
-				search sequentially in the following locations: 
-				$SPOOFDPI_CONFIG, /etc/spoofdpi.toml, $XDG_CONFIG_HOME/spoofdpi/spoofdpi.toml 
-				and $HOME/.config/spoofdpi/spoofdpi.toml`,
+				Custom location of the config file to load. Options given through the command 
+				line flags will override the options set in this file.`,
 				OnlyOnce: true,
 				Sources:  cli.EnvVars("SPOOFDPI_CONFIG"),
 			},
@@ -55,7 +59,7 @@ func CreateCommand(
 			&cli.StringFlag{
 				Name: "dns-addr",
 				Usage: `
-				dns address (default: 8.8.8.8)`,
+				DNS address (default: 8.8.8.8)`,
 				Value:     "8.8.8.8",
 				OnlyOnce:  true,
 				Validator: validateIPAddr,
@@ -64,14 +68,14 @@ func CreateCommand(
 			&cli.BoolFlag{
 				Name: "dns-ipv4-only",
 				Usage: `
-				resolve only IPv4 addresses`,
+				Resolve only IPv4 addresses`,
 				OnlyOnce: true,
 			},
 
 			&cli.IntFlag{
 				Name: "dns-port",
 				Usage: `
-				port number for dns (default: 53)`,
+				Port number for dns (default: 53)`,
 				Value:     53,
 				OnlyOnce:  true,
 				Validator: validateUint16,
@@ -80,7 +84,7 @@ func CreateCommand(
 			&cli.StringFlag{
 				Name: "doh-endpoint",
 				Usage: `
-				endpoint for 'dns over https' (default: "https://${DNS_ADDR}/dns-query")`,
+				Endpoint for 'dns over https' (default: "https://${DNS_ADDR}/dns-query")`,
 				Value:     "",
 				OnlyOnce:  true,
 				Validator: validateHTTPSEndpoint,
@@ -89,18 +93,16 @@ func CreateCommand(
 			&cli.BoolFlag{
 				Name: "enable-doh",
 				Usage: `
-				enable 'dns-over-https'`,
+				Enable 'dns-over-https'`,
 				OnlyOnce: true,
 			},
 
 			&cli.IntFlag{
 				Name: "fake-https-packets",
 				Usage: `
-				number of fake packets to send before the client hello, higher values
-        may increase success, but the lowest possible value is recommended.
-        try this if tcp-level fragmentation (via --window-size) does not
-        work. this feature requires root privilege and the 'libpcap'
-				dependency (default: 0, max: 255)`,
+				Number of fake packets to send before the client hello, higher values
+        may increase success, but the lowest possible value is recommended. 
+				(default: 0, max: 255)`,
 				Value:     0,
 				OnlyOnce:  true,
 				Validator: validateUint8,
@@ -125,7 +127,7 @@ func CreateCommand(
 			&cli.IntFlag{
 				Name: "listen-port",
 				Usage: `
-				port number to listen on (default: 8080)`,
+				Port number to listen on (default: 8080)`,
 				Value:     8080,
 				OnlyOnce:  true,
 				Validator: validateUint16,
@@ -134,7 +136,7 @@ func CreateCommand(
 			&cli.StringFlag{
 				Name: "log-level",
 				Usage: `
-				set log level (default: 'info')`,
+				Set log level (default: 'info')`,
 				Value:     "info",
 				OnlyOnce:  true,
 				Validator: validateLogLevel,
@@ -143,14 +145,8 @@ func CreateCommand(
 			&cli.StringSliceFlag{
 				Name: "policy",
 				Usage: `
-				domain rules that determine whether to perform DPI circumvention on match.
-        supports wildcards, but the main domain name must not contain a wildcard.
-        this flag can be given multiple times. policies start with 'i:' to include 
-				or 'x:' to exclude the matching domain. when rules overlap, a more specific 
-				rule (e.g., static) overrides a less specific one (e.g., wildcard).
-        e.g. Given 'i:*.discordapp.com' and 'x:cdn.discordapp.com', traffic for
-        'api.discordapp.com' and 'www.discordapp.com' will be circumvented, 
-				but 'cdn.discordapp.com' will be passed through.`,
+				Domain rules that determine whether to perform DPI circumvention on match.
+        This flag can be given multiple times.`,
 				Validator: func(ss []string) error {
 					for _, s := range ss {
 						if err := validatePolicy(s); err != nil {
@@ -165,22 +161,22 @@ func CreateCommand(
 			&cli.BoolFlag{
 				Name: "silent",
 				Usage: `
-				do not show the banner and server information at start up`,
+				Do not show the banner and server information at start up`,
 				OnlyOnce: true,
 			},
 
 			&cli.BoolFlag{
 				Name: "system-proxy",
 				Usage: `
-				automatically set system-wide proxy configuration`,
+				Automatically set system-wide proxy configuration`,
 				OnlyOnce: true,
 			},
 
 			&cli.IntFlag{
 				Name: "timeout",
 				Usage: `
-				timeout for tcp connection in milliseconds. 
-				no effect when the value is 0 (default: 0, max: 66535)`,
+				Timeout for tcp connection in milliseconds. 
+				No effect when the value is 0 (default: 0, max: 66535)`,
 				Value:     0,
 				OnlyOnce:  true,
 				Validator: validateUint16,
@@ -189,7 +185,7 @@ func CreateCommand(
 			&cli.BoolFlag{
 				Name: "version",
 				Usage: `
-				print version; this may contain some other relevant information`,
+				Print version; this may contain some other relevant information`,
 				Aliases:  []string{"v"},
 				OnlyOnce: true,
 			},
@@ -197,7 +193,7 @@ func CreateCommand(
 			&cli.IntFlag{
 				Name: "window-size",
 				Usage: `
-        chunk size, in number of bytes, for fragmented client hello,
+        Chunk size, in number of bytes, for fragmented client hello,
         try lower values if the default value doesn't bypass the DPI;
         when not given, the client hello packet will be sent in two parts:
 				fragmentation for the first data packet and the rest (default: 0, max: 255)`,
@@ -288,6 +284,7 @@ GLOBAL OPTIONS:
 
 func parseConfigFromArgs(cmd *cli.Command) (*Config, error) {
 	cfg := &Config{
+		AutoPolicy:        cmd.Bool("auto-policy"),
 		CacheShards:       Uint8Number{uint8(cmd.Int("cache-shards"))},
 		DnsAddr:           IPAddress{net.ParseIP(cmd.String("dns-addr"))},
 		DnsPort:           Uint16Number{uint16(cmd.Int("dns-port"))},
