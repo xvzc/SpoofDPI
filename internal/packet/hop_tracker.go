@@ -92,7 +92,7 @@ func (ht *HopTracker) processPacket(ctx context.Context, p gopacket.Packet) {
 	}
 
 	tcp, _ := tcpLayer.(*layers.TCP)
-	if !(tcp.SYN && tcp.ACK) {
+	if !tcp.SYN || !tcp.ACK {
 		return
 	}
 
