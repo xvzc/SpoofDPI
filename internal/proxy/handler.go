@@ -6,10 +6,23 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/rs/zerolog"
 )
+
+// bufferPool is a package-level pool of 32KB buffers used by io.CopyBuffer
+// to reduce memory allocations and GC pressure in the tunnel hot path.
+var bufferPool = sync.Pool{
+	New: func() any {
+		// We allocate a pointer to a byte slice.
+		// 32KB is the default buffer size for io.Copy.
+		b := make([]byte, 32*1024)
+		return &b
+	},
+}
 
 type Handler interface {
 	HandleRequest(
@@ -100,10 +113,9 @@ func tunnel(
 
 		// Report the wrapped error back to the main goroutine.
 		// Use %w to wrap the original error for inspection by the caller.
-		if errCh != nil {
-			errCh <- fmt.Errorf("tunnel copy error %s -> %s for %s: %w",
-				src.RemoteAddr().String(), dst.RemoteAddr().String(), domain, err)
-		}
+		errCh <- err
+	} else {
+		errCh <- nil
 	}
 
 	if n > 0 {
@@ -115,4 +127,15 @@ func tunnel(
 	logger.Trace().Msgf("closing tunnel %s -> %s for %s",
 		src.RemoteAddr().String(), dst.RemoteAddr().String(), domain,
 	)
+}
+
+func isConnectionResetByPeer(err error) bool {
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		var sysErr syscall.Errno
+		if errors.As(opErr.Err, &sysErr) {
+			return sysErr == syscall.ECONNRESET
+		}
+	}
+	return false
 }
