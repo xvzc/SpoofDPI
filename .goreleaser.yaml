@@ -5,8 +5,6 @@ version: 2
 
 project_name: spoofdpi
 
-parallelism: 1
-
 # --- Before Hook ---
 before:
   hooks:
