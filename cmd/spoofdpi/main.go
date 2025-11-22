@@ -202,12 +202,20 @@ func createProxy(
 		)
 		hopTracker.StartCapturing()
 
+		packetWriter, err := packet.NewPacketWriter(handle, iface)
+		if err != nil {
+			if err != nil {
+				return nil, fmt.Errorf("failed to create packet writer: %w", err)
+			}
+		}
+
 		// create a packet injector instance.
 		packetInjector, err = packet.NewPacketInjector(
 			applog.WithScope(logger, "PKT(write)"),
 			gatewayMAC,
 			handle,
 			iface,
+			packetWriter,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("error creating package injector: %w", err)
