@@ -11,6 +11,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/internal/packet"
 )
 
 // PacketInjector is capable of crafting and injecting L2-L7 packets
@@ -18,10 +19,9 @@ import (
 type PacketInjector struct {
 	logger zerolog.Logger
 
-	gatewayMAC   net.HardwareAddr // The MAC of the default gateway
-	handle       *pcap.Handle
-	iface        *net.Interface
-	packetWriter PacketWriter
+	gatewayMAC net.HardwareAddr // The MAC of the default gateway
+	handle     *pcap.Handle
+	iface      *net.Interface
 }
 
 // NewPacketInjector creates a new packet injector for a specific interface.
@@ -29,16 +29,14 @@ type PacketInjector struct {
 func NewPacketInjector(
 	logger zerolog.Logger,
 	gatewayMAC net.HardwareAddr, // Gateway MAC is now injected
-	handle *pcap.Handle,
+	handle packet.Handle,
 	iface *net.Interface,
-	packetWriter PacketWriter,
 ) (*PacketInjector, error) {
 	return &PacketInjector{
-		logger:       logger,
-		gatewayMAC:   gatewayMAC, // Store the injected MAC
-		handle:       handle,
-		iface:        iface,
-		packetWriter: packetWriter,
+		logger:     logger,
+		gatewayMAC: gatewayMAC, // Store the injected MAC
+		handle:     handle,
+		iface:      iface,
 	}, nil
 }
 
@@ -116,7 +114,7 @@ func (inj *PacketInjector) WriteCraftedPacket(
 		}
 
 		// inject the raw L2 packet
-		if err := inj.packetWriter.WritePacketData(buf.Bytes()); err != nil {
+		if err := inj.handle.WritePacketData(buf.Bytes()); err != nil {
 			return fmt.Errorf("failed to inject packet: %w", err)
 		}
 
