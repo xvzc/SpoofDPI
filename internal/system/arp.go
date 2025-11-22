@@ -65,7 +65,7 @@ func ResolveGatewayMACAddr(
 	if err := handle.SetBPFRawInstructionFilter(filter); err != nil {
 		return nil, fmt.Errorf("failed to set ARP BPF filter: %w", err)
 	}
-	defer func() { _ = handle.SetBPFRawInstructionFilter([]packet.BPFInstruction{}) }()
+	// defer func() { _ = handle.SetBPFRawInstructionFilter([]packet.BPFInstruction{}) }()
 
 	// 5. Send the ARP request
 	if err := handle.WritePacketData(buf.Bytes()); err != nil {
