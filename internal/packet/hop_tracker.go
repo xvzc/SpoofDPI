@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/appctx"
 	"github.com/xvzc/SpoofDPI/internal/datastruct/cache"
+	"github.com/xvzc/SpoofDPI/internal/packet"
 )
 
 // HopTracker monitors a pcap handle to find SYN/ACK packets and
@@ -31,7 +32,7 @@ func (ht *HopTracker) Cache() cache.Cache {
 func NewHopTracker(
 	logger zerolog.Logger,
 	cache cache.Cache,
-	handle *pcap.Handle,
+	handle packet.Handle,
 ) *HopTracker {
 	// Error checking for nil handle and cache has been removed
 	// as per the request.
