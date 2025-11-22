@@ -29,6 +29,12 @@ jobs:
       - name: Install libpcap-dev dependency
         run: sudo apt-get install libpcap-dev
 
+      # Setup Zig toolchain for cross-compilation
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: '0.13.0'
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         env:
