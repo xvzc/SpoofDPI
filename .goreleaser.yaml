@@ -29,8 +29,8 @@ builds:
       - CXX=zig c++ -target x86_64-linux-gnu
     ldflags:
       - -s -w
-      - -X "{{.Module}}/main.Version={{.Version}}"
-      - -X "{{.Module}}/main.Commit={{.ShortCommit}}"
+      - -X "main.Version={{.Version}}"
+      - -X "main.Commit={{.ShortCommit}}"
     main: ./cmd/spoofdpi
     binary: '{{ .ProjectName }}'
 
@@ -44,8 +44,8 @@ builds:
       - CXX=zig c++ -target x86_64-macos
     ldflags:
       - -s -w
-      - -X "{{.Module}}/main.Version={{.Version}}"
-      - -X "{{.Module}}/main.Commit={{.ShortCommit}}"
+      - -X "main.Version={{.Version}}"
+      - -X "main.Commit={{.ShortCommit}}"
     main: ./cmd/spoofdpi
     binary: '{{ .ProjectName }}'
 
@@ -59,8 +59,8 @@ builds:
       - CXX=zig c++ -target aarch64-macos
     ldflags:
       - -s -w
-      - -X "{{.Module}}/main.Version={{.Version}}"
-      - -X "{{.Module}}/main.Commit={{.ShortCommit}}"
+      - -X "main.Version={{.Version}}"
+      - -X "main.Commit={{.ShortCommit}}"
     main: ./cmd/spoofdpi
     binary: '{{ .ProjectName }}'
 
@@ -74,8 +74,8 @@ builds:
       - CXX=zig c++ -target x86_64-windows-gnu
     ldflags:
       - -s -w
-      - -X "{{.Module}}/main.Version={{.Version}}"
-      - -X "{{.Module}}/main.Commit={{.ShortCommit}}"
+      - -X "main.Version={{.Version}}"
+      - -X "main.Commit={{.ShortCommit}}"
     main: ./cmd/spoofdpi
     binary: '{{ .ProjectName }}'
     
@@ -89,8 +89,8 @@ builds:
       - CXX=zig c++ -target aarch64-linux-gnu
     ldflags:
       - -s -w
-      - -X "{{.Module}}/main.Version={{.Version}}"
-      - -X "{{.Module}}/main.Commit={{.ShortCommit}}"
+      - -X "main.Version={{.Version}}"
+      - -X "main.Commit={{.ShortCommit}}"
     main: ./cmd/spoofdpi
     binary: '{{ .ProjectName }}'
 
@@ -105,7 +105,8 @@ builds:
       - CXX=zig c++ -target mips-linux-gnu
     ldflags:
       - -s -w
-      - -X "{{.Module}}/main.Version={{.Version}}"
+      - -X "main.Version={{.Version}}"
+      - -X "main.Commit={{.ShortCommit}}"
     main: ./cmd/spoofdpi
     binary: '{{ .ProjectName }}'
 
@@ -118,7 +119,8 @@ builds:
       - CXX=zig c++ -target mipsel-linux-gnu
     ldflags:
       - -s -w
-      - -X "{{.Module}}/main.Version={{.Version}}"
+      - -X "main.Version={{.Version}}"
+      - -X "main.Commit={{.ShortCommit}}"
     main: ./cmd/spoofdpi
     binary: '{{ .ProjectName }}'
 
@@ -132,7 +134,8 @@ builds:
       - CXX=zig c++ -target x86_64-freebsd
     ldflags:
       - -s -w
-      - -X "{{.Module}}/main.Version={{.Version}}"
+      - -X "main.Version={{.Version}}"
+      - -X "main.Commit={{.ShortCommit}}"
     main: ./cmd/spoofdpi
     binary: '{{ .ProjectName }}'
 
