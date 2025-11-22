@@ -12,9 +12,8 @@ before:
     # GoReleaser will use Zig's built-in toolchain for CGO/cross-compilation.
 
 release:
-  - name: '{{.Tag}}'
-    draft: true
-    prerelease: auto
+  draft: true
+  prerelease: auto
 
 builds:
   # --- 1. Dynamic Linking Builds using ZIG (macOS, Windows, Linux GLIBC) ---
