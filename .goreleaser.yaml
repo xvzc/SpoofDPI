@@ -3,14 +3,18 @@
 
 version: 2
 
-# Go module path must be precisely defined (based on go.mod file)
-module: github.com/xvzc/SpoofDPI
+project_name: spoofdpi
 
 # --- Before Hook ---
 before:
   hooks:
     - go mod tidy
     # GoReleaser will use Zig's built-in toolchain for CGO/cross-compilation.
+
+release:
+  - name: '{{.Tag}}'
+    draft: true
+    prerelease: auto
 
 builds:
   # --- 1. Dynamic Linking Builds using ZIG (macOS, Windows, Linux GLIBC) ---
@@ -140,8 +144,8 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    checksum:
-      name_template: 'checksums.txt'
+    # checksum:
+    #   name_template: 'checksums.txt'
     # [UPDATED] Include all new build IDs
     builds:
       - linux-amd64
@@ -175,7 +179,3 @@ changelog:
     exclude:
     - '^.*?chore(\(.*\))??!?:.+$'
 
-releases:
-  - name: '{{.Tag}}'
-    draft: true
-    prerelease: auto
