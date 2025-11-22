@@ -18,9 +18,10 @@ import (
 type PacketInjector struct {
 	logger zerolog.Logger
 
-	gatewayMAC net.HardwareAddr // The MAC of the default gateway
-	handle     *pcap.Handle
-	iface      *net.Interface
+	gatewayMAC   net.HardwareAddr // The MAC of the default gateway
+	handle       *pcap.Handle
+	iface        *net.Interface
+	packetWriter PacketWriter
 }
 
 // NewPacketInjector creates a new packet injector for a specific interface.
@@ -30,12 +31,14 @@ func NewPacketInjector(
 	gatewayMAC net.HardwareAddr, // Gateway MAC is now injected
 	handle *pcap.Handle,
 	iface *net.Interface,
+	packetWriter PacketWriter,
 ) (*PacketInjector, error) {
 	return &PacketInjector{
-		logger:     logger,
-		gatewayMAC: gatewayMAC, // Store the injected MAC
-		handle:     handle,
-		iface:      iface,
+		logger:       logger,
+		gatewayMAC:   gatewayMAC, // Store the injected MAC
+		handle:       handle,
+		iface:        iface,
+		packetWriter: packetWriter,
 	}, nil
 }
 
@@ -113,7 +116,7 @@ func (inj *PacketInjector) WriteCraftedPacket(
 		}
 
 		// inject the raw L2 packet
-		if err := inj.handle.WritePacketData(buf.Bytes()); err != nil {
+		if err := inj.packetWriter.WritePacketData(buf.Bytes()); err != nil {
 			return fmt.Errorf("failed to inject packet: %w", err)
 		}
 

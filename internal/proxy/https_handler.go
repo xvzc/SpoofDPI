@@ -167,8 +167,8 @@ func (h *HTTPSHandler) HandleRequest(
 
 	// Start the tunnel using the refactored helper function.
 	errCh := make(chan error, 2)
-	go tunnel(ctx, logger, errCh, rConn, lConn, domain, true)
-	go tunnel(ctx, logger, errCh, lConn, rConn, domain, false)
+	go tunnel(ctx, logger, errCh, rConn, lConn, domain, false)
+	go tunnel(ctx, logger, errCh, lConn, rConn, domain, true)
 
 	blocked := false
 	for range 2 {

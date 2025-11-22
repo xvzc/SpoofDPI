@@ -57,8 +57,8 @@ func (h *HTTPHandler) HandleRequest(
 	}
 
 	errCh := make(chan error, 2)
-	go tunnel(ctx, logger, errCh, rConn, lConn, domain, true)
-	go tunnel(ctx, logger, errCh, lConn, rConn, domain, false)
+	go tunnel(ctx, logger, errCh, rConn, lConn, domain, false)
+	go tunnel(ctx, logger, errCh, lConn, rConn, domain, true)
 
 	for range 2 {
 		e := <-errCh
