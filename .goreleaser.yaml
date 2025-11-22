@@ -32,7 +32,7 @@ builds:
       - -X "{{.Module}}/main.Version={{.Version}}"
       - -X "{{.Module}}/main.Commit={{.ShortCommit}}"
     main: ./cmd/spoofdpi
-    binary: '{{ .Binary }}-linux-amd64'
+    binary: '{{ .ProjectName }}'
 
   - id: 'darwin-amd64'
     goos: [darwin]
@@ -47,7 +47,7 @@ builds:
       - -X "{{.Module}}/main.Version={{.Version}}"
       - -X "{{.Module}}/main.Commit={{.ShortCommit}}"
     main: ./cmd/spoofdpi
-    binary: '{{ .Binary }}-darwin-amd64'
+    binary: '{{ .ProjectName }}'
 
   - id: 'darwin-arm64'
     goos: [darwin]
@@ -62,7 +62,7 @@ builds:
       - -X "{{.Module}}/main.Version={{.Version}}"
       - -X "{{.Module}}/main.Commit={{.ShortCommit}}"
     main: ./cmd/spoofdpi
-    binary: '{{ .Binary }}-darwin-arm64'
+    binary: '{{ .ProjectName }}'
 
   - id: 'windows-amd64'
     goos: [windows]
@@ -77,7 +77,7 @@ builds:
       - -X "{{.Module}}/main.Version={{.Version}}"
       - -X "{{.Module}}/main.Commit={{.ShortCommit}}"
     main: ./cmd/spoofdpi
-    binary: '{{ .Binary }}-windows-amd64'
+    binary: '{{ .ProjectName }}'
     
   - id: 'linux-arm64'
     goos: [linux]
@@ -92,7 +92,7 @@ builds:
       - -X "{{.Module}}/main.Version={{.Version}}"
       - -X "{{.Module}}/main.Commit={{.ShortCommit}}"
     main: ./cmd/spoofdpi
-    binary: '{{ .Binary }}-linux-arm64'
+    binary: '{{ .ProjectName }}'
 
   # --- [NEW] Linux MIPS/MIPSLE Builds (IoT/Embedded) ---
   # These are challenging targets, but Zig supports them.
@@ -107,7 +107,7 @@ builds:
       - -s -w
       - -X "{{.Module}}/main.Version={{.Version}}"
     main: ./cmd/spoofdpi
-    binary: '{{ .Binary }}-linux-mips'
+    binary: '{{ .ProjectName }}'
 
   - id: 'linux-mipsle'
     goos: [linux]
@@ -120,7 +120,7 @@ builds:
       - -s -w
       - -X "{{.Module}}/main.Version={{.Version}}"
     main: ./cmd/spoofdpi
-    binary: '{{ .Binary }}-linux-mipsle'
+    binary: '{{ .ProjectName }}'
 
   # --- [NEW] FreeBSD Build (Tier 2 OS) ---
   - id: 'freebsd-amd64'
@@ -134,18 +134,16 @@ builds:
       - -s -w
       - -X "{{.Module}}/main.Version={{.Version}}"
     main: ./cmd/spoofdpi
-    binary: '{{ .Binary }}-freebsd-amd64'
+    binary: '{{ .ProjectName }}'
 
 
 archives:
   - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format: tar.gz
     format_overrides:
       - goos: windows
         format: zip
-    # checksum:
-    #   name_template: 'checksums.txt'
-    # [UPDATED] Include all new build IDs
     builds:
       - linux-amd64
       - darwin-amd64
