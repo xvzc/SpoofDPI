@@ -42,7 +42,7 @@ func NewPcapHandle(iface *net.Interface) (Handle, error) {
 	// activation successful, nil the inactive handle so defer doesn't close it
 	iHandle = nil
 
-	return handle, err
+	return &DefaultPcapHandle{handle}, err
 }
 
 func (h *DefaultPcapHandle) SetBPFRawInstructionFilter(
