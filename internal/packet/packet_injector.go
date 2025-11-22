@@ -9,9 +9,7 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/packet"
 )
 
 // PacketInjector is capable of crafting and injecting L2-L7 packets
@@ -20,7 +18,7 @@ type PacketInjector struct {
 	logger zerolog.Logger
 
 	gatewayMAC net.HardwareAddr // The MAC of the default gateway
-	handle     *pcap.Handle
+	handle     Handle
 	iface      *net.Interface
 }
 
@@ -29,7 +27,7 @@ type PacketInjector struct {
 func NewPacketInjector(
 	logger zerolog.Logger,
 	gatewayMAC net.HardwareAddr, // Gateway MAC is now injected
-	handle packet.Handle,
+	handle Handle,
 	iface *net.Interface,
 ) (*PacketInjector, error) {
 	return &PacketInjector{
