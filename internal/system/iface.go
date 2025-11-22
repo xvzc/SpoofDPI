@@ -1,6 +1,7 @@
 package system
 
 import (
+	"errors"
 	"fmt"
 	"net"
 )
@@ -76,4 +77,23 @@ func FindDefaultInterface() (*net.Interface, error) {
 		"failed to find default interface for local IP: %s",
 		localAddr.IP,
 	)
+}
+
+// GetInterfaceIPv4 finds the first valid (non-loopback) IPv4 address
+// on a given interface.
+func GetInterfaceIPv4(iface *net.Interface) (net.IP, error) {
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return nil, err
+	}
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok {
+			if ip := ipnet.IP.To4(); ip != nil {
+				if !ip.IsLoopback() {
+					return ip, nil
+				}
+			}
+		}
+	}
+	return nil, errors.New("no non-loopback IPv4 address found on interface")
 }

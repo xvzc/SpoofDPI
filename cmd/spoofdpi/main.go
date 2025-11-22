@@ -178,7 +178,7 @@ func createProxy(
 		logger.Info().Msgf("interface ip; %s;", ifaceIP)
 
 		// create a pcap handle for packet capturing.
-		handle, err := system.CreatePcapHandle(iface)
+		handle, err := packet.NewPcapHandle(iface)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"error opening pcap handle on interface %s: %w",
@@ -202,20 +202,12 @@ func createProxy(
 		)
 		hopTracker.StartCapturing()
 
-		packetWriter, err := packet.NewPacketWriter(handle, iface)
-		if err != nil {
-			if err != nil {
-				return nil, fmt.Errorf("failed to create packet writer: %w", err)
-			}
-		}
-
 		// create a packet injector instance.
 		packetInjector, err = packet.NewPacketInjector(
 			applog.WithScope(logger, "PKT(write)"),
 			gatewayMAC,
 			handle,
 			iface,
-			packetWriter,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("error creating package injector: %w", err)
