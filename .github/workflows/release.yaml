@@ -48,4 +48,4 @@ jobs:
           distribution: goreleaser
           # 'latest', 'nightly', or a semver
           version: '~> v2'
-          args: release --clean --verbose -parallelism 1
+          args: release --clean --verbose --parallelism 1
