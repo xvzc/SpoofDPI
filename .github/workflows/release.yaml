@@ -41,6 +41,8 @@ jobs:
           # GITHUB_TOKEN is required for creating releases and uploading artifacts
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CGO_ENABLED: 1
+          ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache
+          ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache
         with:
           # Tell goreleaser to run the release process
           distribution: goreleaser
