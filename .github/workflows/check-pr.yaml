@@ -1,7 +1,7 @@
 # This workflow validates that Pull Request titles adhere to the
 # Conventional Commit specification defined in the project.
 # It runs on PRs being opened, edited, or synchronized.
-name: Lint Pull Request
+name: lint-pull-request
 
 on:
   pull_request_target:

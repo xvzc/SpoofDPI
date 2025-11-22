@@ -1,4 +1,4 @@
-name: Go Releaser
+name: go-releaser
 
 on: workflow_dispatch
 
