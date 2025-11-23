@@ -71,3 +71,7 @@ jobs:
             chore
             ci
             revert
+            major
+            minor
+            patch
+            skip-changelog
