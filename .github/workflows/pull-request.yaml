@@ -72,3 +72,43 @@ jobs:
             minor
             patch
             skip-changelog
+
+  golangci-lint:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux: Disable CGO
+          - os: ubuntu-latest
+            cgo: '0'
+          # macOS: Enable CGO (requires C dependencies)
+          - os: macos-latest
+            cgo: '1'
+    name: Run golangci-lint ${{ matrix.os }}
+    # Run on both Linux and macOS using a matrix strategy
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out PR code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: false # Disable cache to avoid conflicts with golangci-lint cache
+
+      - run: go version
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --verbose
+          # Caching with CGO can be complex across OSs, so we handle it carefully or disable
+          skip-cache: true
+        env:
+          # Set CGO_ENABLED dynamically based on the matrix
+          CGO_ENABLED: ${{ matrix.cgo }}
