@@ -1,0 +1,115 @@
+name: pull-request
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  lint-pr-title:
+    permissions:
+      pull-requests: read
+    name: Validate PR Title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            chore
+            ci
+            revert
+          subjectPattern: '^[^A-Z].*'
+          subjectPatternError: |
+            The subject (message after the colon) must start with a lowercase letter.
+
+            **Examples:**
+            - (Good) `docs: update README with new instructions`
+            - (Bad)  `docs: Update README with new instructions`
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-draft-release:
+    name: Update Draft Release
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: release-drafter/release-drafter@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  check-label:
+    permissions:
+      pull-requests: read
+    name: Require Labels for PR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: mheap/github-action-required-labels@v5
+        with:
+          mode: minimum
+          count: 1
+          labels: |
+            feature
+            bug
+            documentation
+            style
+            refactor
+            performance
+            test
+            chore
+            ci
+            revert
+            major
+            minor
+            patch
+            skip-changelog
+
+  golangci-lint:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux: Disable CGO
+          - os: ubuntu-latest
+            cgo: '0'
+          # macOS: Enable CGO (requires C dependencies)
+          - os: macos-latest
+            cgo: '1'
+    name: Run golangci-lint on ${{ matrix.os }}
+    # Run on both Linux and macOS using a matrix strategy
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out PR code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+          cache: false # Disable cache to avoid conflicts with golangci-lint cache
+
+      - run: go version
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          args: --verbose
+          # Caching with CGO can be complex across OSs, so we handle it carefully or disable
+          skip-cache: true
+        env:
+          # Set CGO_ENABLED dynamically based on the matrix
+          CGO_ENABLED: ${{ matrix.cgo }}
