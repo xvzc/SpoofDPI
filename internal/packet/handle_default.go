@@ -55,5 +55,5 @@ func (h *DefaultPcapHandle) SetBPFRawInstructionFilter(
 		})
 	}
 
-	return h.Handle.SetBPFInstructionFilter(converted)
+	return h.SetBPFInstructionFilter(converted)
 }
