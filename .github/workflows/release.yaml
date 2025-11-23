@@ -1,4 +1,4 @@
-name: release
+name: release-drafter
 
 on:
   push:
@@ -30,7 +30,6 @@ jobs:
         with:
           distribution: goreleaser
           version: '~> v2'
-          # [핵심] 빌드만 하고 배포는 스킵 (Linux 전용 설정 사용)
           args: release --clean --skip=publish --config .goreleaser.linux.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -63,7 +62,6 @@ jobs:
         with:
           distribution: goreleaser
           version: '~> v2'
-          # [핵심] macOS 전용 설정 사용
           args: release --clean --skip=publish --config .goreleaser.darwin.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -109,7 +107,6 @@ jobs:
             export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
             export TARGET_ARCH="${{ matrix.goarch }}"
             
-            # [핵심] FreeBSD 전용 설정 사용
             goreleaser release --clean --skip=publish --config .goreleaser.freebsd.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -131,26 +128,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Changelog 생성을 위해 필수
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
 
-      # 1. GoReleaser로 릴리즈 페이지 생성 (Changelog 포함)
-      # builds 섹션이 비어있으므로 바이너리는 없이 껍데기만 생성됨
       - name: Create Release with GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: '~> v2'
-          # [핵심] Main 설정(.goreleaser.yaml) 사용
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 2. 아티팩트 다운로드
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -158,7 +151,6 @@ jobs:
           merge-multiple: true
           path: dist
 
-      # 3. 통합 체크섬 생성 및 파일 업로드
       - name: Upload Artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -166,10 +158,8 @@ jobs:
           TAG_NAME=${GITHUB_REF#refs/tags/}
           
           cd dist
-          # 모든 바이너리에 대한 통합 체크섬 생성
           sha256sum *.tar.gz > checksums.txt
           
           echo "Uploading artifacts to $TAG_NAME..."
           
-          # GoReleaser가 만든 릴리즈에 파일들 추가 업로드
           gh release upload $TAG_NAME *.tar.gz checksums.txt --clobber
