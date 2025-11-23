@@ -1,3 +1,4 @@
+# .goreleaser.yaml
 version: 2
 project_name: spoofdpi
 
@@ -5,83 +6,12 @@ before:
   hooks:
     - go mod tidy
 
+builds: []
+
 release:
   draft: true
   prerelease: auto
-
-builds:
-  - id: 'linux-pure'
-    goos: [linux]
-    goarch:
-      - amd64
-      - arm64
-      - mips
-      - mipsle
-    gomips: [softfloat]
-    env:
-      - CGO_ENABLED=0
-    ldflags:
-      - -s -w
-      - -X "main.Version={{.Version}}"
-      - -X "main.Commit={{.ShortCommit}}"
-    main: ./cmd/spoofdpi
-    binary: '{{ .ProjectName }}'
-
-  - id: 'darwin-amd64'
-    goos: [darwin]
-    goarch: [amd64]
-    env:
-      - CGO_ENABLED=1
-      - CC=clang -arch x86_64
-      - CXX=clang++ -arch x86_64
-    ldflags:
-      - -s -w
-      - -X "main.Version={{.Version}}"
-      - -X "main.Commit={{.ShortCommit}}"
-    main: ./cmd/spoofdpi
-    binary: '{{ .ProjectName }}'
-
-  - id: 'darwin-arm64'
-    goos: [darwin]
-    goarch: [arm64]
-    env:
-      - CGO_ENABLED=1
-      - CC=clang -arch arm64
-      - CXX=clang++ -arch arm64
-    ldflags:
-      - -s -w
-      - -X "main.Version={{.Version}}"
-      - -X "main.Commit={{.ShortCommit}}"
-    main: ./cmd/spoofdpi
-    binary: '{{ .ProjectName }}'
-
-
-  # ---------------------------------------------------------------------------
-  # [FreeBSD] CGO Builds (Native)
-  # ---------------------------------------------------------------------------
-  - id: 'freebsd'
-    goos: [freebsd]
-    goarch: [amd64]
-    env:
-      - CGO_ENABLED=1
-    ldflags:
-      - -s -w
-      - -X "main.Version={{.Version}}"
-      - -X "main.Commit={{.ShortCommit}}"
-    main: ./cmd/spoofdpi
-    binary: '{{ .ProjectName }}'
-
-archives:
-  - id: default
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    format: tar.gz
-    builds:
-      - linux-pure
-      - darwin
-      - freebsd
-
-checksum:
-  name_template: 'checksums.txt'
+  replace_existing_artifacts: true
 
 changelog:
   sort: asc
@@ -100,3 +30,6 @@ changelog:
   filters:
     exclude:
     - '^.*?chore(\(.*\))??!?:.+$'
+
+checksum:
+  name_template: 'checksums.txt'
