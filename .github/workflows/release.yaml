@@ -1,51 +1,106 @@
-name: go-releaser
+name: release
 
-on: workflow_dispatch
+on:
+  push:
+    tags:
+      - 'v*'
 
 permissions:
-  contents: write
+  contents: write # 릴리즈 생성을 위해 필수
 
 jobs:
-  draft-release:
+  # ---------------------------------------------------------------------------
+  # Job 1: Linux Build (Pure Go, Static)
+  # ---------------------------------------------------------------------------
+  release-linux:
     runs-on: ubuntu-latest
-    outputs:
-      tag_name: ${{ steps.release.outputs.tag_name }}
-    permissions:
-      contents: write
-      pull-requests: write
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Required to fetch all history for proper git tag handling
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22' # Using the Go version requested by the user
+          go-version: '1.22'
 
-      # Install libpcap-dev dependency required for CGO compilation (for gopacket/raw socket access)
-      - name: Install libpcap-dev dependency
-        run: sudo apt-get install libpcap-dev
-
-      # Setup Zig toolchain for cross-compilation
-      - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
-        with:
-          version: '0.13.0'
-
-      - name: Run GoReleaser
+      - name: Run GoReleaser (Linux)
         uses: goreleaser/goreleaser-action@v6
-        env:
-          # GITHUB_TOKEN is required for creating releases and uploading artifacts
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CGO_ENABLED: 1
-          ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache
-          ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache
         with:
-          # Tell goreleaser to run the release process
           distribution: goreleaser
-          # 'latest', 'nightly', or a semver
           version: '~> v2'
-          args: release --clean --verbose --parallelism 1
+          args: release --clean --split --id linux-pure
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # Job 2: macOS Build (Native CGO)
+  # ---------------------------------------------------------------------------
+  release-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Run GoReleaser (macOS)
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean --split --id darwin-amd64 --id darwin-arm64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # Job 3: FreeBSD Build (Native VM)
+  # ---------------------------------------------------------------------------
+  release-freebsd:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: freebsd-amd64
+            arch: x86-64
+            target_id: freebsd-amd64
+          - name: freebsd-arm64
+            arch: aarch64
+            target_id: freebsd-arm64
+          - name: freebsd-riscv64
+            arch: riscv64
+            target_id: freebsd-riscv64
+
+    name: Build ${{ matrix.name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run on FreeBSD VM
+        uses: vmactions/freebsd-vm@v1
+        with:
+          architecture: ${{ matrix.arch }}
+          release: '15.0'
+          usesh: true
+          
+          prepare: |
+            pkg install -y git go libpcap
+
+          run: |
+            go install github.com/goreleaser/goreleaser/v2@latest
+            export PATH=$PATH:~/go/bin
+            export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+
+            echo "Running GoReleaser for ${{ matrix.target_id }}..."
+            goreleaser release --clean --split --id ${{ matrix.target_id }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
