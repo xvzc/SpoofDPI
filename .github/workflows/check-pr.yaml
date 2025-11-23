@@ -1,0 +1,18 @@
+# This workflow validates that Pull Request titles adhere to the
+# Conventional Commit specification defined in the project.
+# It runs on PRs being opened, edited, or synchronized.
+name: lint-pull-request
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - edited
+      - synchronize
+      - labeled
+
+permissions:
+  pull-requests: read
+  statuses: write # Required to set the "check" status on the PR
+
+jobs:
