@@ -1,4 +1,4 @@
-name: release-drafter
+name: release
 
 on:
   push:
@@ -99,67 +99,4 @@ jobs:
         with:
           architecture: ${{ matrix.arch }}
           version: '14.2'
-          usesh: true
-          prepare: pkg install -y git go libpcap
-          run: |
-            go install github.com/goreleaser/goreleaser/v2@latest
-            export PATH=$PATH:~/go/bin
-            export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
-            export TARGET_ARCH="${{ matrix.goarch }}"
-            
-            goreleaser release --clean --skip=publish --config .goreleaser.freebsd.yaml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: freebsd-${{ matrix.goarch }}-artifacts
-          path: dist/*.tar.gz
-          retention-days: 1
-
-  # ===========================================================================
-  # 4. Publisher (GoReleaser + Manual Upload)
-  # ===========================================================================
-  publish:
-    needs: [build-linux, build-macos, build-freebsd]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-
-      - name: Create Release with GoReleaser
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: '~> v2'
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Download All Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: *-artifacts
-          merge-multiple: true
-          path: dist
-
-      - name: Upload Artifacts
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          
-          cd dist
-          sha256sum *.tar.gz > checksums.txt
-          
-          echo "Uploading artifacts to $TAG_NAME..."
-          
-          gh release upload $TAG_NAME *.tar.gz checksums.txt --clobber
+          usesh:
