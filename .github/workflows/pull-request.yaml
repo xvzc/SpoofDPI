@@ -8,7 +8,19 @@ on:
     types: [opened, reopened, synchronize]
 
 jobs:
+  update-draft-release:
+    name: Update Draft Release
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: release-drafter/release-drafter@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   lint-pr-title:
+    if: github.event_name == 'pull_request'
     permissions:
       pull-requests: read
     name: Validate PR Title
@@ -37,18 +49,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  update-draft-release:
-    name: Update Draft Release
-    permissions:
-      contents: write
-      pull-requests: write
-    runs-on: ubuntu-latest
-    steps:
-      - uses: release-drafter/release-drafter@v6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   check-label:
+    if: github.event_name == 'pull_request'
     permissions:
       pull-requests: read
     name: Require Labels for PR
@@ -75,6 +77,7 @@ jobs:
             skip-changelog
 
   golangci-lint:
+    if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
       matrix:
