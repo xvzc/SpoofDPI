@@ -4,7 +4,6 @@ change-template: '* $TITLE (#$NUMBER) by @$AUTHOR'
 change-title-escapes: '\<*_&#@`'
 template: |
   ## Changelog
-
   $CHANGES
 
 version-resolver:
@@ -33,6 +32,26 @@ exclude-labels:
   - 'ci'
   - 'style'
   - 'skip-changelog'
+
+categories:
+  - title: 'Features'
+    labels: 
+      - 'feature'
+  - title: 'Fixes'
+    labels: 
+      - 'bug'
+  - title: 'Documentation'
+    labels: 
+      - 'documentation'
+  - title: 'Other'
+    labels:
+      - 'style'
+      - 'refactor'
+      - 'performance'
+      - 'test'
+      - 'chore'
+      - 'ci'
+      - 'revert'
 
 autolabeler:
   - label: 'feature'
@@ -65,20 +84,3 @@ autolabeler:
   - label: 'revert'
     title:
       - '/^revert/'
-
-categories:
-  - title: 'Features'
-    label: 'feature'
-  - title: 'Fixes'
-    label: 'bug'
-  - title: 'Documentation'
-    label: 'documentation'
-  - title: 'Other'
-    labels:
-      - 'style'
-      - 'refactor'
-      - 'performance'
-      - 'test'
-      - 'chore'
-      - 'ci'
-      - 'revert'
