@@ -116,6 +116,13 @@ func createLayers(
 	dstPort int,
 	ttl uint8,
 ) ([]gopacket.SerializableLayer, error) {
+	// define eth layer
+	ethLayer := &layers.Ethernet{
+		SrcMAC:       srcMAC,
+		DstMAC:       dstMAC, // Use the stored MAC
+		EthernetType: layers.EthernetTypeIPv4,
+	}
+
 	// define ip layer
 	ipLayer := &layers.IPv4{
 		Version:  4,
@@ -142,5 +149,5 @@ func createLayers(
 		)
 	}
 
-	return []gopacket.SerializableLayer{ipLayer, tcpLayer}, nil
+	return []gopacket.SerializableLayer{ethLayer, ipLayer, tcpLayer}, nil
 }
