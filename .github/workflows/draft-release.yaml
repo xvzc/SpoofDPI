@@ -192,12 +192,12 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ needs.prepare.outputs.new_tag }}
-      #
-      # - name: Set up Go
-      #   uses: actions/setup-go@v5
-      #   with:
-      #     go-version: '1.22'
-      #
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
       # - name: Create Release with GoReleaser
       #   uses: goreleaser/goreleaser-action@v6
       #   with:
