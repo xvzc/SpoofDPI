@@ -8,3 +8,4 @@ out/**
 .DS_Store
 .idea/
 .direnv/
+dist/

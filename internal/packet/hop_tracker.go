@@ -49,7 +49,7 @@ func (ht *HopTracker) StartCapturing() {
 	packets := packetSource.Packets()
 	// _ = ht.handle.SetBPFRawInstructionFilter(generateSynAckFilter())
 	_ = ht.handle.ClearBPF()
-	ht.handle.SetBPFRawInstructionFilter(generateSynAckFilter())
+	_ = ht.handle.SetBPFRawInstructionFilter(generateSynAckFilter())
 
 	// Start a dedicated goroutine to process incoming packets.
 	go func() {

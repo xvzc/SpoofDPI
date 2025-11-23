@@ -1,0 +1,70 @@
+name: publish-release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Single Job: Build All (Linux & macOS) on macOS Runner
+  # ---------------------------------------------------------------------------
+  build-and-publish:
+    name: Build and Upload Artifacts
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Install Syft
+        run: |
+          curl -sSfL https://get.anchore.io/syft | sudo sh -s -- -b /usr/local/bin
+
+      # v4.0.0
+      - uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad
+
+      # Run GoReleaser to build binaries, archives, packages, and SBOMs.
+      # We use --skip=publish because we want to upload artifacts manually
+      # to the existing release created by Release Drafter, preserving its notes.
+      - name: Build Artifacts
+        # v6.4.0
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean --skip=publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ github.event.release.tag_name }}
+
+      # Upload all generated artifacts to the release.
+      # GoReleaser generates everything into the 'dist/' folder.
+      - name: Upload Artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ github.event.release.tag_name }}"
+          
+          echo "Uploading artifacts to release: $TAG_NAME"
+          
+          # Upload archives, packages, checksums, and SBOMs
+          # --clobber overwrites files if they already exist (useful for retries)
+          gh release upload "$TAG_NAME" \
+            dist/*.tar.gz \
+            dist/*.json \
+            dist/*.deb \
+            dist/*.apk \
+            dist/*.rpm \
+            dist/*.zst \
+            dist/checksums.txt \
+            --clobber

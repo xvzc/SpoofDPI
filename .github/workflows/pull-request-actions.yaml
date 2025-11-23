@@ -1,0 +1,171 @@
+name: pull-request-actions
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  autolabeler:
+    # Run only on pull requests to apply labels
+    if: github.event_name == 'pull_request'
+    name: Run Autolabeler
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: release-drafter/release-drafter@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-draft-release:
+    # Run only on push to main to update the release draft
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    name: Update Draft Release
+    permissions:
+      contents: write
+      pull-requests: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: release-drafter/release-drafter@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  lint-pr-title:
+    # Check title validity independently
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: read
+    name: Validate PR Title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            chore
+            ci
+            revert
+          subjectPattern: '^[^A-Z].*'
+          subjectPatternError: |
+            The subject (message after the colon) must start with a lowercase letter.
+
+            **Examples:**
+            - (Good) `docs: update README with new instructions`
+            - (Bad)  `docs: Update README with new instructions`
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  check-label:
+    # Waits for Autolabeler (update-draft-release) to apply labels first
+    needs: [autolabeler]
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: read
+    name: Require Labels for PR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: mheap/github-action-required-labels@v5
+        with:
+          mode: minimum
+          count: 1
+          labels: |
+            feature
+            bug
+            documentation
+            style
+            refactor
+            performance
+            test
+            chore
+            ci
+            revert
+            major
+            minor
+            patch
+            skip-changelog
+
+  golangci-lint:
+    # Waits for title and label checks to succeed
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            cgo: '0'
+          - os: macos-latest
+            cgo: '1'
+    name: Run golangci-lint on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out PR code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+          cache: false
+
+      - run: go version
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          args: --verbose
+          skip-cache: true
+        env:
+          CGO_ENABLED: ${{ matrix.cgo }}
+
+
+  release-test:
+    permissions:
+      contents: write
+      id-token: write
+    # Run only if linting passes to ensure code quality before heavy building
+    if: github.event_name == 'pull_request'
+    name: Release Test (Snapshot)
+    # Use macOS runner to match the production release environment (supports both CGO/Non-CGO)
+    runs-on: macos-latest
+    steps:
+      - name: Check out PR code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0 # GoReleaser requires git history
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Install Syft
+        run: |
+          curl -sSfL https://get.anchore.io/syft | sudo sh -s -- -b /usr/local/bin
+
+      # v4.0.0
+      - uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad
+
+      - name: Run GoReleaser (Snapshot)
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --snapshot --clean --skip=publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
