@@ -37,7 +37,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  update_draft_release:
+  update-draft-release:
+    name: Update Draft Release
     permissions:
       contents: write
       pull-requests: write
@@ -84,7 +85,7 @@ jobs:
           # macOS: Enable CGO (requires C dependencies)
           - os: macos-latest
             cgo: '1'
-    name: golangci-lint on ${{ matrix.os }}
+    name: Run golangci-lint on ${{ matrix.os }}
     # Run on both Linux and macOS using a matrix strategy
     runs-on: ${{ matrix.os }}
     steps:
