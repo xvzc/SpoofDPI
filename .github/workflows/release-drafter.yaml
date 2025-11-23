@@ -1,14 +1,14 @@
 name: release-drafter
 
-# on:
-#   push:
-#     branches:
-#       - main
-#   # pull_request event is required for autolabeler
-#   pull_request:
-#     types: [opened, reopened, synchronize]
+on:
+  push:
+    branches:
+      - main
+  # pull_request event is required for autolabeler
+  pull_request:
+    types: [opened, reopened, synchronize]
 
-on: workflow_dispatch
+# on: workflow_dispatch
 
 permissions:
   contents: write
