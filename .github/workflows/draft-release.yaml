@@ -27,49 +27,49 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-  #
-  #     - name: Calculate Next Version
-  #       id: bump_version
-  #       run: |
-  #         # Fetch all tags to ensure git describe works
-  #         git fetch --tags
-  #
-  #         # Get the latest tag, default to v0.0.0 if none exists
-  #         LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-  #         echo "Latest tag: $LATEST_TAG"
-  #
-  #         # Remove 'v' prefix
-  #         VERSION=${LATEST_TAG#v}
-  #
-  #         # Split version into major, minor, patch
-  #         IFS='.' read -r major minor patch <<< "$VERSION"
-  #
-  #         # Increment based on input
-  #         INCREMENT_TYPE="${{ github.event.inputs.increment }}"
-  #
-  #         if [ "$INCREMENT_TYPE" == "major" ]; then
-  #           major=$((major + 1))
-  #           minor=0
-  #           patch=0
-  #         elif [ "$INCREMENT_TYPE" == "minor" ]; then
-  #           minor=$((minor + 1))
-  #           patch=0
-  #         else
-  #           patch=$((patch + 1))
-  #         fi
-  #
-  #         NEW_TAG="v$major.$minor.$patch"
-  #         echo "New tag: $NEW_TAG"
-  #
-  #         # Set output for other jobs
-  #         echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
-  #
-  #         # Configure git and push the new tag
-  #         git config user.name "github-actions[bot]"
-  #         git config user.email "github-actions[bot]@users.noreply.github.com"
-  #         git tag $NEW_TAG
-  #         git push origin $NEW_TAG
-  #
+
+      - name: Calculate Next Version
+        id: bump_version
+        run: |
+          # Fetch all tags to ensure git describe works
+          git fetch --tags
+
+          # Get the latest tag, default to v0.0.0 if none exists
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $LATEST_TAG"
+
+          # Remove 'v' prefix
+          VERSION=${LATEST_TAG#v}
+
+          # Split version into major, minor, patch
+          IFS='.' read -r major minor patch <<< "$VERSION"
+
+          # Increment based on input
+          INCREMENT_TYPE="${{ github.event.inputs.increment }}"
+
+          if [ "$INCREMENT_TYPE" == "major" ]; then
+            major=$((major + 1))
+            minor=0
+            patch=0
+          elif [ "$INCREMENT_TYPE" == "minor" ]; then
+            minor=$((minor + 1))
+            patch=0
+          else
+            patch=$((patch + 1))
+          fi
+
+          NEW_TAG="v$major.$minor.$patch"
+          echo "New tag: $NEW_TAG"
+
+          # Set output for other jobs
+          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+
+          # Configure git and push the new tag
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag $NEW_TAG
+          git push origin $NEW_TAG
+
   # # Linux Build (Pure Go)
   # build-linux:
   #   needs: prepare
