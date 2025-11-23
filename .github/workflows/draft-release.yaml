@@ -160,8 +160,8 @@ jobs:
       - name: Build on FreeBSD VM
         uses: vmactions/freebsd-vm@v1
         with:
-          architecture: ${{ matrix.arch }}
-          version: '14.2'
+          release: '15.0'
+          arch: ${{ matrix.arch }}
           usesh: true
           prepare: pkg install -y git go libpcap
           run: |
@@ -170,6 +170,7 @@ jobs:
             export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
             export TARGET_ARCH="${{ matrix.goarch }}"
             export GORELEASER_CURRENT_TAG="${{ needs.prepare.outputs.new_tag }}"
+            cd $GITHUB_WORKSPACE
 
             goreleaser release --clean --skip=publish --config .goreleaser.freebsd.yaml
         env:
