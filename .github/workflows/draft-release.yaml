@@ -1,3 +1,5 @@
+name: release
+
 on:
   workflow_dispatch:
     inputs:
@@ -225,4 +227,3 @@ jobs:
           echo "Uploading artifacts to $TAG_NAME..."
           
           gh release upload $TAG_NAME *.tar.gz checksums.txt --clobber
-
