@@ -9,36 +9,6 @@ permissions:
   contents: write
 
 jobs:
-  publish:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download All Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: '*-artifacts'
-          merge-multiple: true
-          path: dist
-
-      - name: Upload Artifacts
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # The release is already created by the user via GitHub UI (Release Drafter)
-          # We just need to attach the artifacts to it.
-          TAG_NAME='${{ github.event.release.tag_name }}'
-          
-          cd dist
-          sha256sum *.tar.gz > checksums.txt
-          
-          echo "Uploading artifacts to existing release: $TAG_NAME"
-          
-          # Use 'gh release upload' instead of 'create'
-          gh release upload $TAG_NAME *.tar.gz checksums.txt --clobber
   build-linux:
     runs-on: ubuntu-latest
     steps:
@@ -100,3 +70,33 @@ jobs:
           path: dist/*.tar.gz
           retention-days: 1
 
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-artifacts'
+          merge-multiple: true
+          path: dist
+
+      - name: Upload Artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # The release is already created by the user via GitHub UI (Release Drafter)
+          # We just need to attach the artifacts to it.
+          TAG_NAME='${{ github.event.release.tag_name }}'
+          
+          cd dist
+          sha256sum *.tar.gz > checksums.txt
+          
+          echo "Uploading artifacts to existing release: $TAG_NAME"
+          
+          # Use 'gh release upload' instead of 'create'
+          gh release upload $TAG_NAME *.tar.gz checksums.txt --clobber
