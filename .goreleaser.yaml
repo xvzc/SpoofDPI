@@ -65,8 +65,6 @@ nfpms:
 # Generate Software Bill of Materials
 sboms:
   - artifacts: archive
-    documents:
-      - spdx.json # Generates a single SBOM file per archive (e.g., spoofdpi_...tar.gz.spdx.json)
 
 checksum:
   name_template: 'checksums.txt'
