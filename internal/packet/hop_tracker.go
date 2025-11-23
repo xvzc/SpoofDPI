@@ -47,7 +47,9 @@ func (ht *HopTracker) StartCapturing() {
 	// Create a new packet source from the handle.
 	packetSource := gopacket.NewPacketSource(ht.handle, ht.handle.LinkType())
 	packets := packetSource.Packets()
-	_ = ht.handle.SetBPFRawInstructionFilter(generateSynAckFilter())
+	// _ = ht.handle.SetBPFRawInstructionFilter(generateSynAckFilter())
+	_ = ht.handle.ClearBPF()
+	ht.handle.SetBPFRawInstructionFilter(generateSynAckFilter())
 
 	// Start a dedicated goroutine to process incoming packets.
 	go func() {
@@ -87,11 +89,13 @@ func (ht *HopTracker) processPacket(ctx context.Context, p gopacket.Packet) {
 
 	tcpLayer := p.Layer(layers.LayerTypeTCP)
 	if tcpLayer == nil {
+		// log.Trace().Msgf("no tcp: %s", p.String())
 		return
 	}
 
 	tcp, _ := tcpLayer.(*layers.TCP)
 	if !tcp.SYN || !tcp.ACK {
+		// log.Trace().Msgf("invalid packet: %s", p.String())
 		return
 	}
 
@@ -145,60 +149,38 @@ func calculateHops(ttl uint8) uint8 {
 // This captures only TCP SYN-ACK packets (IPv4).
 func generateSynAckFilter() []BPFInstruction {
 	instructions := []BPFInstruction{
-		// -------------------------------------------------------
-		// Check EtherType == IPv4 (0x0800)
-		// -------------------------------------------------------
-		// Load Absolute (Offset 12, Size 2 bytes - EtherType)
+		// 1. Check EtherType == IPv4 (0x0800)
 		{Op: 0x28, Jt: 0, Jf: 0, K: 12},
-		// Jump If Equal (Val == 0x0800 ? Next : Fail)
-		// Jf=8: Jump 8 instructions forward (to Fail)
 		{Op: 0x15, Jt: 0, Jf: 8, K: 0x0800},
 
-		// -------------------------------------------------------
-		// Check Protocol == TCP (6)
-		// -------------------------------------------------------
-		// Load Absolute (Offset 23, Size 1 byte - Protocol in IPv4)
+		// 2. Check Protocol == TCP (6)
 		{Op: 0x30, Jt: 0, Jf: 0, K: 23},
-		// Jump If Equal (Val == 6 ? Next : Fail)
-		// Jf=6: Jump to Fail
 		{Op: 0x15, Jt: 0, Jf: 6, K: 6},
 
-		// -------------------------------------------------------
-		// Check Fragmentation (Must not be a fragment)
-		// -------------------------------------------------------
-		// Load Absolute (Offset 20, Size 2 bytes - Flags/FragOffset)
+		// 3. Check Fragmentation
 		{Op: 0x28, Jt: 0, Jf: 0, K: 20},
-		// Jset (Jump if Set): If (Val & 0x1fff) is True -> Fail
-		// Fragmented packets cannot be analyzed deep inside the TCP header, so drop them
 		{Op: 0x45, Jt: 4, Jf: 0, K: 0x1fff},
 
-		// -------------------------------------------------------
-		// Find TCP Header Start (IPv4 Header Length)
-		// -------------------------------------------------------
-		// BPF Special Op: Load IP Header Length to X Register (MSH)
-		// IPv4 header length is variable. Store the length in X register (4 * (header_len & 0xf))
+		// 4. Find TCP Header Start (IP Header Length to X)
+		// Loads byte at offset 14 (IP Header Start), gets IHL, multiplies by 4, stores in X.
 		{Op: 0xb1, Jt: 0, Jf: 0, K: 14},
 
-		// -------------------------------------------------------
-		// Check TCP Flags (SYN+ACK)
-		// -------------------------------------------------------
-		// Load Indirect (Val = Packet[X + 13])
-		// X(IP Header Len) + 13 = TCP Flags byte offset
-		{Op: 0x50, Jt: 0, Jf: 0, K: 13},
+		// 5. Check TCP Flags (SYN+ACK)
+		// We want to load: Ethernet(14) + IP_Len(X) + TCP_Flags(13)
+		// Instruction is: Load [X + K]
+		// So K must be 14 + 13 = 27.
+
+		// [FIX] K was 13, changed to 27
+		{Op: 0x50, Jt: 0, Jf: 0, K: 27},
 
 		// Bitwise AND with 18 (SYN=2 | ACK=16)
 		{Op: 0x54, Jt: 0, Jf: 0, K: 18},
 
 		// Compare Result == 18
-		// Jf=1: Jump to Fail
 		{Op: 0x15, Jt: 0, Jf: 1, K: 18},
 
-		// -------------------------------------------------------
-		// Return Result
-		// -------------------------------------------------------
-		// Success: Ret 262144 (Capture full packet)
+		// 6. Capture
 		{Op: 0x6, Jt: 0, Jf: 0, K: 0x00040000},
-		// Fail: Ret 0 (Drop packet)
 		{Op: 0x6, Jt: 0, Jf: 0, K: 0x00000000},
 	}
 
