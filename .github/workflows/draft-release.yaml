@@ -1,5 +1,3 @@
-name: release-drafter
-
 on:
   workflow_dispatch:
     inputs:
