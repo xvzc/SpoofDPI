@@ -27,203 +27,203 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Calculate Next Version
-        id: bump_version
-        run: |
-          # Fetch all tags to ensure git describe works
-          git fetch --tags
-
-          # Get the latest tag, default to v0.0.0 if none exists
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "Latest tag: $LATEST_TAG"
-
-          # Remove 'v' prefix
-          VERSION=${LATEST_TAG#v}
-
-          # Split version into major, minor, patch
-          IFS='.' read -r major minor patch <<< "$VERSION"
-
-          # Increment based on input
-          INCREMENT_TYPE="${{ github.event.inputs.increment }}"
-          
-          if [ "$INCREMENT_TYPE" == "major" ]; then
-            major=$((major + 1))
-            minor=0
-            patch=0
-          elif [ "$INCREMENT_TYPE" == "minor" ]; then
-            minor=$((minor + 1))
-            patch=0
-          else
-            patch=$((patch + 1))
-          fi
-
-          NEW_TAG="v$major.$minor.$patch"
-          echo "New tag: $NEW_TAG"
-          
-          # Set output for other jobs
-          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
-
-          # Configure git and push the new tag
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag $NEW_TAG
-          git push origin $NEW_TAG
-
-  # Linux Build (Pure Go)
-  build-linux:
-    needs: prepare
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ needs.prepare.outputs.new_tag }}
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-
-      - name: Build Archives
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: '~> v2'
-          args: release --clean --skip=publish --config .goreleaser.linux.yaml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_CURRENT_TAG: ${{ needs.prepare.outputs.new_tag }}
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-artifacts
-          path: dist/*.tar.gz
-          retention-days: 1
-
-  # macOS Build (Native)
-  build-macos:
-    needs: prepare
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ needs.prepare.outputs.new_tag }}
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-
-      - name: Build Archives
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: '~> v2'
-          args: release --clean --skip=publish --config .goreleaser.darwin.yaml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_CURRENT_TAG: ${{ needs.prepare.outputs.new_tag }}
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-artifacts
-          path: dist/*.tar.gz
-          retention-days: 1
-
-  # FreeBSD Build (Native VM)
-  build-freebsd:
-    needs: prepare
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x86-64
-            goarch: amd64
-          - arch: aarch64
-            goarch: arm64
-          - arch: riscv64
-            goarch: riscv64
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ needs.prepare.outputs.new_tag }}
-
-      - name: Build on FreeBSD VM
-        uses: vmactions/freebsd-vm@v1
-        with:
-          architecture: ${{ matrix.arch }}
-          version: '14.2'
-          usesh: true
-          prepare: pkg install -y git go libpcap
-          run: |
-            go install github.com/goreleaser/goreleaser/v2@latest
-            export PATH=$PATH:~/go/bin
-            export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
-            export TARGET_ARCH="${{ matrix.goarch }}"
-            export GORELEASER_CURRENT_TAG="${{ needs.prepare.outputs.new_tag }}"
-            
-            goreleaser release --clean --skip=publish --config .goreleaser.freebsd.yaml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: freebsd-${{ matrix.goarch }}-artifacts
-          path: dist/*.tar.gz
-          retention-days: 1
-
-  # Publisher (GoReleaser + Manual Upload)
-  publish:
-    needs: [prepare, build-linux, build-macos, build-freebsd]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ needs.prepare.outputs.new_tag }}
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-
-      - name: Create Release with GoReleaser
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: '~> v2'
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_CURRENT_TAG: ${{ needs.prepare.outputs.new_tag }}
-
-      - name: Download All Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: *-artifacts
-          merge-multiple: true
-          path: dist
-
-      - name: Upload Artifacts
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG_NAME="${{ needs.prepare.outputs.new_tag }}"
-          
-          cd dist
-          sha256sum *.tar.gz > checksums.txt
-          
-          echo "Uploading artifacts to $TAG_NAME..."
-          
-          gh release upload $TAG_NAME *.tar.gz checksums.txt --clobber
+  #
+  #     - name: Calculate Next Version
+  #       id: bump_version
+  #       run: |
+  #         # Fetch all tags to ensure git describe works
+  #         git fetch --tags
+  #
+  #         # Get the latest tag, default to v0.0.0 if none exists
+  #         LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+  #         echo "Latest tag: $LATEST_TAG"
+  #
+  #         # Remove 'v' prefix
+  #         VERSION=${LATEST_TAG#v}
+  #
+  #         # Split version into major, minor, patch
+  #         IFS='.' read -r major minor patch <<< "$VERSION"
+  #
+  #         # Increment based on input
+  #         INCREMENT_TYPE="${{ github.event.inputs.increment }}"
+  #
+  #         if [ "$INCREMENT_TYPE" == "major" ]; then
+  #           major=$((major + 1))
+  #           minor=0
+  #           patch=0
+  #         elif [ "$INCREMENT_TYPE" == "minor" ]; then
+  #           minor=$((minor + 1))
+  #           patch=0
+  #         else
+  #           patch=$((patch + 1))
+  #         fi
+  #
+  #         NEW_TAG="v$major.$minor.$patch"
+  #         echo "New tag: $NEW_TAG"
+  #
+  #         # Set output for other jobs
+  #         echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+  #
+  #         # Configure git and push the new tag
+  #         git config user.name "github-actions[bot]"
+  #         git config user.email "github-actions[bot]@users.noreply.github.com"
+  #         git tag $NEW_TAG
+  #         git push origin $NEW_TAG
+  #
+  # # Linux Build (Pure Go)
+  # build-linux:
+  #   needs: prepare
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
+  #         ref: ${{ needs.prepare.outputs.new_tag }}
+  #
+  #     - name: Set up Go
+  #       uses: actions/setup-go@v5
+  #       with:
+  #         go-version: '1.22'
+  #
+  #     - name: Build Archives
+  #       uses: goreleaser/goreleaser-action@v6
+  #       with:
+  #         distribution: goreleaser
+  #         version: '~> v2'
+  #         args: release --clean --skip=publish --config .goreleaser.linux.yaml
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         GORELEASER_CURRENT_TAG: ${{ needs.prepare.outputs.new_tag }}
+  #
+  #     - name: Upload Artifacts
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: linux-artifacts
+  #         path: dist/*.tar.gz
+  #         retention-days: 1
+  #
+  # # macOS Build (Native)
+  # build-macos:
+  #   needs: prepare
+  #   runs-on: macos-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
+  #         ref: ${{ needs.prepare.outputs.new_tag }}
+  #
+  #     - name: Set up Go
+  #       uses: actions/setup-go@v5
+  #       with:
+  #         go-version: '1.22'
+  #
+  #     - name: Build Archives
+  #       uses: goreleaser/goreleaser-action@v6
+  #       with:
+  #         distribution: goreleaser
+  #         version: '~> v2'
+  #         args: release --clean --skip=publish --config .goreleaser.darwin.yaml
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         GORELEASER_CURRENT_TAG: ${{ needs.prepare.outputs.new_tag }}
+  #
+  #     - name: Upload Artifacts
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: macos-artifacts
+  #         path: dist/*.tar.gz
+  #         retention-days: 1
+  #
+  # # FreeBSD Build (Native VM)
+  # build-freebsd:
+  #   needs: prepare
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       include:
+  #         - arch: x86-64
+  #           goarch: amd64
+  #         - arch: aarch64
+  #           goarch: arm64
+  #         - arch: riscv64
+  #           goarch: riscv64
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
+  #         ref: ${{ needs.prepare.outputs.new_tag }}
+  #
+  #     - name: Build on FreeBSD VM
+  #       uses: vmactions/freebsd-vm@v1
+  #       with:
+  #         architecture: ${{ matrix.arch }}
+  #         version: '14.2'
+  #         usesh: true
+  #         prepare: pkg install -y git go libpcap
+  #         run: |
+  #           go install github.com/goreleaser/goreleaser/v2@latest
+  #           export PATH=$PATH:~/go/bin
+  #           export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+  #           export TARGET_ARCH="${{ matrix.goarch }}"
+  #           export GORELEASER_CURRENT_TAG="${{ needs.prepare.outputs.new_tag }}"
+  #
+  #           goreleaser release --clean --skip=publish --config .goreleaser.freebsd.yaml
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #
+  #     - name: Upload Artifacts
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: freebsd-${{ matrix.goarch }}-artifacts
+  #         path: dist/*.tar.gz
+  #         retention-days: 1
+  #
+  # # Publisher (GoReleaser + Manual Upload)
+  # publish:
+  #   needs: [prepare, build-linux, build-macos, build-freebsd]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
+  #         ref: ${{ needs.prepare.outputs.new_tag }}
+  #
+  #     - name: Set up Go
+  #       uses: actions/setup-go@v5
+  #       with:
+  #         go-version: '1.22'
+  #
+  #     - name: Create Release with GoReleaser
+  #       uses: goreleaser/goreleaser-action@v6
+  #       with:
+  #         distribution: goreleaser
+  #         version: '~> v2'
+  #         args: release --clean
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         GORELEASER_CURRENT_TAG: ${{ needs.prepare.outputs.new_tag }}
+  #
+  #     - name: Download All Artifacts
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         pattern: *-artifacts
+  #         merge-multiple: true
+  #         path: dist
+  #
+  #     - name: Upload Artifacts
+  #       env:
+  #         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       run: |
+  #         TAG_NAME="${{ needs.prepare.outputs.new_tag }}"
+  #
+  #         cd dist
+  #         sha256sum *.tar.gz > checksums.txt
+  #
+  #         echo "Uploading artifacts to $TAG_NAME..."
+  #
+  #         gh release upload $TAG_NAME *.tar.gz checksums.txt --clobber
