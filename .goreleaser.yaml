@@ -1,0 +1,35 @@
+# .goreleaser.yaml
+version: 2
+project_name: spoofdpi
+
+before:
+  hooks:
+    - go mod tidy
+
+builds: []
+
+release:
+  draft: true
+  prerelease: auto
+  replace_existing_artifacts: true
+
+changelog:
+  sort: asc
+  groups:
+  - title: Features
+    regexp: ^.*?feat(\([[:word:]]+\))??!?:.+$
+    order: 0
+  - title: Fixes
+    regexp: ^.*?fix(\([[:word:]]+\))??!?:.+$
+    order: 1
+  - title: Documentation
+    regexp: ^.*?docs?(\([[:word:]]+\))??!?:.+$
+    order: 2
+  - title: Other
+    order: 999
+  filters:
+    exclude:
+    - '^.*?chore(\(.*\))??!?:.+$'
+
+checksum:
+  name_template: 'checksums.txt'

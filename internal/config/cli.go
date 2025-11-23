@@ -9,11 +9,12 @@ import (
 	"strings"
 
 	"github.com/urfave/cli/v3"
-	"github.com/xvzc/SpoofDPI/version"
 )
 
 func CreateCommand(
 	runFunc func(ctx context.Context, configDir string, cfg *Config),
+	version string,
+	commit string,
 ) *cli.Command {
 	cli.RootCommandHelpTemplate = createHelpTemplate()
 
@@ -204,7 +205,7 @@ func CreateCommand(
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.Bool("version") {
-				version.PrintVersion()
+				println(fmt.Sprintf("spoofdpi version %s, commit %s", version, commit))
 				os.Exit(0)
 			}
 

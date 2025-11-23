@@ -19,11 +19,16 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/packet"
 	"github.com/xvzc/SpoofDPI/internal/proxy"
 	"github.com/xvzc/SpoofDPI/internal/system"
-	"github.com/xvzc/SpoofDPI/version"
+)
+
+// Version and commit are set at build time.
+var (
+	version = "dev"
+	commit  = "none"
 )
 
 func main() {
-	cmd := config.CreateCommand(runApp)
+	cmd := config.CreateCommand(runApp, version, commit)
 	ctx := appctx.WithNewTraceID(context.Background())
 	if err := cmd.Run(ctx, os.Args); err != nil {
 		fmt.Println(err)
@@ -35,10 +40,11 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 	if !cfg.Silent {
 		printBanner()
 	}
+
 	applog.SetGlobalLogger(ctx, cfg.LogLevel.Value())
 
 	logger := applog.WithScope(log.Logger, "APP(setup)").With().Ctx(ctx).Logger()
-	logger.Info().Msgf("started spoofdpi; %s;", version.Version())
+	logger.Info().Msgf("started spoofdpi; %s;", version)
 	if configDir != "" {
 		logger.Info().Msgf("config file; %s;", configDir)
 	}
@@ -172,7 +178,7 @@ func createProxy(
 		logger.Info().Msgf("interface ip; %s;", ifaceIP)
 
 		// create a pcap handle for packet capturing.
-		handle, err := system.CreatePcapHandle(iface)
+		handle, err := packet.NewPcapHandle(iface)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"error opening pcap handle on interface %s: %w",

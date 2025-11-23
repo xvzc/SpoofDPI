@@ -1,23 +1,23 @@
 package system
 
 import (
-	"errors"
+	"encoding/binary"
 	"fmt"
 	"net"
 	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
 	"github.com/jackpal/gateway" // Import gateway
 	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/internal/packet"
 )
 
 // ResolveGatewayMACAddr finds the default gateway's IP and then resolves its MAC address
 // by actively sending an ARP request.
 func ResolveGatewayMACAddr(
 	logger zerolog.Logger,
-	handle *pcap.Handle,
+	handle packet.Handle,
 	iface *net.Interface,
 	srcIP net.IP, // [MODIFIED] srcIP is now a parameter
 ) (net.HardwareAddr, error) {
@@ -57,15 +57,15 @@ func ResolveGatewayMACAddr(
 	}
 
 	// 4. Set a BPF filter to capture *only* the ARP reply we care about
-	filterStr := fmt.Sprintf(
-		"arp and ether dst %s and src host %s", // 👈 (수정됨)
-		srcMAC.String(),
-		gatewayIP.String(),
-	)
-	if err := handle.SetBPFFilter(filterStr); err != nil {
+	filter, err := generateArpFilter(srcMAC, gatewayIP)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate BPF instructions: %w", err)
+	}
+
+	if err := handle.SetBPFRawInstructionFilter(filter); err != nil {
 		return nil, fmt.Errorf("failed to set ARP BPF filter: %w", err)
 	}
-	defer func() { _ = handle.SetBPFFilter("") }()
+	// defer func() { _ = handle.SetBPFRawInstructionFilter([]packet.BPFInstruction{}) }()
 
 	// 5. Send the ARP request
 	if err := handle.WritePacketData(buf.Bytes()); err != nil {
@@ -96,22 +96,71 @@ func ResolveGatewayMACAddr(
 	}
 }
 
-// GetInterfaceIPv4 finds the first valid (non-loopback) IPv4 address
-// on a given interface.
-// [MODIFIED] This function is now public.
-func GetInterfaceIPv4(iface *net.Interface) (net.IP, error) {
-	addrs, err := iface.Addrs()
-	if err != nil {
-		return nil, err
+func generateArpFilter(
+	dstMAC net.HardwareAddr,
+	srcIP net.IP,
+) ([]packet.BPFInstruction, error) {
+	if len(dstMAC) != 6 {
+		return nil, fmt.Errorf("invalid MAC address length")
 	}
-	for _, addr := range addrs {
-		if ipnet, ok := addr.(*net.IPNet); ok {
-			if ip := ipnet.IP.To4(); ip != nil {
-				if !ip.IsLoopback() {
-					return ip, nil
-				}
-			}
-		}
+	srcIP = srcIP.To4()
+	if srcIP == nil {
+		return nil, fmt.Errorf("invalid IPv4 address")
 	}
-	return nil, errors.New("no non-loopback IPv4 address found on interface")
+
+	// 1. Convert MAC address (6 bytes) to integers: 4 bytes (High) + 2 bytes (Low) for comparison
+	macHigh := binary.BigEndian.Uint32(dstMAC[0:4])
+	macLow := binary.BigEndian.Uint16(dstMAC[4:6])
+
+	// 2. Convert IP address (4 bytes) to an integer
+	ipVal := binary.BigEndian.Uint32(srcIP)
+
+	// BPF Instructions
+	// Structure: {Op(Opcode), Jt(Jump True), Jf(Jump False), K(Value/Offset)}
+	instructions := []packet.BPFInstruction{
+		// -------------------------------------------------------
+		// 1. Check if it is an ARP packet (EtherType == 0x0806)
+		// -------------------------------------------------------
+		// Load Absolute (Offset 12, Size 2 bytes - EtherType)
+		{Op: 0x28, Jt: 0, Jf: 0, K: 12},
+		// Jump If Equal (Val == 0x0806 ? Next : Fail)
+		// Jf=7: Jump 7 instructions forward (to Fail)
+		{Op: 0x15, Jt: 0, Jf: 7, K: 0x0806},
+
+		// -------------------------------------------------------
+		// 2. Check Ether Dst MAC (Offset 0, 6 bytes)
+		// -------------------------------------------------------
+		// BPF can compare up to 4 bytes at a time, so split the comparison into 4+2 bytes
+
+		// [MAC High 4 bytes] Load Absolute (Offset 0, Size 4 bytes)
+		{Op: 0x20, Jt: 0, Jf: 0, K: 0},
+		// Compare with macHigh. Jf=5 (Fail)
+		{Op: 0x15, Jt: 0, Jf: 5, K: macHigh},
+
+		// [MAC Low 2 bytes] Load Absolute (Offset 4, Size 2 bytes)
+		{Op: 0x28, Jt: 0, Jf: 0, K: 4},
+		// Compare with macLow. Jf=3 (Fail)
+		{Op: 0x15, Jt: 0, Jf: 3, K: uint32(macLow)},
+
+		// -------------------------------------------------------
+		// 3. Check ARP Sender IP (Offset 28, 4 bytes)
+		// -------------------------------------------------------
+		// Calculation: EtherHeader(14) + ARP HWType(2) + Proto(2) + HWLen(1) + ProtoLen(1) + Op(2) + SenderMAC(6)
+		//             = Sender IP starts at the 28th byte
+
+		// Load Absolute (Offset 28, Size 4 bytes)
+		{Op: 0x20, Jt: 0, Jf: 0, K: 28},
+		// Compare with ipVal. Jf=1 (Fail)
+		{Op: 0x15, Jt: 0, Jf: 1, K: ipVal},
+
+		// -------------------------------------------------------
+		// 4. Return Result
+		// -------------------------------------------------------
+		// [Success] Ret 262144 (Capture full packet)
+		{Op: 0x6, Jt: 0, Jf: 0, K: 0x00040000},
+		// [Fail] Ret 0 (Drop packet)
+		{Op: 0x6, Jt: 0, Jf: 0, K: 0x00000000},
+	}
+
+	return instructions, nil
 }

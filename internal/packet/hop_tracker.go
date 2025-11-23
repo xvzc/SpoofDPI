@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/appctx"
 	"github.com/xvzc/SpoofDPI/internal/datastruct/cache"
@@ -20,7 +19,7 @@ type HopTracker struct {
 	logger zerolog.Logger
 
 	nhopCache cache.Cache // The cache stores hop counts (uint8)
-	handle    *pcap.Handle
+	handle    Handle
 }
 
 func (ht *HopTracker) Cache() cache.Cache {
@@ -31,7 +30,7 @@ func (ht *HopTracker) Cache() cache.Cache {
 func NewHopTracker(
 	logger zerolog.Logger,
 	cache cache.Cache,
-	handle *pcap.Handle,
+	handle Handle,
 ) *HopTracker {
 	// Error checking for nil handle and cache has been removed
 	// as per the request.
@@ -48,7 +47,9 @@ func (ht *HopTracker) StartCapturing() {
 	// Create a new packet source from the handle.
 	packetSource := gopacket.NewPacketSource(ht.handle, ht.handle.LinkType())
 	packets := packetSource.Packets()
-	_ = ht.handle.SetBPFFilter("tcp and (tcp[13] & 18 = 18)")
+	// _ = ht.handle.SetBPFRawInstructionFilter(generateSynAckFilter())
+	_ = ht.handle.ClearBPF()
+	_ = ht.handle.SetBPFRawInstructionFilter(generateSynAckFilter())
 
 	// Start a dedicated goroutine to process incoming packets.
 	go func() {
@@ -88,11 +89,13 @@ func (ht *HopTracker) processPacket(ctx context.Context, p gopacket.Packet) {
 
 	tcpLayer := p.Layer(layers.LayerTypeTCP)
 	if tcpLayer == nil {
+		// log.Trace().Msgf("no tcp: %s", p.String())
 		return
 	}
 
 	tcp, _ := tcpLayer.(*layers.TCP)
 	if !tcp.SYN || !tcp.ACK {
+		// log.Trace().Msgf("invalid packet: %s", p.String())
 		return
 	}
 
@@ -140,4 +143,46 @@ func calculateHops(ttl uint8) uint8 {
 	}
 	// Unrecognizable initial TTL
 	return 0
+}
+
+// GenerateSynAckFilter creates a BPF program for "ip and tcp and (tcp[13] & 18 == 18)".
+// This captures only TCP SYN-ACK packets (IPv4).
+func generateSynAckFilter() []BPFInstruction {
+	instructions := []BPFInstruction{
+		// 1. Check EtherType == IPv4 (0x0800)
+		{Op: 0x28, Jt: 0, Jf: 0, K: 12},
+		{Op: 0x15, Jt: 0, Jf: 8, K: 0x0800},
+
+		// 2. Check Protocol == TCP (6)
+		{Op: 0x30, Jt: 0, Jf: 0, K: 23},
+		{Op: 0x15, Jt: 0, Jf: 6, K: 6},
+
+		// 3. Check Fragmentation
+		{Op: 0x28, Jt: 0, Jf: 0, K: 20},
+		{Op: 0x45, Jt: 4, Jf: 0, K: 0x1fff},
+
+		// 4. Find TCP Header Start (IP Header Length to X)
+		// Loads byte at offset 14 (IP Header Start), gets IHL, multiplies by 4, stores in X.
+		{Op: 0xb1, Jt: 0, Jf: 0, K: 14},
+
+		// 5. Check TCP Flags (SYN+ACK)
+		// We want to load: Ethernet(14) + IP_Len(X) + TCP_Flags(13)
+		// Instruction is: Load [X + K]
+		// So K must be 14 + 13 = 27.
+
+		// [FIX] K was 13, changed to 27
+		{Op: 0x50, Jt: 0, Jf: 0, K: 27},
+
+		// Bitwise AND with 18 (SYN=2 | ACK=16)
+		{Op: 0x54, Jt: 0, Jf: 0, K: 18},
+
+		// Compare Result == 18
+		{Op: 0x15, Jt: 0, Jf: 1, K: 18},
+
+		// 6. Capture
+		{Op: 0x6, Jt: 0, Jf: 0, K: 0x00040000},
+		{Op: 0x6, Jt: 0, Jf: 0, K: 0x00000000},
+	}
+
+	return instructions
 }
