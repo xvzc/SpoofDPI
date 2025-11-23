@@ -84,7 +84,7 @@ jobs:
           # macOS: Enable CGO (requires C dependencies)
           - os: macos-latest
             cgo: '1'
-    name: Run golangci-lint ${{ matrix.os }}
+    name: golangci-lint on ${{ matrix.os }}
     # Run on both Linux and macOS using a matrix strategy
     runs-on: ${{ matrix.os }}
     steps:
