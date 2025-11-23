@@ -40,17 +40,15 @@ builds:
 archives:
   - id: default
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    format: tar.gz
+    formats: ['tar.gz']
     # Explicitly list builds to include (optional but good for clarity)
-    builds:
-      - linux
-      - darwin
+    ids: ['linux', 'darwin']
+      
 
 # Linux Packages (.deb, .apk)
 nfpms:
   - id: packages
-    builds:
-      - linux
+    builds: ['linux'] 
     formats:
       - apk
       - deb
