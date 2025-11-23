@@ -25,6 +25,10 @@ jobs:
         with:
           go-version: '1.22'
 
+      - name: Install Syft
+        run: |
+          curl -sSfL https://get.anchore.io/syft | sudo sh -s -- -b /usr/local/bin
+
       # Run GoReleaser to build binaries, archives, packages, and SBOMs.
       # We use --skip=publish because we want to upload artifacts manually
       # to the existing release created by Release Drafter, preserving its notes.
