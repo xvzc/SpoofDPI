@@ -85,7 +85,11 @@ jobs:
           # macOS: Enable CGO (requires C dependencies)
           - os: macos-latest
             cgo: '1'
+<<<<<<< HEAD
     name: Run golangci-lint on ${{ matrix.os }}
+=======
+    name: Run golangci-lint ${{ matrix.os }}
+>>>>>>> 5defb18 (ci: update)
     # Run on both Linux and macOS using a matrix strategy
     runs-on: ${{ matrix.os }}
     steps:
@@ -96,7 +100,11 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Go
+<<<<<<< HEAD
         uses: actions/setup-go@v6
+=======
+        uses: actions/setup-go@v5
+>>>>>>> 5defb18 (ci: update)
         with:
           go-version: '1.24'
           cache: false # Disable cache to avoid conflicts with golangci-lint cache
@@ -104,7 +112,11 @@ jobs:
       - run: go version
 
       - name: Run golangci-lint
+<<<<<<< HEAD
         uses: golangci/golangci-lint-action@v8
+=======
+        uses: golangci/golangci-lint-action@v6
+>>>>>>> 5defb18 (ci: update)
         with:
           version: latest
           args: --verbose
