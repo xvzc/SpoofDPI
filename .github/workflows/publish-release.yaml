@@ -1,5 +1,6 @@
 name: publish-release
 
+# on: workflow_dispatch
 on:
   release:
     types: [published]
@@ -8,6 +9,9 @@ permissions:
   contents: write
 
 jobs:
+  # ===========================================================================
+  # 1. Linux Build (Pure Go)
+  # ===========================================================================
   build-linux:
     runs-on: ubuntu-latest
     steps:
@@ -39,6 +43,10 @@ jobs:
           name: linux-artifacts
           path: dist/*.tar.gz
           retention-days: 1
+
+  # ===========================================================================
+  # 2. macOS Build (Native)
+  # ===========================================================================
   build-macos:
     runs-on: macos-latest
     steps:
@@ -69,7 +77,11 @@ jobs:
           path: dist/*.tar.gz
           retention-days: 1
 
+  # ===========================================================================
+  # 4. Publisher (Manual Upload to Existing Release)
+  # ===========================================================================
   publish:
+    needs: [build-linux, build-macos]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
