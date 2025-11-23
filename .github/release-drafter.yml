@@ -1,10 +1,84 @@
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
 change-template: '* $TITLE (#$NUMBER) by @$AUTHOR'
 change-title-escapes: '\<*_&#@`'
+template: |
+  ## Changelog
+
+  $CHANGES
+
+version-resolver:
+  major:
+    labels:
+      - 'major'
+  minor:
+    labels:
+      - 'minor'
+      - 'feature'
+  patch:
+    labels:
+      - 'patch'
+      - 'bug'
+      - 'documentation'
+      - 'style'
+      - 'refactor'
+      - 'performance'
+      - 'test'
+      - 'chore'
+      - 'ci'
+      - 'revert'
+  default: patch
+
 exclude-labels:
-  - 'chore'
-  - 'documentation'
   - 'ci'
   - 'style'
-template: |
-  ## Changes
-  $CHANGES
+  - 'skip-changelog'
+
+autolabeler:
+  - label: 'feature'
+    title:
+      - '/^feat/'
+  - label: 'bug'
+    title:
+      - '/^fix/'
+  - label: 'documentation'
+    title:
+      - '/^docs/'
+  - label: 'style'
+    title:
+      - '/^style/'
+  - label: 'refactor'
+    title:
+      - '/^refactor/'
+  - label: 'performance'
+    title:
+      - '/^perf/'
+  - label: 'test'
+    title:
+      - '/^test/'
+  - label: 'chore'
+    title:
+      - '/^chore/'
+  - label: 'ci'
+    title:
+      - '/^ci/'
+  - label: 'revert'
+    title:
+      - '/^revert/'
+
+categories:
+  - title: 'Features'
+    label: 'feature'
+  - title: 'Fixes'
+    label: 'bug'
+  - title: 'Documentation'
+    label: 'documentation'
+  - title: 'Other'
+    labels:
+      - 'style'
+      - 'refactor'
+      - 'performance'
+      - 'test'
+      - 'chore'
+      - 'ci'
+      - 'revert'
