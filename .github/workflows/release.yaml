@@ -6,13 +6,13 @@ on:
       - 'v*'
 
 permissions:
-  contents: write # 릴리즈 생성을 위해 필수
+  contents: write
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # Job 1: Linux Build (Pure Go, Static)
-  # ---------------------------------------------------------------------------
-  release-linux:
+  # ===========================================================================
+  # 1. Linux Build (Pure Go)
+  # ===========================================================================
+  build-linux:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -25,19 +25,26 @@ jobs:
         with:
           go-version: '1.22'
 
-      - name: Run GoReleaser (Linux)
+      - name: Build Artifacts (Linux)
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: '~> v2'
-          args: release --clean --split --id linux-pure
+          args: release --clean --skip=publish --id linux-pure
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ---------------------------------------------------------------------------
-  # Job 2: macOS Build (Native CGO)
-  # ---------------------------------------------------------------------------
-  release-macos:
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-linux
+          path: dist/*.tar.gz
+          retention-days: 1
+
+  # ===========================================================================
+  # 2. macOS Build (Native)
+  # ===========================================================================
+  build-macos:
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -50,57 +57,97 @@ jobs:
         with:
           go-version: '1.22'
 
-      - name: Run GoReleaser (macOS)
+      - name: Build Artifacts (macOS)
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: '~> v2'
-          args: release --clean --split --id darwin-amd64 --id darwin-arm64
+          # [핵심] 배포 스킵
+          args: release --clean --skip=publish --id darwin-amd64 --id darwin-arm64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ---------------------------------------------------------------------------
-  # Job 3: FreeBSD Build (Native VM)
-  # ---------------------------------------------------------------------------
-  release-freebsd:
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-macos
+          path: dist/*.tar.gz
+          retention-days: 1
+
+  # ===========================================================================
+  # 3. FreeBSD Build (Matrix VM)
+  # ===========================================================================
+  build-freebsd:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: freebsd-amd64
-            arch: x86-64
-            target_id: freebsd-amd64
-          - name: freebsd-arm64
-            arch: aarch64
-            target_id: freebsd-arm64
-          - name: freebsd-riscv64
-            arch: riscv64
-            target_id: freebsd-riscv64
-
-    name: Build ${{ matrix.name }}
+          - arch: x86-64
+            id: freebsd-amd64
+          - arch: aarch64
+            id: freebsd-arm64
+          - arch: riscv64
+            id: freebsd-riscv64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Run on FreeBSD VM
+      - name: Build on FreeBSD VM
         uses: vmactions/freebsd-vm@v1
         with:
           architecture: ${{ matrix.arch }}
-          release: '15.0'
+          version: '14.2'
           usesh: true
-          
-          prepare: |
-            pkg install -y git go libpcap
-
+          prepare: pkg install -y git go libpcap
           run: |
             go install github.com/goreleaser/goreleaser/v2@latest
             export PATH=$PATH:~/go/bin
             export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
-
-            echo "Running GoReleaser for ${{ matrix.target_id }}..."
-            goreleaser release --clean --split --id ${{ matrix.target_id }}
+            
+            goreleaser release --clean --skip=publish --id ${{ matrix.id }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-${{ matrix.id }}
+          path: dist/*.tar.gz
+          retention-days: 1
+
+  # ===========================================================================
+  # 4. Publisher (Merge & Release)
+  # ===========================================================================
+  publish:
+    needs: [build-linux, build-macos, build-freebsd]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+          merge-multiple: true
+
+      - name: Generate Checksums
+        run: |
+          cd artifacts
+          sha256sum *.tar.gz > checksums.txt
+          cat checksums.txt
+
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          
+          gh release create $TAG_NAME ./artifacts/* \
+            --title "$TAG_NAME" \
+            --generate-notes \
+            --draft=false \
+            --prerelease=false
