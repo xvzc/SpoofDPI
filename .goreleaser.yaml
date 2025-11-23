@@ -1,4 +1,3 @@
-# .goreleaser.yaml
 version: 2
 project_name: spoofdpi
 
@@ -6,30 +5,70 @@ before:
   hooks:
     - go mod tidy
 
-builds: []
+builds:
+  # ---------------------------------------------------------------------------
+  # Linux Builds (Pure Go / Static)
+  # ---------------------------------------------------------------------------
+  # Can be built on any OS (macOS/Linux) since CGO is disabled.
+  - id: 'linux'
+    goos: [linux]
+    goarch: [amd64, arm64, mips, mipsle]
+    gomips: [softfloat]
+    env: [ "CGO_ENABLED=0" ]
+    ldflags:
+      - -s -w
+      - -X "main.version={{.Version}}"
+      - -X "main.commit={{.ShortCommit}}"
+    main: ./cmd/spoofdpi
+    binary: '{{ .ProjectName }}'
 
-release:
-  draft: true
-  prerelease: auto
-  replace_existing_artifacts: true
+  # ---------------------------------------------------------------------------
+  # macOS Builds (CGO Enabled)
+  # ---------------------------------------------------------------------------
+  # Requires a macOS runner.
+  - id: 'darwin'
+    goos: [darwin]
+    goarch: [amd64, arm64]
+    env: [ "CGO_ENABLED=1" ]
+    ldflags:
+      - -s -w
+      - -X "main.version={{.Version}}"
+      - -X "main.commit={{.ShortCommit}}"
+    main: ./cmd/spoofdpi
+    binary: '{{ .ProjectName }}'
 
-changelog:
-  sort: asc
-  groups:
-  - title: Features
-    regexp: ^.*?feat(\([[:word:]]+\))??!?:.+$
-    order: 0
-  - title: Fixes
-    regexp: ^.*?fix(\([[:word:]]+\))??!?:.+$
-    order: 1
-  - title: Documentation
-    regexp: ^.*?docs?(\([[:word:]]+\))??!?:.+$
-    order: 2
-  - title: Other
-    order: 999
-  filters:
-    exclude:
-    - '^.*?chore(\(.*\))??!?:.+$'
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format: tar.gz
+    # Explicitly list builds to include (optional but good for clarity)
+    builds:
+      - linux
+      - darwin
+
+# Linux Packages (.deb, .apk)
+nfpms:
+  - id: packages
+    builds:
+      - linux
+    formats:
+      - apk
+      - deb
+    vendor: xvzc
+    homepage: https://github.com/xvzc/SpoofDPI
+    maintainer: xvzc
+    description: A simple and fast anti-censorship tool written in Go
+    license: Apache-2.0
+    bindir: /usr/local/bin
+    section: networking
+    priority: optional
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+# Generate Software Bill of Materials
+sboms:
+  - artifacts: archive
+    documents:
+      - spdx.json # Generates a single SBOM file per archive (e.g., spoofdpi_...tar.gz.spdx.json)
 
 checksum:
   name_template: 'checksums.txt'
