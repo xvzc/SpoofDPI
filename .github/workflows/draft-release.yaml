@@ -144,7 +144,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - arch: x86-64
+          - arch: null # Default arch is x86-64
             goarch: amd64
           - arch: aarch64
             goarch: arm64
@@ -163,7 +163,7 @@ jobs:
           release: '15.0'
           arch: ${{ matrix.arch }}
           usesh: true
-          prepare: pkg install -y git go libpcap
+          prepare: pkg install -y git go libpcap tree
           run: |
             go install github.com/goreleaser/goreleaser/v2@latest
             export PATH=$PATH:~/go/bin
