@@ -45,7 +45,7 @@ func NewPcapHandle(iface *net.Interface) (Handle, error) {
 		Ifindex:  iface.Index,
 	}
 	if err := syscall.Bind(fd, &sll); err != nil {
-		syscall.Close(fd)
+		_ = syscall.Close(fd)
 		return nil, fmt.Errorf("failed to bind raw socket: %w", err)
 	}
 
@@ -87,7 +87,7 @@ func (h *LinuxPcapHandle) LinkType() layers.LinkType {
 }
 
 func (h *LinuxPcapHandle) Close() {
-	syscall.Close(h.fd)
+	_ = syscall.Close(h.fd)
 }
 
 func (h *LinuxPcapHandle) SetBPFRawInstructionFilter(raw []BPFInstruction) error {
