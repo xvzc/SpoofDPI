@@ -1,9 +1,8 @@
 name: publish-release
 
-on: workflow_dispatch
-# on:
-#   release:
-#     types: [published]
+on:
+  release:
+    types: [published]
 
 permissions:
   contents: write
