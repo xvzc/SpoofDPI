@@ -9,9 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  # ===========================================================================
-  # 1. Linux Build (Pure Go)
-  # ===========================================================================
+  # Linux Build (Pure Go)
   build-linux:
     runs-on: ubuntu-latest
     steps:
@@ -41,9 +39,7 @@ jobs:
           path: dist/*.tar.gz
           retention-days: 1
 
-  # ===========================================================================
-  # 2. macOS Build (Native)
-  # ===========================================================================
+  # macOS Build (Native)
   build-macos:
     runs-on: macos-latest
     steps:
@@ -73,9 +69,7 @@ jobs:
           path: dist/*.tar.gz
           retention-days: 1
 
-  # ===========================================================================
-  # 3. FreeBSD Build (Native VM)
-  # ===========================================================================
+  # FreeBSD Build (Native VM)
   build-freebsd:
     runs-on: ubuntu-latest
     strategy:
@@ -118,9 +112,7 @@ jobs:
           path: dist/*.tar.gz
           retention-days: 1
 
-  # ===========================================================================
-  # 4. Publisher (GoReleaser + Manual Upload)
-  # ===========================================================================
+  # Publisher (GoReleaser + Manual Upload)
   publish:
     needs: [build-linux, build-macos, build-freebsd]
     runs-on: ubuntu-latest
