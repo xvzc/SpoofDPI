@@ -92,7 +92,7 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: *-artifacts
+          pattern: '*-artifacts'
           merge-multiple: true
           path: dist
 
@@ -102,7 +102,7 @@ jobs:
         run: |
           # The release is already created by the user via GitHub UI (Release Drafter)
           # We just need to attach the artifacts to it.
-          TAG_NAME="${{ github.event.release.tag_name }}"
+          TAG_NAME='${{ github.event.release.tag_name }}'
           
           cd dist
           sha256sum *.tar.gz > checksums.txt
