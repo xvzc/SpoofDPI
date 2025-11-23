@@ -144,7 +144,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - arch: null # Default arch is x86-64
+          - arch: '' # Default arch is x86-64
             goarch: amd64
           - arch: aarch64
             goarch: arm64
