@@ -13,8 +13,8 @@ builds:
     env: [ "CGO_ENABLED=0" ]
     ldflags:
       - -s -w
-      - -X "main.Version={{.Version}}"
-      - -X "main.Commit={{.ShortCommit}}"
+      - -X "main.version={{.Version}}"
+      - -X "main.commit={{.ShortCommit}}"
     main: ./cmd/spoofdpi
     binary: '{{ .ProjectName }}'
 

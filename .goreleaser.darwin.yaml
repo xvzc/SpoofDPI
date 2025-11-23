@@ -12,8 +12,8 @@ builds:
     env: [ "CGO_ENABLED=1", "CC=clang -arch x86_64", "CXX=clang++ -arch x86_64" ]
     ldflags:
       - -s -w
-      - -X "main.Version={{.Version}}"
-      - -X "main.Commit={{.ShortCommit}}"
+      - -X "main.version={{.Version}}"
+      - -X "main.commit={{.ShortCommit}}"
     main: ./cmd/spoofdpi
     binary: '{{ .ProjectName }}'
 
@@ -23,8 +23,8 @@ builds:
     env: [ "CGO_ENABLED=1", "CC=clang -arch arm64", "CXX=clang++ -arch arm64" ]
     ldflags:
       - -s -w
-      - -X "main.Version={{.Version}}"
-      - -X "main.Commit={{.ShortCommit}}"
+      - -X "main.version={{.Version}}"
+      - -X "main.commit={{.ShortCommit}}"
     main: ./cmd/spoofdpi
     binary: '{{ .ProjectName }}'
 
