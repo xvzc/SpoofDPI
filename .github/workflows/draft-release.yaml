@@ -182,48 +182,48 @@ jobs:
           path: dist/*.tar.gz
           retention-days: 1
 
-  # # Publisher (GoReleaser + Manual Upload)
-  # publish:
-  #   needs: [prepare, build-linux, build-macos, build-freebsd]
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-  #       with:
-  #         fetch-depth: 0
-  #         ref: ${{ needs.prepare.outputs.new_tag }}
-  #
-  #     - name: Set up Go
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         go-version: '1.22'
-  #
-  #     - name: Create Release with GoReleaser
-  #       uses: goreleaser/goreleaser-action@v6
-  #       with:
-  #         distribution: goreleaser
-  #         version: '~> v2'
-  #         args: release --clean
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #         GORELEASER_CURRENT_TAG: ${{ needs.prepare.outputs.new_tag }}
-  #
-  #     - name: Download All Artifacts
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         pattern: *-artifacts
-  #         merge-multiple: true
-  #         path: dist
-  #
-  #     - name: Upload Artifacts
-  #       env:
-  #         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #       run: |
-  #         TAG_NAME="${{ needs.prepare.outputs.new_tag }}"
-  #
-  #         cd dist
-  #         sha256sum *.tar.gz > checksums.txt
-  #
-  #         echo "Uploading artifacts to $TAG_NAME..."
-  #
-  #         gh release upload $TAG_NAME *.tar.gz checksums.txt --clobber
+  # Publisher (GoReleaser + Manual Upload)
+  publish:
+    needs: [prepare, build-linux, build-macos, build-freebsd]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.new_tag }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Create Release with GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ needs.prepare.outputs.new_tag }}
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: *-artifacts
+          merge-multiple: true
+          path: dist
+
+      - name: Upload Artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ needs.prepare.outputs.new_tag }}"
+
+          cd dist
+          sha256sum *.tar.gz > checksums.txt
+
+          echo "Uploading artifacts to $TAG_NAME..."
+
+          gh release upload $TAG_NAME *.tar.gz checksums.txt --clobber
