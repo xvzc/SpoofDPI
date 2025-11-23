@@ -86,10 +86,14 @@ jobs:
           - os: macos-latest
             cgo: '1'
 <<<<<<< HEAD
+<<<<<<< HEAD
     name: Run golangci-lint on ${{ matrix.os }}
 =======
     name: Run golangci-lint ${{ matrix.os }}
 >>>>>>> 5defb18 (ci: update)
+=======
+    name: golangci-lint on ${{ matrix.os }}
+>>>>>>> ec40e96 (ci: update)
     # Run on both Linux and macOS using a matrix strategy
     runs-on: ${{ matrix.os }}
     steps:
