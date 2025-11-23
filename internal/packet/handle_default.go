@@ -45,6 +45,10 @@ func NewPcapHandle(iface *net.Interface) (Handle, error) {
 	return &DefaultPcapHandle{handle}, err
 }
 
+func (h *DefaultPcapHandle) ClearBPF() error {
+	return h.SetBPFFilter("")
+}
+
 func (h *DefaultPcapHandle) SetBPFRawInstructionFilter(
 	inst []BPFInstruction,
 ) error {

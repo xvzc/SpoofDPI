@@ -15,6 +15,8 @@ type Handle interface {
 
 	SetBPFRawInstructionFilter(filters []BPFInstruction) error
 
+	ClearBPF() error
+
 	LinkType() layers.LinkType
 
 	// Close closes the handle.
