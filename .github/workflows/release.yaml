@@ -1,4 +1,4 @@
-name: draft-release
+name: release
 
 on:
   push:
@@ -9,7 +9,6 @@ permissions:
   contents: write
 
 jobs:
-  # Linux Build (Pure Go)
   build-linux:
     runs-on: ubuntu-latest
     steps:
@@ -39,7 +38,6 @@ jobs:
           path: dist/*.tar.gz
           retention-days: 1
 
-  # macOS Build (Native)
   build-macos:
     runs-on: macos-latest
     steps:
@@ -69,7 +67,6 @@ jobs:
           path: dist/*.tar.gz
           retention-days: 1
 
-  # FreeBSD Build (Native VM)
   build-freebsd:
     runs-on: ubuntu-latest
     strategy:
@@ -112,7 +109,9 @@ jobs:
           path: dist/*.tar.gz
           retention-days: 1
 
-  # Publisher (GoReleaser + Manual Upload)
+  # ===========================================================================
+  # 4. Publisher (GoReleaser + Manual Upload)
+  # ===========================================================================
   publish:
     needs: [build-linux, build-macos, build-freebsd]
     runs-on: ubuntu-latest
@@ -155,4 +154,3 @@ jobs:
           echo "Uploading artifacts to $TAG_NAME..."
           
           gh release upload $TAG_NAME *.tar.gz checksums.txt --clobber
-
