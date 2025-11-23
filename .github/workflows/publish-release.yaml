@@ -1,0 +1,113 @@
+name: release
+
+# on:
+#   release:
+#     types: [published]
+on: workflow_dispatch
+
+permissions:
+  contents: write
+
+jobs:
+  # ===========================================================================
+  # 1. Linux Build (Pure Go)
+  # ===========================================================================
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build Archives
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          # Skip publish to avoid creating a new release, just build artifacts
+          args: release --clean --skip=publish --config .goreleaser.linux.yaml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use the tag name from the release event
+          GORELEASER_CURRENT_TAG: ${{ github.event.release.tag_name }}
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: dist/*.tar.gz
+          retention-days: 1
+
+  # ===========================================================================
+  # 2. macOS Build (Native)
+  # ===========================================================================
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build Archives
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean --skip=publish --config .goreleaser.darwin.yaml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ github.event.release.tag_name }}
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: dist/*.tar.gz
+          retention-days: 1
+
+  # ===========================================================================
+  # 4. Publisher (Manual Upload to Existing Release)
+  # ===========================================================================
+  publish:
+    needs: [build-linux, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: *-artifacts
+          merge-multiple: true
+          path: dist
+
+      - name: Upload Artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # The release is already created by the user via GitHub UI (Release Drafter)
+          # We just need to attach the artifacts to it.
+          TAG_NAME="${{ github.event.release.tag_name }}"
+          
+          cd dist
+          sha256sum *.tar.gz > checksums.txt
+          
+          echo "Uploading artifacts to existing release: $TAG_NAME"
+          
+          # Use 'gh release upload' instead of 'create'
+          gh release upload $TAG_NAME *.tar.gz checksums.txt --clobber
