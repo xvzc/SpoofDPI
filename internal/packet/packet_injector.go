@@ -59,54 +59,35 @@ func (inj *PacketInjector) WriteCraftedPacket(
 	dstPort := dst.Port
 
 	if srcIP == nil || dstIP == nil {
-		return errors.New("'InjectPakcet()' currently only supports IPv4")
+		return errors.New("'WriteCraftedPacket()' currently only supports IPv4")
 	}
 
 	totalSent := 0
 	for range repeat {
-		// define eth layer
-		ethLayer := &layers.Ethernet{
-			SrcMAC:       srcMAC,
-			DstMAC:       dstMAC, // Use the stored MAC
-			EthernetType: layers.EthernetTypeIPv4,
+
+		packetLayers, err := createLayers(
+			srcMAC,
+			dstMAC,
+			srcIP,
+			dstIP,
+			srcPort,
+			dstPort,
+			ttl,
+		)
+		if err != nil {
+			return err
 		}
 
-		// define ip layer
-		ipLayer := &layers.IPv4{
-			Version:  4,
-			TTL:      ttl,
-			Protocol: layers.IPProtocolTCP,
-			SrcIP:    srcIP,
-			DstIP:    dstIP,
-		}
-
-		// define tcp layer
-		tcpLayer := &layers.TCP{
-			SrcPort: layers.TCPPort(srcPort), // Use a random high port
-			DstPort: layers.TCPPort(dstPort),
-			Seq:     uint32(rand.Int()), // A random sequence number
-			PSH:     true,               // Push the payload
-			ACK:     true,               // Assuming this is part of an established flow
-			Ack:     uint32(rand.Int()),
-			Window:  12345,
-		}
-		if err := tcpLayer.SetNetworkLayerForChecksum(ipLayer); err != nil {
-			return fmt.Errorf("failed to set network layer for checksum: %w", err)
-		}
-
-		// serialize the packet (L2 + L3 + L4 + payload)
+		// serialize the packet L2(optional) + L3 + L4 + payload
 		buf := gopacket.NewSerializeBuffer()
 		opts := gopacket.SerializeOptions{
 			ComputeChecksums: true, // Recalculate checksums
 			FixLengths:       true, // Fix lengths
 		}
 
-		err := gopacket.SerializeLayers(buf, opts,
-			ethLayer,
-			ipLayer,
-			tcpLayer,
-			gopacket.Payload(payload),
-		)
+		packetLayers = append(packetLayers, gopacket.Payload(payload))
+
+		err = gopacket.SerializeLayers(buf, opts, packetLayers...)
 		if err != nil {
 			return fmt.Errorf("failed to serialize packet: %w", err)
 		}
@@ -124,4 +105,42 @@ func (inj *PacketInjector) WriteCraftedPacket(
 	)
 
 	return nil
+}
+
+func createLayers(
+	srcMAC net.HardwareAddr,
+	dstMAC net.HardwareAddr,
+	srcIP net.IP,
+	dstIP net.IP,
+	srcPort int,
+	dstPort int,
+	ttl uint8,
+) ([]gopacket.SerializableLayer, error) {
+	// define ip layer
+	ipLayer := &layers.IPv4{
+		Version:  4,
+		TTL:      ttl,
+		Protocol: layers.IPProtocolTCP,
+		SrcIP:    srcIP,
+		DstIP:    dstIP,
+	}
+
+	// define tcp layer
+	tcpLayer := &layers.TCP{
+		SrcPort: layers.TCPPort(srcPort), // Use a random high port
+		DstPort: layers.TCPPort(dstPort),
+		Seq:     uint32(rand.Int()), // A random sequence number
+		PSH:     true,               // Push the payload
+		ACK:     true,               // Assuming this is part of an established flow
+		Ack:     uint32(rand.Int()),
+		Window:  12345,
+	}
+	if err := tcpLayer.SetNetworkLayerForChecksum(ipLayer); err != nil {
+		return nil, fmt.Errorf(
+			"failed to set network layer for checksum: %w",
+			err,
+		)
+	}
+
+	return []gopacket.SerializableLayer{ipLayer, tcpLayer}, nil
 }
