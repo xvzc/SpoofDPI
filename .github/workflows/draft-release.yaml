@@ -136,56 +136,9 @@ jobs:
           path: dist/*.tar.gz
           retention-days: 1
 
-  # FreeBSD Build (Native VM)
-  build-freebsd:
-    needs: prepare
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: '' # Default arch is x86-64
-            goarch: amd64
-          - arch: aarch64
-            goarch: arm64
-          - arch: riscv64
-            goarch: riscv64
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ needs.prepare.outputs.new_tag }}
-
-      - name: Build on FreeBSD VM
-        uses: vmactions/freebsd-vm@v1
-        with:
-          release: '15.0'
-          arch: ${{ matrix.arch }}
-          usesh: true
-          prepare: pkg install -y git go libpcap tree
-          run: |
-            go install github.com/goreleaser/goreleaser/v2@latest
-            export PATH=$PATH:~/go/bin
-            export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
-            export TARGET_ARCH="${{ matrix.goarch }}"
-            export GORELEASER_CURRENT_TAG="${{ needs.prepare.outputs.new_tag }}"
-            cd $GITHUB_WORKSPACE
-
-            goreleaser release --clean --skip=publish --config .goreleaser.freebsd.yaml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: freebsd-${{ matrix.goarch }}-artifacts
-          path: dist/*.tar.gz
-          retention-days: 1
-
   # Publisher (GoReleaser + Manual Upload)
   publish:
-    needs: [prepare, build-linux, build-macos, build-freebsd]
+    needs: [prepare, build-linux, build-macos]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
