@@ -91,7 +91,6 @@ checksum:
 signs:
 - cmd: cosign
   signature: "${artifact}.sigstore.json"
-  output: '{{ not (isEnvSet "CI" )}}'
   artifacts: checksum
   args:
     - sign-blob
