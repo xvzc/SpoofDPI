@@ -125,3 +125,46 @@ jobs:
           skip-cache: true
         env:
           CGO_ENABLED: ${{ matrix.cgo }}
+
+
+  # ---------------------------------------------------------------------------
+  # 4. Build Test (GoReleaser Snapshot)
+  # ---------------------------------------------------------------------------
+  build-test:
+    # Run only if linting passes to ensure code quality before heavy building
+    needs: [golangci-lint]
+    if: github.event_name == 'pull_request'
+    name: Build Test (Snapshot)
+    # Use macOS runner to match the production release environment (supports both CGO/Non-CGO)
+    runs-on: macos-latest
+    steps:
+      - name: Check out PR code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0 # GoReleaser requires git history
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Install Syft
+        run: |
+          curl -sSfL https://get.anchore.io/syft | sudo sh -s -- -b /usr/local/bin
+
+      # v4.0.0
+      - uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad
+
+      - name: Run GoReleaser (Snapshot)
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          # --snapshot: Build binaries/archives without creating a release
+          # --clean: Clean dist folder before building
+          # --skip=publish: Do not publish to GitHub
+          args: build --snapshot --clean --skip=publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
