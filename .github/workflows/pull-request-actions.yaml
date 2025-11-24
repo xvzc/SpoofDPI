@@ -1,4 +1,4 @@
-name: pull-request
+name: pull-request-actions
 
 on:
   push:
@@ -8,13 +8,12 @@ on:
     types: [opened, reopened, synchronize]
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # 1. Release Drafter (Autolabeler & Draft Update) - Runs First
-  # ---------------------------------------------------------------------------
-  update-draft-release:
-    name: Update Draft Release
+  autolabeler:
+    # Run only on pull requests to apply labels
+    if: github.event_name == 'pull_request'
+    name: Run Autolabeler
     permissions:
-      contents: write
+      contents: read
       pull-requests: write
     runs-on: ubuntu-latest
     steps:
@@ -22,9 +21,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ---------------------------------------------------------------------------
-  # 2. Validation Jobs (Run after Autolabeler)
-  # ---------------------------------------------------------------------------
+  update-draft-release:
+    # Run only on push to main to update the release draft
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    name: Update Draft Release
+    permissions:
+      contents: write
+      pull-requests: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: release-drafter/release-drafter@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   lint-pr-title:
     # Check title validity independently
     if: github.event_name == 'pull_request'
@@ -58,7 +67,7 @@ jobs:
 
   check-label:
     # Waits for Autolabeler (update-draft-release) to apply labels first
-    needs: [update-draft-release]
+    needs: [autolabeler]
     if: github.event_name == 'pull_request'
     permissions:
       pull-requests: read
@@ -85,9 +94,6 @@ jobs:
             patch
             skip-changelog
 
-  # ---------------------------------------------------------------------------
-  # 3. Heavy Code Check Job (Runs only if Validation Passes)
-  # ---------------------------------------------------------------------------
   golangci-lint:
     # Waits for title and label checks to succeed
     if: github.event_name == 'pull_request'
@@ -126,9 +132,6 @@ jobs:
           CGO_ENABLED: ${{ matrix.cgo }}
 
 
-  # ---------------------------------------------------------------------------
-  # 4. Build Test (GoReleaser Snapshot)
-  # ---------------------------------------------------------------------------
   release-test:
     permissions:
       contents: write
