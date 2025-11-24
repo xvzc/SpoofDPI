@@ -47,7 +47,7 @@ func NewPcapHandle(iface *net.Interface) (Handle, error) {
 	}
 
 	if err := unix.Bind(fd, sll); err != nil {
-		unix.Close(fd)
+		_ = unix.Close(fd)
 		return nil, fmt.Errorf("failed to bind raw socket: %w", err)
 	}
 
@@ -105,7 +105,7 @@ func (h *LinuxPcapHandle) LinkType() layers.LinkType {
 }
 
 func (h *LinuxPcapHandle) Close() {
-	unix.Close(h.fd)
+	_ = unix.Close(h.fd)
 }
 
 // SetBPFRawInstructionFilter attaches BPF using unix helper
