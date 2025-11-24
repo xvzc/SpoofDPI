@@ -48,7 +48,7 @@ builds:
 
 archives:
   - id: default
-  - name_template: >-
+    name_template: >-
       {{- .ProjectName }}_
       {{- .Version }}_
       {{- .Os }}_
