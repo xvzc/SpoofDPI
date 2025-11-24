@@ -40,13 +40,13 @@ $ pkg install spoofdpi
 ## Manual Build
 To build SpoofDPI manually, ensure that you have a recent version of [Go](https://go.dev) and the [libpcap](https://github.com/the-tcpdump-group/libpcap) library installed.
 !!! note 
-    **libpcap** is not required anymore on Linux
+    **libpcap** is no longer required on Linux, so `CGO` does not need to be enabled.
 ### Git
 If you clone the repository to build manually, we recommend including the commit hash for better issue tracking.
 ```console
 $ git clone https://github.com/xvzc/SpoofDPI
 $ cd SpoofDPI
-$ go build -ldflags "-s -w" \
+$ CGO_ENABLED=1 go build -ldflags "-s -w" \
     -ldflags "-X 'main.commit=$(git rev-parse --short HEAD 2>/dev/null)'" \
     -ldflags "-X 'main.build=manual'" \
     -o spoofdpi ./cmd/spoofdpi
@@ -55,7 +55,7 @@ $ go build -ldflags "-s -w" \
 ### Github Release
 You can also build from the release source code. For platforms where native GitHub Actions runners are unavailable (e.g., FreeBSD), manual packaging is required. Please set the version and build information so that maintainers can track issues easily.
 ```console
-$ go build -ldflags "-s -w" \
+$ CGO_ENABLED=1 go build -ldflags "-s -w" \
     -ldflags "-X 'main.version=1.0.2'" \
     -ldflags "-X 'main.build=freebsd'" \
     -o spoofdpi ./cmd/spoofdpi
