@@ -131,10 +131,13 @@ jobs:
   # 4. Build Test (GoReleaser Snapshot)
   # ---------------------------------------------------------------------------
   release-test:
+    permissions:
+      contents: write
+      id-token: write
     # Run only if linting passes to ensure code quality before heavy building
     needs: [golangci-lint]
     if: github.event_name == 'pull_request'
-    name: Build Test (Snapshot)
+    name: Release Test (Snapshot)
     # Use macOS runner to match the production release environment (supports both CGO/Non-CGO)
     runs-on: macos-latest
     steps:
