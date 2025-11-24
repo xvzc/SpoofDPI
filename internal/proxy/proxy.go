@@ -151,7 +151,7 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 	shouldExploit := (!isPrivate && domainIncluded)
 	ctx = appctx.WithShouldExploit(ctx, shouldExploit)
 
-	if shouldExploit {
+	if pxy.hopTracker != nil && shouldExploit {
 		pxy.hopTracker.RegisterUntracked(dstAddrs)
 	}
 
