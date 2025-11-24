@@ -4,6 +4,7 @@ project_name: spoofdpi
 before:
   hooks:
     - go mod tidy
+    - sh -c 'git rev-parse --short HEAD > COMMIT'
 
 builds:
   # ---------------------------------------------------------------------------
@@ -47,6 +48,12 @@ builds:
       - -X "main.build=goreleaser"
     main: ./cmd/spoofdpi
     binary: '{{ .ProjectName }}'
+
+source:
+  enabled: true
+  prefix_template: '{{ .ProjectName }}-{{ .Version }}/'
+  files:
+  - COMMIT
 
 archives:
   - id: default
