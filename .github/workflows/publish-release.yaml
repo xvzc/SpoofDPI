@@ -56,8 +56,10 @@ jobs:
           # --clobber overwrites files if they already exist (useful for retries)
           gh release upload "$TAG_NAME" \
             dist/*.tar.gz \
+            dist/*.json \
             dist/*.deb \
             dist/*.apk \
-            dist/*.json \
+            dist/*.rpm \
+            dist/*.zst \
             dist/checksums.txt \
             --clobber

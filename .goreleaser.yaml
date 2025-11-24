@@ -48,7 +48,7 @@ archives:
 # Linux Packages (.deb, .apk)
 nfpms:
   - id: packages
-    builds: ['linux'] 
+    ids: ['linux'] 
     formats:
       - apk
       - deb
