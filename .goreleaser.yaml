@@ -12,7 +12,16 @@ builds:
   # Can be built on any OS (macOS/Linux) since CGO is disabled.
   - id: 'linux'
     goos: [linux]
-    goarch: [amd64, arm64, mips, mipsle]
+    goarch: 
+      - '386'
+      - amd64
+      - arm
+      - arm64
+      - mips
+      - mipsle
+      - mips64
+      - mips64le
+      - riscv64
     gomips: [softfloat]
     env: [ "CGO_ENABLED=0" ]
     ldflags:
@@ -39,16 +48,25 @@ builds:
 
 archives:
   - id: default
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - name_template: >-
+      {{- .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "386" }}i386
+      {{- else if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "mips64" }}mips64_hardfloat
+      {{- else if eq .Arch "mips64le" }}mips64le_hardfloat
+      {{- else }}{{ .Arch }}{{ end -}}
     formats: ['tar.gz']
     # Explicitly list builds to include (optional but good for clarity)
     ids: ['linux', 'darwin']
       
 
-# Linux Packages (.deb, .apk)
+# Linux Packages
 nfpms:
   - id: packages
     ids: ['linux'] 
+    file_name_template: "{{ .ConventionalFileName }}"
     formats:
       - apk
       - deb
@@ -62,7 +80,6 @@ nfpms:
     bindir: /usr/local/bin
     section: networking
     priority: optional
-    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
 # Generate Software Bill of Materials
 sboms:
@@ -70,3 +87,14 @@ sboms:
 
 checksum:
   name_template: 'checksums.txt'
+
+signs:
+- cmd: cosign
+  signature: "${artifact}.sigstore.json"
+  output: '{{ not (isEnvSet "CI" )}}'
+  artifacts: checksum
+  args:
+    - sign-blob
+    - "--bundle=${signature}"
+    - "${artifact}"
+    - --yes
