@@ -15,6 +15,7 @@ func CreateCommand(
 	runFunc func(ctx context.Context, configDir string, cfg *Config),
 	version string,
 	commit string,
+	build string,
 ) *cli.Command {
 	cli.RootCommandHelpTemplate = createHelpTemplate()
 
@@ -205,7 +206,8 @@ func CreateCommand(
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.Bool("version") {
-				println(fmt.Sprintf("spoofdpi version %s, commit %s", version, commit))
+				println(fmt.Sprintf("spoofdpi %s %s (%s)", version, commit, build))
+				println("Official docs at https://spoofdpi.xvzc.dev")
 				os.Exit(0)
 			}
 

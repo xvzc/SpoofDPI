@@ -24,11 +24,12 @@ import (
 // Version and commit are set at build time.
 var (
 	version = "dev"
-	commit  = "none"
+	commit  = "unknown"
+	build   = "unknown"
 )
 
 func main() {
-	cmd := config.CreateCommand(runApp, version, commit)
+	cmd := config.CreateCommand(runApp, version, commit, build)
 	ctx := appctx.WithNewTraceID(context.Background())
 	if err := cmd.Run(ctx, os.Args); err != nil {
 		fmt.Println(err)
