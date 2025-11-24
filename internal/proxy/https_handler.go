@@ -165,34 +165,40 @@ func (h *HTTPSHandler) HandleRequest(
 		logger.Debug().Msgf("client hello sent; strategy=plain; dst=%s", domain)
 	}
 
-	// Start the tunnel using the refactored helper function.
 	errCh := make(chan error, 2)
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	go tunnel(ctx, logger, errCh, rConn, lConn, domain, false)
 	go tunnel(ctx, logger, errCh, lConn, rConn, domain, true)
 
 	blocked := false
+
+	// Wait for both tunnels to terminate
 	for range 2 {
 		e := <-errCh
 		if e == nil {
 			continue
 		}
 
-		if !blocked && isConnectionResetByPeer(e) {
-			blocked = true
+		if isConnectionResetByPeer(e) {
+			if !blocked {
+				blocked = true
+				cancel()
+			}
 		} else {
-			logger.Error().Msgf("tunnel error; src=%s; dst=%s; name=%s; %s",
-				lConn.RemoteAddr().String(), rConn.RemoteAddr().String(), domain, err,
+			// Log errors other than connection reset
+			logger.Error().Msgf("tunnel error; src=%s; dst=%s; name=%s; %v",
+				lConn.RemoteAddr().String(), rConn.RemoteAddr().String(), domain, e,
 			)
 		}
 	}
 
-	// Handle the error from the goroutine
+	// This block executes safely after both goroutines return
 	if blocked && h.autoPolicy && h.domainSearchTree != nil {
-		// Auto Policy Logic (copied from user query)
-		// Check if the domain is already known
 		_, found := h.domainSearchTree.Search(domain)
 		if !found {
-			// Insert the domain as blocked
 			h.domainSearchTree.Insert(domain, true)
 			logger.Info().Msgf("auto policy; name=%s; added;", domain)
 		}
