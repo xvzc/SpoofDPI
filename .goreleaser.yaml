@@ -52,6 +52,8 @@ nfpms:
     formats:
       - apk
       - deb
+      - rpm
+      - archlinux
     vendor: xvzc
     homepage: https://github.com/xvzc/SpoofDPI
     maintainer: xvzc
@@ -65,8 +67,6 @@ nfpms:
 # Generate Software Bill of Materials
 sboms:
   - artifacts: archive
-    documents:
-      - spdx.json # Generates a single SBOM file per archive (e.g., spoofdpi_...tar.gz.spdx.json)
 
 checksum:
   name_template: 'checksums.txt'
