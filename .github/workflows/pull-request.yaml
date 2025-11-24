@@ -90,7 +90,6 @@ jobs:
   # ---------------------------------------------------------------------------
   golangci-lint:
     # Waits for title and label checks to succeed
-    needs: [lint-pr-title, check-label]
     if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
@@ -135,7 +134,6 @@ jobs:
       contents: write
       id-token: write
     # Run only if linting passes to ensure code quality before heavy building
-    needs: [golangci-lint]
     if: github.event_name == 'pull_request'
     name: Release Test (Snapshot)
     # Use macOS runner to match the production release environment (supports both CGO/Non-CGO)
