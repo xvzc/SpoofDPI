@@ -130,7 +130,7 @@ jobs:
   # ---------------------------------------------------------------------------
   # 4. Build Test (GoReleaser Snapshot)
   # ---------------------------------------------------------------------------
-  build-test:
+  release-test:
     # Run only if linting passes to ensure code quality before heavy building
     needs: [golangci-lint]
     if: github.event_name == 'pull_request'
@@ -162,9 +162,6 @@ jobs:
         with:
           distribution: goreleaser
           version: '~> v2'
-          # --snapshot: Build binaries/archives without creating a release
-          # --clean: Clean dist folder before building
-          # --skip=publish: Do not publish to GitHub
-          args: build --snapshot --clean --skip=publish
+          args: release --snapshot --clean --skip=publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
