@@ -13,22 +13,10 @@ $ yay -S go libpcap
 # ...
 ```
 
-## Install Using Go
-You can install `spoofdpi` using `go install`.
+## Install Using curl
+You can install `spoofdpi` using `curl`. The binary will be installed to `/usr/local/bin`.
 ```console
-- Method 1: Default Install
-   Installs to your default Go bin path ($GOPATH/bin or $HOME/go/bin).
-   This directory must be in your system's $PATH.
-$ go install github.com/xvzc/SpoofDPI/cmd/spoofdpi@latest
-
-- Method 2: System-Wide Install (Recommended)
-   Installs to /usr/local/bin, which is standard for system-wide binaries.
-$ GOBIN=/usr/local/bin sudo go install github.com/xvzc/SpoofDPI/cmd/spoofdpi@latest
-
-- Method 3: User-Wide Install (Alternative)
-   Installs to a user-specific local bin directory.
-   Make sure $HOME/.local/bin is in your $PATH.
-$ GOBIN=$HOME/.local/bin go install github.com/xvzc/SpoofDPI/cmd/spoofdpi@latest
+$ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash
 ```
 
 ## Install With Package Manager
@@ -47,6 +35,28 @@ $ sudo dnf install spoofdpi
 - FreeBSD
 $ pkg install spoofdpi
 ```
+
+## Manual Build
+### Git
+If you clone the repository to build manually, we recommend including the commit hash for better issue tracking.
+```console
+$ git clone https://github.com/xvzc/SpoofDPI
+$ cd SpoofDPI
+$ go build -ldflags "-s -w" \
+    -ldflags "-X 'main.commit=$(git rev-parse --short HEAD 2>/dev/null)'" \
+    -ldflags "-X 'main.build=manual'" \
+    -o spoofdpi ./cmd/spoofdpi
+
+```
+### Github Release
+You can also build from the release source code. For platforms where native GitHub Actions runners are unavailable (e.g., FreeBSD), manual packaging is required. Please set the version and build information so that maintainers can track issues easily.
+```console
+$ go build -ldflags "-s -w" \
+    -ldflags "-X 'main.version=1.0.2'" \
+    -ldflags "-X 'main.build=freebsd'" \
+    -o spoofdpi ./cmd/spoofdpi
+```
+
 
 ## Packaging Status
 <a href="https://repology.org/project/spoofdpi/versions">
