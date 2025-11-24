@@ -1,4 +1,4 @@
-name: pull-request
+name: pull-request-actions
 
 on:
   push:
@@ -8,13 +8,12 @@ on:
     types: [opened, reopened, synchronize]
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # 1. Release Drafter (Autolabeler & Draft Update) - Runs First
-  # ---------------------------------------------------------------------------
-  update-draft-release:
-    name: Update Draft Release
+  autolabeler:
+    # Run only on pull requests to apply labels
+    if: github.event_name == 'pull_request'
+    name: Run Autolabeler
     permissions:
-      contents: write
+      contents: read
       pull-requests: write
     runs-on: ubuntu-latest
     steps:
@@ -22,9 +21,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ---------------------------------------------------------------------------
-  # 2. Validation Jobs (Run after Autolabeler)
-  # ---------------------------------------------------------------------------
+  update-draft-release:
+    # Run only on push to main to update the release draft
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    name: Update Draft Release
+    permissions:
+      contents: write
+      pull-requests: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: release-drafter/release-drafter@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   lint-pr-title:
     # Check title validity independently
     if: github.event_name == 'pull_request'
@@ -58,7 +67,7 @@ jobs:
 
   check-label:
     # Waits for Autolabeler (update-draft-release) to apply labels first
-    needs: [update-draft-release]
+    needs: [autolabeler]
     if: github.event_name == 'pull_request'
     permissions:
       pull-requests: read
@@ -85,12 +94,8 @@ jobs:
             patch
             skip-changelog
 
-  # ---------------------------------------------------------------------------
-  # 3. Heavy Code Check Job (Runs only if Validation Passes)
-  # ---------------------------------------------------------------------------
   golangci-lint:
     # Waits for title and label checks to succeed
-    needs: [lint-pr-title, check-label]
     if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
@@ -125,3 +130,42 @@ jobs:
           skip-cache: true
         env:
           CGO_ENABLED: ${{ matrix.cgo }}
+
+
+  release-test:
+    permissions:
+      contents: write
+      id-token: write
+    # Run only if linting passes to ensure code quality before heavy building
+    if: github.event_name == 'pull_request'
+    name: Release Test (Snapshot)
+    # Use macOS runner to match the production release environment (supports both CGO/Non-CGO)
+    runs-on: macos-latest
+    steps:
+      - name: Check out PR code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0 # GoReleaser requires git history
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Install Syft
+        run: |
+          curl -sSfL https://get.anchore.io/syft | sudo sh -s -- -b /usr/local/bin
+
+      # v4.0.0
+      - uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad
+
+      - name: Run GoReleaser (Snapshot)
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --snapshot --clean --skip=publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -12,6 +12,7 @@ pkgs.mkShell {
   ];
   packages = with pkgs; [
     go
+    goreleaser
     gopls
     golangci-lint-langserver
     unstablePkgs.golangci-lint

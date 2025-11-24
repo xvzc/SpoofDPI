@@ -6,61 +6,71 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"syscall"
 	"time"
 	"unsafe"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"golang.org/x/sys/unix"
 )
 
-const (
-	solPacket           = 263 // SOL_PACKET
-	packetAddMembership = 1   // PACKET_ADD_MEMBERSHIP
-	packetMrPromisc     = 1   // PACKET_MR_PROMISC
-	sockDetachFilter    = 27
-)
-
-// LinuxPcapHandle uses standard syscalls to capture and inject packets on Linux.
+// LinuxPcapHandle uses standard syscalls (via x/sys/unix) to capture/inject packets.
+// This ensures compatibility across all Linux architectures (including 386/MIPS).
 type LinuxPcapHandle struct {
 	fd      int
 	ifIndex int
 	buf     []byte
 }
 
-// NewPcapHandle opens a raw socket using pure syscalls.
+// NewPcapHandle opens a raw socket using unix package.
 func NewPcapHandle(iface *net.Interface) (Handle, error) {
 	// 1. Protocol Setup (Network Byte Order)
-	proto := htons(syscall.ETH_P_ALL)
+	proto := htons(unix.ETH_P_ALL)
 
-	// 2. Open Raw Socket
-	fd, err := syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, int(proto))
+	// 2. Open Raw Socket (AF_PACKET, SOCK_RAW)
+	// unix.Socket handles architecture differences (like socketcall on 386)
+	fd, err := unix.Socket(unix.AF_PACKET, unix.SOCK_RAW, int(proto))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open raw socket: %w", err)
 	}
 
 	// 3. Bind to Interface
-	sll := syscall.SockaddrLinklayer{
-		Protocol: proto,
-		Ifindex:  iface.Index,
+	// Handle "any" interface logic (index 0)
+	bindIndex := 0
+	if iface != nil && iface.Name != "any" {
+		bindIndex = iface.Index
 	}
-	if err := syscall.Bind(fd, &sll); err != nil {
-		_ = syscall.Close(fd)
+
+	sll := &unix.SockaddrLinklayer{
+		Protocol: proto,
+		Ifindex:  bindIndex,
+	}
+
+	if err := unix.Bind(fd, sll); err != nil {
+		_ = unix.Close(fd)
 		return nil, fmt.Errorf("failed to bind raw socket: %w", err)
 	}
 
 	h := &LinuxPcapHandle{
 		fd:      fd,
-		ifIndex: iface.Index,
+		ifIndex: bindIndex,
 		buf:     make([]byte, 65535),
+	}
+
+	// 4. Enable Promiscuous Mode
+	// Only needed if binding to a specific interface
+	if bindIndex != 0 {
+		if err := h.SetPromiscuous(true); err != nil {
+			fmt.Printf("warning: failed to set promiscuous mode: %v\n", err)
+		}
 	}
 
 	return h, nil
 }
 
-// ReadPacketData reads raw packet data.
+// ReadPacketData reads using unix.Recvfrom
 func (h *LinuxPcapHandle) ReadPacketData() ([]byte, gopacket.CaptureInfo, error) {
-	n, _, err := syscall.Recvfrom(h.fd, h.buf, 0)
+	n, _, err := unix.Recvfrom(h.fd, h.buf, 0)
 	if err != nil {
 		return nil, gopacket.CaptureInfo{}, err
 	}
@@ -77,67 +87,75 @@ func (h *LinuxPcapHandle) ReadPacketData() ([]byte, gopacket.CaptureInfo, error)
 	return data, ci, nil
 }
 
+// WritePacketData injects packet using unix.Sendto
 func (h *LinuxPcapHandle) WritePacketData(data []byte) error {
-	addr := syscall.SockaddrLinklayer{Ifindex: h.ifIndex}
-	return syscall.Sendto(h.fd, data, 0, &addr)
+	addr := &unix.SockaddrLinklayer{
+		Ifindex: h.ifIndex,
+	}
+	return unix.Sendto(h.fd, data, 0, addr)
 }
 
+// LinkType logic for handling "any" interface (Linux SLL) vs Ethernet
 func (h *LinuxPcapHandle) LinkType() layers.LinkType {
+	if h.ifIndex == 0 {
+		// "any" interface uses Linux SLL (Cooked Mode)
+		return layers.LinkTypeLinuxSLL
+	}
 	return layers.LinkTypeEthernet
 }
 
 func (h *LinuxPcapHandle) Close() {
-	_ = syscall.Close(h.fd)
+	_ = unix.Close(h.fd)
 }
 
+// SetBPFRawInstructionFilter attaches BPF using unix helper
 func (h *LinuxPcapHandle) SetBPFRawInstructionFilter(raw []BPFInstruction) error {
-	_ = h.ClearBPF()
-	filter := make([]syscall.SockFilter, len(raw))
+	filter := make([]unix.SockFilter, len(raw))
 	for i, r := range raw {
-		filter[i] = syscall.SockFilter{Code: r.Op, Jt: r.Jt, Jf: r.Jf, K: r.K}
+		filter[i] = unix.SockFilter{
+			Code: r.Op,
+			Jt:   r.Jt,
+			Jf:   r.Jf,
+			K:    r.K,
+		}
 	}
-	fprog := syscall.SockFprog{Len: uint16(len(filter)), Filter: &filter[0]}
 
-	// SOL_SOCKET = 1, SO_ATTACH_FILTER = 26
-	return setsockopt(h.fd, 1, 26, unsafe.Pointer(&fprog), unsafe.Sizeof(fprog))
-}
+	fprog := &unix.SockFprog{
+		Len:    uint16(len(filter)),
+		Filter: &filter[0],
+	}
 
-// ClearBPF removes any attached BPF filter from the socket.
-// This puts the socket back into "capture everything" mode.
-func (h *LinuxPcapHandle) ClearBPF() error {
-	// dummy value (not used by kernel for detach, but setsockopt expects an argument)
-	dummy := 0
-
-	// 필터 제거 요청
-	return setsockopt(
-		h.fd,
-		1,
-		sockDetachFilter,
-		unsafe.Pointer(&dummy),
-		unsafe.Sizeof(dummy),
-	)
-}
-
-// setsockopt wrapper
-func setsockopt(fd, level, opt int, val unsafe.Pointer, len uintptr) error {
-	_, _, errno := syscall.Syscall6(
-		syscall.SYS_SETSOCKOPT,
-		uintptr(fd),
-		uintptr(level),
-		uintptr(opt),
-		uintptr(val),
-		len,
-		0,
-	)
-
-	if errno != 0 {
-		return errno
+	// unix package handles the syscall number correctly for all archs
+	if err := unix.SetsockoptSockFprog(h.fd, unix.SOL_SOCKET, unix.SO_ATTACH_FILTER, fprog); err != nil {
+		return fmt.Errorf("failed to attach BPF filter: %w", err)
 	}
 
 	return nil
 }
 
+// ClearBPF detaches the filter
+func (h *LinuxPcapHandle) ClearBPF() error {
+	// Dummy value 0 is sufficient
+	return unix.SetsockoptInt(h.fd, unix.SOL_SOCKET, unix.SO_DETACH_FILTER, 0)
+}
+
+// SetPromiscuous uses unix helper for PacketMreq
+func (h *LinuxPcapHandle) SetPromiscuous(enable bool) error {
+	mreq := &unix.PacketMreq{
+		Ifindex: int32(h.ifIndex),
+		Type:    unix.PACKET_MR_PROMISC,
+	}
+
+	opt := unix.PACKET_ADD_MEMBERSHIP
+	if !enable {
+		opt = unix.PACKET_DROP_MEMBERSHIP
+	}
+
+	return unix.SetsockoptPacketMreq(h.fd, unix.SOL_PACKET, opt, mreq)
+}
+
 // --- Endian Utils ---
+
 func determineNativeEndian() binary.ByteOrder {
 	buf := [2]byte{}
 	*(*uint16)(unsafe.Pointer(&buf[0])) = uint16(0xABCD)
@@ -155,6 +173,5 @@ func htons(v uint16) uint16 {
 	if determineNativeEndian() == binary.LittleEndian {
 		return (v << 8) | (v >> 8)
 	}
-
 	return v
 }
