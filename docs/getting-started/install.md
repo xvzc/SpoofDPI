@@ -1,16 +1,15 @@
 ## Requirements
 
-SpoofDPI requires a recent version of [Go](https://go.dev) and the [libpcap](https://github.com/the-tcpdump-group/libpcap) library to be installed on your system.
-You can install these dependencies using the package manager of your choice, as shown below.
+SpoofDPI requires the [libpcap](https://github.com/the-tcpdump-group/libpcap) library on all operating systems **except Linux**.
 
 ```console
 - MacOS
-$ brew install go libpcap 
+$ brew install libpcap 
 
-- Arch Linux
-$ yay -S go libpcap
+- FreeBSD
+$ pkg install libpcap
 
-# ...
+- ...
 ```
 
 ## Install Using curl
@@ -34,9 +33,14 @@ $ sudo dnf install spoofdpi
 
 - FreeBSD
 $ pkg install spoofdpi
+
+- ...
 ```
 
 ## Manual Build
+To build SpoofDPI manually, ensure that you have a recent version of [Go](https://go.dev) and the [libpcap](https://github.com/the-tcpdump-group/libpcap) library installed.
+!!! note 
+    **libpcap** is not required anymore on Linux
 ### Git
 If you clone the repository to build manually, we recommend including the commit hash for better issue tracking.
 ```console
