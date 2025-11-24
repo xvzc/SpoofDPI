@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -29,11 +30,15 @@ jobs:
         run: |
           curl -sSfL https://get.anchore.io/syft | sudo sh -s -- -b /usr/local/bin
 
+      # v4.0.0
+      - uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad
+
       # Run GoReleaser to build binaries, archives, packages, and SBOMs.
       # We use --skip=publish because we want to upload artifacts manually
       # to the existing release created by Release Drafter, preserving its notes.
       - name: Build Artifacts
-        uses: goreleaser/goreleaser-action@v6
+        # v6.4.0
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a
         with:
           distribution: goreleaser
           version: '~> v2'

@@ -62,7 +62,7 @@ archives:
     ids: ['linux', 'darwin']
       
 
-# Linux Packages (.deb, .apk)
+# Linux Packages
 nfpms:
   - id: packages
     ids: ['linux'] 
@@ -87,3 +87,14 @@ sboms:
 
 checksum:
   name_template: 'checksums.txt'
+
+signs:
+- cmd: cosign
+  signature: "${artifact}.sigstore.json"
+  output: '{{ not (isEnvSet "CI" )}}'
+  artifacts: checksum
+  args:
+    - sign-blob
+    - "--bundle=${signature}"
+    - "${artifact}"
+    - --yes
