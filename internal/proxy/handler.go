@@ -84,7 +84,7 @@ func dialFirstSuccessful(
 }
 
 func tunnel(
-	_ context.Context,
+	ctx context.Context,
 	logger zerolog.Logger,
 	errCh chan<- error,
 	dst net.Conn, // Destination connection (io.Writer)
@@ -92,6 +92,13 @@ func tunnel(
 	domain string,
 	closeOnReturn bool,
 ) {
+	stop := context.AfterFunc(ctx, func() {
+		_ = src.Close()
+		_ = dst.Close()
+	})
+
+	// Unregister the AfterFunc when tunnel finishes to prevent resource leaks
+	defer stop()
 	// The copy routine is responsible for closing both connections
 	// when it finishes, which will unblock the peer copy routine.
 	if closeOnReturn {
@@ -114,8 +121,6 @@ func tunnel(
 		// Report the wrapped error back to the main goroutine.
 		// Use %w to wrap the original error for inspection by the caller.
 		errCh <- err
-	} else {
-		errCh <- nil
 	}
 
 	if n > 0 {
@@ -127,6 +132,8 @@ func tunnel(
 	logger.Trace().Msgf("closing tunnel %s -> %s for %s",
 		src.RemoteAddr().String(), dst.RemoteAddr().String(), domain,
 	)
+
+	errCh <- nil
 }
 
 func isConnectionResetByPeer(err error) bool {
