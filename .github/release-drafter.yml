@@ -29,8 +29,6 @@ version-resolver:
   default: patch
 
 exclude-labels:
-  - 'ci'
-  - 'style'
   - 'skip-changelog'
 
 categories:
