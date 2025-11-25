@@ -207,7 +207,7 @@ func CreateCommand(
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.Bool("version") {
 				fmt.Printf("spoofdpi %s %s (%s)\n", version, commit, build)
-				fmt.Printf("Official docs at https://spoofdpi.xvzc.dev")
+				fmt.Println("Official docs at https://spoofdpi.xvzc.dev")
 				os.Exit(0)
 			}
 
