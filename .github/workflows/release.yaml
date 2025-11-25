@@ -1,6 +1,9 @@
-name: publish-release
+name: Release
 
 on:
+  push:
+    branches:
+      - main
   release:
     types: [published]
 
@@ -9,11 +12,22 @@ permissions:
   id-token: write
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # Single Job: Build All (Linux & macOS) on macOS Runner
-  # ---------------------------------------------------------------------------
+  update-draft:
+    # Run only on push to main to update the release draft
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    name: update-draft
+    permissions:
+      contents: write
+      pull-requests: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: release-drafter/release-drafter@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build-and-publish:
-    name: Build and Upload Artifacts
+    if: github.event_name == 'release' && github.event.action == 'published'
+    name: build-and-publish
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -67,4 +81,6 @@ jobs:
             dist/*.rpm \
             dist/*.zst \
             dist/checksums.txt \
+            dist/*.sig \
+            dist/*.pem \
             --clobber

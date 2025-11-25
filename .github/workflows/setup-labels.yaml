@@ -1,0 +1,95 @@
+# This action allows managing labels declaratively
+name: Setup Repository Label
+
+on:
+  # Run manually or when this file is modified on main
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/setup-labels.yaml'
+
+permissions:
+  # Required to manage labels
+  issues: write
+
+jobs:
+  sync-repository-labels:
+    name: sync-repository-labels
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sync Labels (Create, Update, Delete)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Define required labels in "name:color:description" format
+          labels=(
+            "feature:a2eeef:New features"
+            "bug:d73a4a:Something isn't working"
+            "documentation:0075ca:Improvements or additions to documentation"
+            "style:d4c5f9:Changes that do not affect the meaning of the code"
+            "refactor:f9d0c4:Code change that neither fixes a bug nor adds a feature"
+            "performance:5319e7:Code change that improves performance"
+            "test:fbca04:Adding missing tests or correcting existing tests"
+            "chore:c5def5:Other changes that don't modify src or test files"
+            "ci:006b75:CI configuration files and scripts"
+            "revert:000000:Reverts a previous commit"
+            "major:b60205:Increments the major version"
+            "minor:0e8a16:Increments the minor version"
+            "patch:1d76db:Increments the patch version"
+            "skip-changelog:cccccc:Exclude from changelog"
+            "stale:ededed:Stale issues or pull requests"
+            "pinned:bfdadc:Issues pinned for visibility"
+            "security:e11d21:Security updates or vulnerabilities"
+          )
+
+          # Create an associative array for desired labels to allow O(1) lookup
+          declare -A desired_labels
+          for label_info in "${labels[@]}"; do
+            IFS=':' read -r name _ _ <<< "$label_info"
+            desired_labels["$name"]=1
+          done
+
+          # Fetch all existing labels from the repository
+          echo "Fetching existing labels..."
+          mapfile -t existing_labels < <(gh label list --repo "${{ github.repository }}" --limit 500 --json name --jq '.[].name')
+
+          # 1. Delete undefined labels
+          for existing in "${existing_labels[@]}"; do
+            if [[ -z "${desired_labels[$existing]}" ]]; then
+              echo "Deleting label '$existing' (not in the defined list)..."
+              gh label delete "$existing" --repo "${{ github.repository }}" --yes
+            fi
+          done
+
+          # 2. Create or Update labels
+          for label_info in "${labels[@]}"; do
+            IFS=':' read -r name color desc <<< "$label_info"
+            
+            # Check if the label currently exists in the repo
+            exists=false
+            for existing in "${existing_labels[@]}"; do
+              if [[ "$existing" == "$name" ]]; then
+                exists=true
+                break
+              fi
+            done
+
+            if [ "$exists" = true ]; then
+              echo "Label '$name' exists. Updating..."
+              gh label edit "$name" \
+                --repo "${{ github.repository }}" \
+                --color "$color" \
+                --description "$desc"
+            else
+              echo "Creating label '$name'..."
+              gh label create "$name" \
+                --repo "${{ github.repository }}" \
+                --color "$color" \
+                --description "$desc"
+            fi
+          done
