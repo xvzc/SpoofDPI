@@ -62,7 +62,7 @@ BUILD_LDFLAGS="-s -w"
 BUILD_LDFLAGS="$BUILD_LDFLAGS -X 'main.commit=$(git -C ./$SRC rev-parse --short HEAD)'"
 BUILD_LDFLAGS="$BUILD_LDFLAGS -X 'main.build=$BUILD_INFO'"
 
-# You can disable CGO on Linux by setting`CGO_ENABLED=0`
+# You can disable CGO on Linux by setting `CGO_ENABLED=0`
 CGO_ENABLED=1 go build -C ./$SRC \
   -ldflags "$BUILD_LDFLAGS" \
   -o ../$DIST/spoofdpi ./cmd/spoofdpi
@@ -95,8 +95,8 @@ BUILD_LDFLAGS="$BUILD_LDFLAGS -X 'main.version=$VERSION'"
 BUILD_LDFLAGS="$BUILD_LDFLAGS -X 'main.commit=$(cat ./$SRC/COMMIT)'"
 BUILD_LDFLAGS="$BUILD_LDFLAGS -X 'main.build=$BUILD_INFO'"
 
-# You can disable CGO on Linux by setting`CGO_ENABLED=0`
-CGO_ENABLED=1 go build -C $SRC \
+# You can disable CGO on Linux by setting `CGO_ENABLED=0`
+CGO_ENABLED=1 go build -C ./$SRC \
   -ldflags "$BUILD_LDFLAGS" \
   -o ../$DIST/spoofdpi ./cmd/spoofdpi
 ```
