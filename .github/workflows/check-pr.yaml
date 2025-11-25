@@ -2,7 +2,7 @@ name: Check PR
 
 on:
   pull_request:
-    types: [opened, reopened, labeled, unlabeled, edited, synchronize]
+    types: [opened, reopened, edited, synchronize]
 
 jobs:
   auto-label:
