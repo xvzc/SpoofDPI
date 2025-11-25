@@ -9,6 +9,9 @@ $ brew install libpcap
 - FreeBSD
 $ pkg install libpcap
 
+- Linux
+$ echo "libpcap is not required on Linux"
+
 - ...
 ```
 
@@ -42,23 +45,60 @@ To build SpoofDPI manually, ensure that you have a recent version of [Go](https:
 !!! note 
     **libpcap** is no longer required on Linux, so `CGO` does not need to be enabled.
 ### Git
-If you clone the repository to build manually, we recommend including the commit hash for better issue tracking.
-```console
-$ git clone https://github.com/xvzc/SpoofDPI
-$ cd SpoofDPI
-$ CGO_ENABLED=1 go build -ldflags "-s -w" \
-    -ldflags "-X 'main.commit=$(git rev-parse --short HEAD 2>/dev/null)'" \
-    -ldflags "-X 'main.build=manual'" \
-    -o spoofdpi ./cmd/spoofdpi
+If you are building manually from the latest commit, we recommend including the commit hash for better issue tracking.
 
+```sh
+#!/usr/bin/env sh
+
+BUILD_INFO="git"
+SRC="SpoofDPI"
+DIST="dist"
+
+mkdir -p ./$DIST
+
+git clone https://github.com/xvzc/SpoofDPI.git
+
+BUILD_LDFLAGS="-s -w"
+BUILD_LDFLAGS="$BUILD_LDFLAGS -X 'main.commit=$(git -C ./$SRC rev-parse --short HEAD)'"
+BUILD_LDFLAGS="$BUILD_LDFLAGS -X 'main.build=$BUILD_INFO'"
+
+# You can disable CGO on Linux by setting`CGO_ENABLED=0`
+CGO_ENABLED=1 go build -C ./$SRC \
+  -ldflags "$BUILD_LDFLAGS" \
+  -o ../$DIST/spoofdpi ./cmd/spoofdpi
 ```
-### Github Release
-You can also build from the release source code. For platforms where native GitHub Actions runners are unavailable (e.g., FreeBSD), manual packaging is required. Please set the version and build information so that maintainers can track issues easily.
-```console
-$ CGO_ENABLED=1 go build -ldflags "-s -w" \
-    -ldflags "-X 'main.version=1.0.2'" \
-    -ldflags "-X 'main.build=freebsd'" \
-    -o spoofdpi ./cmd/spoofdpi
+
+### GitHub Release
+
+You can also build directly from the release source code. This is particularly useful for platforms where native GitHub Actions runners are unavailable (e.g., FreeBSD), requiring manual packaging.
+
+We recommend injecting version and build information during the build process to help maintainers track issues effectively.
+
+Every release includes a custom source archive (e.g., `spoofdpi-1.1.3.tar.gz`) which contains a `COMMIT` file. You can use this file to embed the commit hash into the binary.
+```bash
+#!/usr/bin/env bash
+
+VERSION="#REPLACE_THIS_WITH_VERSION#"
+BUILD_INFO="freebsd"
+ASSET="spoofdpi-$VERSION.tar.gz"
+SRC="spoofdpi-$VERSION"
+DIST="dist"
+
+curl -fsSL \
+  https://github.com/xvzc/SpoofDPI/releases/download/v$VERSION/$ASSET \
+  -o ./$ASSET
+
+tar -xvzf ./spoofdpi-$VERSION.tar.gz
+
+BUILD_LDFLAGS="-s -w"
+BUILD_LDFLAGS="$BUILD_LDFLAGS -X 'main.version=$VERSION'"
+BUILD_LDFLAGS="$BUILD_LDFLAGS -X 'main.commit=$(cat ./$SRC/COMMIT)'"
+BUILD_LDFLAGS="$BUILD_LDFLAGS -X 'main.build=$BUILD_INFO'"
+
+# You can disable CGO on Linux by setting`CGO_ENABLED=0`
+CGO_ENABLED=1 go build -C $SRC \
+  -ldflags "$BUILD_LDFLAGS" \
+  -o ../$DIST/spoofdpi ./cmd/spoofdpi
 ```
 
 
