@@ -82,23 +82,23 @@ func (c *TTLCache) getShard(key string) *ttlCacheShard {
 // └─────────────┘
 // Set adds an item to the cache, replacing any existing item.
 // If ttl is 0 or negative, the item will never expire (passive-only).
-func (c *TTLCache) Set(key string, value any, opts *options) {
+func (c *TTLCache) Set(key string, value any, opts *options) bool {
 	shard := c.getShard(key)
 
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
 
 	if opts.ttl == 0 {
-		return
+		return false
 	}
 
 	_, ok := shard.items[key]
-	if ok && opts.insertOnly {
-		return
+	if ok && opts.skipExisting {
+		return false
 	}
 
-	if ok && !opts.override {
-		return
+	if !ok && opts.updateExistingOnly {
+		return false
 	}
 
 	expiresAt := time.Now().Add(opts.ttl)
@@ -107,6 +107,8 @@ func (c *TTLCache) Set(key string, value any, opts *options) {
 		expiresAt: expiresAt,
 	}
 	shard.items[key] = newItem
+
+	return true
 }
 
 // Get retrieves an item from the cache.

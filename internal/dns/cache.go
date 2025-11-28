@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/internal/applog"
 	"github.com/xvzc/SpoofDPI/internal/datastruct/cache"
 )
 
@@ -36,14 +37,6 @@ func (cr *CacheResolver) Info() []ResolverInfo {
 	return info
 }
 
-func (cr *CacheResolver) Route(ctx context.Context) Resolver {
-	if next := cr.next.Route(ctx); next != nil {
-		return cr
-	}
-
-	return nil
-}
-
 // Resolve implements the Resolver interface.
 // This is where all the cache checking logic resides.
 func (cr *CacheResolver) Resolve(
@@ -51,17 +44,16 @@ func (cr *CacheResolver) Resolve(
 	domain string,
 	qTypes []uint16,
 ) (RecordSet, error) {
-	logger := cr.logger.With().Ctx(ctx).Logger()
+	logger := applog.WithLocalScope(cr.logger, ctx, "cache")
 	// 1. [Cache Read]
 	if item, ok := cr.ttlCache.Get(domain); ok {
-		cr.logger.Debug().Ctx(ctx).Msgf("dns cache hit; name=%s;", domain)
+		logger.Trace().Msgf("hit")
 		return item.(RecordSet), nil
 	}
 
 	// 2. [Cache Miss]
 	//    Delegate the actual network request to 'r.next' (the worker).
-	logger.Debug().
-		Msgf("dns cache miss; name=%s; next=%s;", domain, cr.next.Info()[0].Name)
+	logger.Trace().Str("next", cr.next.Info()[0].Name).Msgf("miss")
 	rSet, err := cr.next.Resolve(ctx, domain, qTypes)
 	if err != nil {
 		return RecordSet{addrs: []net.IPAddr{}, ttl: 0}, err
@@ -70,16 +62,15 @@ func (cr *CacheResolver) Resolve(
 	// 3. [Cache Write]
 	// (Assuming the actual TTL is parsed from the DNS response)
 	// realTTL := 5 * time.Second
-	logger.Debug().Msgf("cache set; key=%s; len=%d;, ttl: %d",
-		domain, rSet.Counts(), rSet.TTL(),
-	)
+	logger.Trace().
+		Int("len", rSet.Count()).
+		Uint32("ttl", rSet.TTL()).
+		Msg("set")
 
-	cr.ttlCache.Set(
+	_ = cr.ttlCache.Set(
 		domain,
 		rSet,
-		cache.Options().
-			WithOverride(true).
-			WithTTL(time.Duration(rSet.TTL())*time.Second),
+		cache.Options().WithTTL(time.Duration(rSet.TTL())*time.Second),
 	)
 
 	return rSet, nil

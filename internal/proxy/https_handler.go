@@ -2,180 +2,90 @@ package proxy
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net"
 	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/appctx"
-	"github.com/xvzc/SpoofDPI/internal/datastruct/tree"
-	"github.com/xvzc/SpoofDPI/internal/packet"
+	"github.com/xvzc/SpoofDPI/internal/applog"
+	"github.com/xvzc/SpoofDPI/internal/desync"
+	"github.com/xvzc/SpoofDPI/internal/proto"
 )
 
 var _ Handler = (*HTTPSHandler)(nil)
 
-type fragmentationFunc func(bytes []byte, size int) [][]byte
-
 type HTTPSHandler struct {
-	logger zerolog.Logger
-
-	hopTracker       *packet.HopTracker
-	packetInjector   *packet.PacketInjector
-	domainSearchTree tree.SearchTree
-
-	autoPolicy       bool
-	windowSize       uint8
-	fakeHTTPSPackets uint8
+	logger     zerolog.Logger
+	tlsDefault desync.TLSDesyncer
+	tlsBypass  desync.TLSDesyncer
 }
 
-func NewHttpsHandler(
+func NewHTTPSHandler(
 	logger zerolog.Logger,
-	hopTrakcer *packet.HopTracker,
-	packetInjector *packet.PacketInjector,
-	domainSearchTree tree.SearchTree,
-
-	autoPolicy bool,
-	windowSize uint8,
-	fakeHTTPSPackets uint8,
+	tlsDefault desync.TLSDesyncer,
+	tlsBypass desync.TLSDesyncer,
 ) *HTTPSHandler {
 	return &HTTPSHandler{
-		logger:           logger,
-		hopTracker:       hopTrakcer,
-		packetInjector:   packetInjector,
-		domainSearchTree: domainSearchTree,
-		autoPolicy:       autoPolicy,
-		windowSize:       windowSize,
-		fakeHTTPSPackets: fakeHTTPSPackets,
+		logger:     logger,
+		tlsDefault: tlsDefault,
+		tlsBypass:  tlsBypass,
 	}
 }
 
 func (h *HTTPSHandler) HandleRequest(
 	ctx context.Context,
 	lConn net.Conn,
-	req *HttpRequest,
-	domain string,
+	req *proto.HTTPRequest,
 	dstAddrs []net.IPAddr,
 	dstPort int,
 	timeout time.Duration,
-) {
-	logger := h.logger.With().Ctx(ctx).Logger()
-
-	// We are responsible for the client connection, so we must close it when done.
-	defer closeConns(lConn)
+) error {
+	logger := applog.WithLocalScope(h.logger, ctx, "https")
 
 	rConn, err := dialFirstSuccessful(ctx, dstAddrs, dstPort, timeout)
 	if err != nil {
-		logger.Debug().Msgf("all dial attempts to %s failed: %s", domain, err)
-
-		return
+		return err
 	}
-
-	// The remote connection must be closed as soon as it's successfully dialed.
 	defer closeConns(rConn)
 
-	logger.Debug().Msgf("new conn; https; %s -> %s(%s);",
-		rConn.LocalAddr(), domain, rConn.RemoteAddr(),
-	)
+	logger.Debug().
+		Msgf("new remote conn -> %s", rConn.RemoteAddr())
 
-	// Send "200 Connection Established" to the client.
-	_, err = lConn.Write(req.ResConnectionEstablished())
+	tlsMsg, err := h.handleProxyHandshake(ctx, lConn, req)
 	if err != nil {
-		logger.Debug().Msgf("error sending 200 conn established to the client: %s", err)
-		return // Both connections are closed by their defers.
-	}
-
-	logger.Debug().Msgf("connection established sent; %s;", lConn.RemoteAddr())
-
-	// Read the client hello, which is specific to SpoofDPI logic.
-	tlsMsg, err := readTLSMessage(lConn)
-	if err != nil {
-		if err != io.EOF {
-			logger.Debug().Msgf("error reading client hello: %s", err)
+		logger.Trace().Err(err).Msgf("proxy handshake error")
+		if !isConnectionResetByPeer(err) && !errors.Is(err, io.EOF) {
+			return fmt.Errorf("failed to handle proxy handshake: %w", err)
 		}
 
-		return
+		return nil
 	}
 
 	if !tlsMsg.IsClientHello() {
-		logger.Debug().Msgf("received unknown packet; %s; abort;",
-			lConn.RemoteAddr().String(),
-		)
-
-		return
+		logger.Trace().Int("len", len(tlsMsg.Raw)).Msg("not a client hello. aborting")
+		return nil
 	}
 
-	clientHello := tlsMsg.Raw
-	logger.Debug().Msgf("received client hello; %d bytes;", len(clientHello))
-
-	shouldExploit, ok := appctx.ShouldExploitFrom(ctx)
-	if !ok {
-		logger.Error().Msg("error retrieving 'shouldExploit' value from ctx")
+	n, err := h.sendClientHello(ctx, rConn, tlsMsg)
+	if err != nil {
+		return fmt.Errorf("failed to send client hello: %w", err)
 	}
 
-	// The Client Hello must be sent to the server before starting the
-	// bidirectional copy tunnel.
-	if shouldExploit {
-		// ┌──────────────────┐
-		// │ SEND FAKE_PACKET │
-		// └──────────────────┘
-		if h.hopTracker != nil && h.packetInjector != nil {
-			src := rConn.LocalAddr().(*net.TCPAddr)
-			dst := rConn.RemoteAddr().(*net.TCPAddr)
-
-			nhops := h.hopTracker.GetOptimalTTL(dst.String())
-			err := h.packetInjector.WriteCraftedPacket(
-				ctx, src, dst, nhops, packet.FakeClientHello, h.fakeHTTPSPackets,
-			)
-			if err != nil {
-				logger.Debug().Msgf("error sending fake packets to %s: %s", domain, err)
-			}
-		}
-
-		// ┌───────────────────────────┐
-		// │ SEND CHUNKED_CLIENT_HELLO │
-		// └───────────────────────────┘
-		var fragmentationStrategy string
-		var cFunc fragmentationFunc
-		if h.windowSize == 0 {
-			fragmentationStrategy = "legacy"
-			cFunc = legacyFragmentationStrategy
-			logger.Debug().Msgf("fragmentation strategy; %s;", fragmentationStrategy)
-		} else {
-			fragmentationStrategy = "chunk"
-			cFunc = chunkFragmentationStrategy
-			logger.Debug().Msgf("fragmentation strategy; %s;", fragmentationStrategy)
-		}
-
-		if _, err := writeChunks(rConn, cFunc(clientHello, int(h.windowSize))); err != nil {
-			logger.Debug().Msgf("error writing chunked client hello to %s: %s",
-				domain, err,
-			)
-			return
-		}
-
-		logger.Debug().Msgf("client hello sent; strategy=%s; dst=%s",
-			fragmentationStrategy, domain,
-		)
-	} else {
-		if _, err := rConn.Write(clientHello); err != nil {
-			logger.Debug().Msgf("error writing plain client hello to %s: %s", domain, err)
-			return
-		}
-
-		logger.Debug().Msgf("client hello sent; strategy=plain; dst=%s", domain)
-	}
+	logger.Debug().
+		Int("len", n).
+		Msgf("sent client hello -> %s", rConn.RemoteAddr())
 
 	errCh := make(chan error, 2)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	go tunnel(ctx, logger, errCh, rConn, lConn, domain, false)
-	go tunnel(ctx, logger, errCh, lConn, rConn, domain, true)
+	go tunnelConns(ctx, logger, errCh, rConn, lConn)
+	go tunnelConns(ctx, logger, errCh, lConn, rConn)
 
-	blocked := false
-
-	// Wait for both tunnels to terminate
 	for range 2 {
 		e := <-errCh
 		if e == nil {
@@ -183,74 +93,71 @@ func (h *HTTPSHandler) HandleRequest(
 		}
 
 		if isConnectionResetByPeer(e) {
-			if !blocked {
-				blocked = true
-				cancel()
-			}
+			return errBlocked
 		} else {
-			// Log errors other than connection reset
-			logger.Error().Msgf("tunnel error; src=%s; dst=%s; name=%s; %v",
-				lConn.RemoteAddr().String(), rConn.RemoteAddr().String(), domain, e,
+			return fmt.Errorf(
+				"unsuccessful tunnel %s -> %s: %w",
+				lConn.RemoteAddr(),
+				rConn.RemoteAddr(),
+				e,
 			)
 		}
 	}
 
-	// This block executes safely after both goroutines return
-	if blocked && h.autoPolicy && h.domainSearchTree != nil {
-		_, found := h.domainSearchTree.Search(domain)
-		if !found {
-			h.domainSearchTree.Insert(domain, true)
-			logger.Info().Msgf("auto policy; name=%s; added;", domain)
+	return nil
+}
+
+// handleProxyHandshake sends "200 Connection Established" and reads the subsequent Client Hello.
+func (h *HTTPSHandler) handleProxyHandshake(
+	ctx context.Context,
+	lConn net.Conn,
+	req *proto.HTTPRequest,
+) (*proto.TLSMessage, error) {
+	logger := applog.WithLocalScope(h.logger, ctx, "handshake")
+
+	if _, err := lConn.Write(req.ResConnectionEstablished()); err != nil {
+		return nil, err
+	}
+	logger.Trace().Msgf("sent 200 connection established -> %s", lConn.RemoteAddr())
+
+	tlsMsg, err := proto.ReadTLSMessage(lConn)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debug().
+		Int("len", len(tlsMsg.Raw)).
+		Msgf("client hello received <- %s", lConn.RemoteAddr())
+
+	return tlsMsg, nil
+}
+
+// sendClientHello decides whether to spoof and sends the Client Hello accordingly.
+func (h *HTTPSHandler) sendClientHello(
+	ctx context.Context,
+	conn net.Conn,
+	msg *proto.TLSMessage,
+) (int, error) {
+	logger := applog.WithLocalScope(h.logger, ctx, "client_hello")
+
+	var strategy desync.TLSDesyncer
+
+	shouldExploit, ok := appctx.ShouldExploitFrom(ctx)
+	if ok {
+		if shouldExploit {
+			strategy = h.tlsBypass
+		} else {
+			strategy = h.tlsDefault
 		}
-	}
-}
+	} else {
+		logger.Error().
+			Str("key", "shouldExploit").
+			Msgf("failed to retrieve value from ctx. default to `plain`")
 
-func chunkFragmentationStrategy(
-	bytes []byte,
-	size int,
-) [][]byte {
-	if len(bytes) == 0 {
-		return nil
+		strategy = h.tlsDefault
 	}
 
-	var chunks [][]byte
-	raw := bytes
-	for len(raw) != 0 {
-		currentSize := min(size, len(raw))
-		chunks = append(chunks, raw[0:currentSize])
-		raw = raw[currentSize:]
-	}
-	return chunks
-}
+	logger.Debug().Msgf("using '%v' strategy", strategy)
 
-// legacyFragmentationStrategy implements the "legacy" strategy (1 byte, then the rest)
-// and matches the chunkingFunc type.
-func legacyFragmentationStrategy(
-	bytes []byte,
-	_ int,
-) [][]byte {
-	if len(bytes) == 0 {
-		return nil // No bytes to send.
-	}
-
-	if len(bytes) == 1 {
-		return [][]byte{bytes[:1]}
-	}
-
-	return [][]byte{bytes[:1], bytes[1:]}
-}
-
-func writeChunks(conn net.Conn, c [][]byte) (n int, err error) {
-	total := 0
-	for i := range c {
-		b, err := conn.Write(c[i])
-		if err != nil {
-			// Return the actual error.
-			return total, err
-		}
-
-		total += b
-	}
-
-	return total, nil
+	return strategy.Send(ctx, logger, conn, msg)
 }

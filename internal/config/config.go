@@ -11,12 +11,14 @@ import (
 type Config struct {
 	AutoPolicy        bool           `toml:"auto-policy"`
 	CacheShards       Uint8Number    `toml:"cache-shards"`
+	DefaultTTL        Uint8Number    `toml:"default-ttl"`
+	Disorder          bool           `toml:"disorder"`
 	DnsAddr           IPAddress      `toml:"dns-addr"`
 	DnsIPv4Only       bool           `toml:"dns-ipv4-only"`
 	DnsPort           Uint16Number   `toml:"dns-port"`
 	DOHEndpoint       HTTPSEndpoint  `toml:"doh-endpoint"`
-	EnableDOH         bool           `toml:"endble-doh"`
-	FakeHTTPSPackets  Uint8Number    `toml:"fake-https-packets"`
+	EnableDOH         bool           `toml:"enable-doh"`
+	FakeCount         Uint8Number    `toml:"fake-count"`
 	ListenAddr        IPAddress      `toml:"listen-addr"`
 	ListenPort        Uint16Number   `toml:"listen-port"`
 	LogLevel          LogLevel       `toml:"log-level"`

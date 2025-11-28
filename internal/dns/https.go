@@ -11,7 +11,7 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/appctx"
+	"github.com/xvzc/SpoofDPI/internal/applog"
 )
 
 var _ Resolver = (*HTTPSResolver)(nil)
@@ -19,9 +19,7 @@ var _ Resolver = (*HTTPSResolver)(nil)
 type HTTPSResolver struct {
 	logger zerolog.Logger
 
-	client *http.Client
-
-	enabled  bool
+	client   *http.Client
 	endpoint string
 }
 
@@ -31,7 +29,6 @@ func (hr *HTTPSResolver) Upstream() string {
 
 func NewHTTPSResolver(
 	logger zerolog.Logger,
-	enabled bool,
 	endpoint string,
 ) *HTTPSResolver {
 	return &HTTPSResolver{
@@ -48,7 +45,6 @@ func NewHTTPSResolver(
 				MaxIdleConns:        100,
 			},
 		},
-		enabled:  enabled,
 		endpoint: endpoint,
 	}
 }
@@ -57,18 +53,10 @@ func (hr *HTTPSResolver) Info() []ResolverInfo {
 	return []ResolverInfo{
 		{
 			Name:   "https",
-			Dest:   hr.endpoint,
+			Dst:    hr.endpoint,
 			Cached: CachedStatus{false},
 		},
 	}
-}
-
-func (hr *HTTPSResolver) Route(ctx context.Context) Resolver {
-	if include, ok := appctx.DomainIncludedFrom(ctx); ok && include && hr.enabled {
-		return hr
-	}
-
-	return nil
 }
 
 func (hr *HTTPSResolver) Resolve(
@@ -82,7 +70,7 @@ func (hr *HTTPSResolver) Resolve(
 }
 
 func (hr *HTTPSResolver) exchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
-	logger := hr.logger.With().Ctx(ctx).Logger()
+	logger := applog.WithLocalScope(hr.logger, ctx, "dns-over-https")
 
 	pack, err := msg.Pack()
 	if err != nil {
@@ -110,14 +98,17 @@ func (hr *HTTPSResolver) exchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, 
 	defer func() { _ = resp.Body.Close() }()
 
 	buf := bytes.Buffer{}
-	_, err = buf.ReadFrom(resp.Body)
+	bodyLen, err := buf.ReadFrom(resp.Body)
 	if err != nil {
 		return nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		logger.Trace().
-			Msgf("dns error; resolver=https; body=%s", buf.String())
+			Int64("len", bodyLen).
+			Int("status", resp.StatusCode).
+			Str("value", buf.String()).
+			Msg("status not ok")
 		return nil, fmt.Errorf("doh status code(%d)", resp.StatusCode)
 	}
 
@@ -128,6 +119,10 @@ func (hr *HTTPSResolver) exchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, 
 	}
 
 	if resultMsg.Rcode != dns.RcodeSuccess {
+		logger.Trace().
+			Int("rcode", resultMsg.Rcode).
+			Str("msg", resultMsg.String()).
+			Msg("rcode not ok")
 		return nil, fmt.Errorf("doh Rcode(%d)", resultMsg.Rcode)
 	}
 

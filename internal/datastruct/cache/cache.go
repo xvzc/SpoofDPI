@@ -5,9 +5,9 @@ import "time"
 // options holds all possible settings for a Set operation.
 // Both caches will use this, but will only read what they need.
 type options struct {
-	ttl        time.Duration
-	insertOnly bool
-	override   bool
+	ttl                time.Duration
+	skipExisting       bool
+	updateExistingOnly bool
 	// We could add other options here later, e.g.:
 	// cost int
 }
@@ -21,13 +21,13 @@ func (o *options) WithTTL(ttl time.Duration) *options {
 	return o
 }
 
-func (o *options) WithOverride(override bool) *options {
-	o.override = override
+func (o *options) WithUpdateExistingOnly(updateOnly bool) *options {
+	o.updateExistingOnly = updateOnly
 	return o
 }
 
-func (o *options) InsertOnly(insertOnly bool) *options {
-	o.insertOnly = insertOnly
+func (o *options) WithSkipExisting(skipExisting bool) *options {
+	o.skipExisting = skipExisting
 	return o
 }
 
@@ -37,5 +37,5 @@ type Cache interface {
 	// Get retrieves a value from the cache.
 	Get(key string) (any, bool)
 	// Set adds a value to the cache, applying any provided options.
-	Set(key string, value any, opts *options)
+	Set(key string, value any, opts *options) bool
 }

@@ -16,17 +16,16 @@ import (
 type Resolver interface {
 	Info() []ResolverInfo
 	Resolve(ctx context.Context, domain string, qTypes []uint16) (RecordSet, error)
-	Route(ctx context.Context) Resolver
 }
 
 type ResolverInfo struct {
 	Name   string       `json:"name"`
-	Dest   string       `json:"dest"`
+	Dst    string       `json:"dst"`
 	Cached CachedStatus `json:"cached"`
 }
 
 func (i *ResolverInfo) String() string {
-	return fmt.Sprintf("name=%s; cached=%s; dest=%s;", i.Name, i.Cached.String(), i.Dest)
+	return fmt.Sprintf("name=%s; cached=%s; dst=%s;", i.Name, i.Cached.String(), i.Dst)
 }
 
 type CachedStatus struct {
@@ -61,7 +60,7 @@ func (rs *RecordSet) TTL() uint32 {
 	return rs.ttl
 }
 
-func (rs *RecordSet) Counts() int {
+func (rs *RecordSet) Count() int {
 	return len(rs.addrs)
 }
 
@@ -157,8 +156,6 @@ func parseMsg(msg *dns.Msg) ([]net.IPAddr, uint32, bool) {
 	return addrs, minTTL, ok
 }
 
-var ErrorContextCanceled = errors.New("context has been canceled")
-
 func processMessages(
 	ctx context.Context,
 	resCh <-chan *MsgEnvelope,
@@ -186,7 +183,7 @@ func processMessages(
 
 	select {
 	case <-ctx.Done():
-		return RecordSet{}, ErrorContextCanceled
+		return RecordSet{}, fmt.Errorf("context is canceled")
 	default:
 		if len(addrs) == 0 {
 			return RecordSet{}, errors.Join(errs...)

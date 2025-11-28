@@ -16,7 +16,7 @@ const (
 	getDefaultNetworkCMD = "networksetup -listnetworkserviceorder | grep" +
 		" `(route -n get default | grep 'interface' || route -n get -inet6 default | grep 'interface') | cut -d ':' -f2`" +
 		" -B 1 | head -n 1 | cut -d ' ' -f 2-"
-	permissionErrorHelpTextMacOS = "By default SpoofDPI tries to set itself up as a system-wide proxy server.\n" +
+	permissionErrorHelpText = "By default SpoofDPI tries to set itself up as a system-wide proxy server.\n" +
 		"Doing so may require root access on machines with\n" +
 		"'Settings > Privacy & Security > Advanced > Require" +
 		" an administrator password to access system-wide settings' enabled.\n" +
@@ -85,15 +85,15 @@ func networkSetup(args []string) error {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		msg := string(out)
-		if isMacOSPermissionError(err) {
-			msg += permissionErrorHelpTextMacOS
+		if isPermissionError(err) {
+			msg += permissionErrorHelpText
 		}
 		return fmt.Errorf("%s", msg)
 	}
 	return nil
 }
 
-func isMacOSPermissionError(err error) bool {
+func isPermissionError(err error) bool {
 	var exitErr *exec.ExitError
 	ok := errors.As(err, &exitErr)
 	return ok && exitErr.ExitCode() == 14

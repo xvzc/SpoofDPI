@@ -8,30 +8,31 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/internal/appctx"
+	"github.com/xvzc/SpoofDPI/internal/applog"
 )
 
 type RouteResolver struct {
 	logger zerolog.Logger
 
-	neighbors []Resolver
+	mainResolver  Resolver
+	localResolver Resolver
 }
 
 func NewRouteResolver(
 	logger zerolog.Logger,
-	neighbors []Resolver,
+	mainResolver Resolver,
+	localResolver Resolver,
 ) *RouteResolver {
 	return &RouteResolver{
-		logger:    logger,
-		neighbors: neighbors,
+		logger:        logger,
+		mainResolver:  mainResolver,
+		localResolver: localResolver,
 	}
 }
 
 func (rr *RouteResolver) Info() []ResolverInfo {
-	var ret []ResolverInfo
-	for _, v := range rr.neighbors {
-		ret = slices.Concat(ret, v.Info())
-	}
-	return ret
+	return slices.Concat(rr.mainResolver.Info(), rr.localResolver.Info())
 }
 
 func (rr *RouteResolver) Resolve(
@@ -39,7 +40,7 @@ func (rr *RouteResolver) Resolve(
 	domain string,
 	qTypes []uint16,
 ) (RecordSet, error) {
-	logger := rr.logger.With().Ctx(ctx).Logger()
+	logger := applog.WithLocalScope(rr.logger, ctx, "route")
 
 	if ip, err := parseIpAddr(domain); err == nil {
 		return RecordSet{addrs: []net.IPAddr{(*ip)}, ttl: 0}, nil
@@ -48,17 +49,18 @@ func (rr *RouteResolver) Resolve(
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	resolver := rr.Route(ctx)
+	resolver := rr.route(ctx)
 	if resolver == nil {
 		return RecordSet{addrs: []net.IPAddr{}, ttl: 0}, fmt.Errorf(
 			"error routing dns resolver",
 		)
 	}
 
-	destInfo := resolver.Info()[0]
-	logger.Debug().Msgf("route dns; name=%s; dest=%s; cached=%s;",
-		domain, destInfo.Name, destInfo.Cached.String(),
-	)
+	resolverInfo := resolver.Info()[0]
+	logger.Trace().
+		Str("cached", resolverInfo.Cached.String()).
+		Str("name", resolverInfo.Name).
+		Msgf("next resolver info")
 
 	rSet, err := resolver.Resolve(ctx, domain, qTypes)
 	if err != nil {
@@ -68,14 +70,13 @@ func (rr *RouteResolver) Resolve(
 	return rSet, nil
 }
 
-func (rr *RouteResolver) Route(ctx context.Context) Resolver {
-	for _, r := range rr.neighbors {
-		if next := r.Route(ctx); next != nil {
-			return next
-		}
+func (rr *RouteResolver) route(ctx context.Context) Resolver {
+	policyIncluded, _ := appctx.PolicyIncludedFrom(ctx)
+	if policyIncluded {
+		return rr.mainResolver
 	}
 
-	return nil
+	return rr.localResolver
 }
 
 func parseIpAddr(addr string) (*net.IPAddr, error) {
