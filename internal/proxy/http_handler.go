@@ -2,17 +2,20 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/internal/applog"
+	"github.com/xvzc/SpoofDPI/internal/proto"
 )
 
 type HTTPHandler struct {
 	logger zerolog.Logger
 }
 
-func NewHttpHandler(
+func NewHTTPHandler(
 	logger zerolog.Logger,
 ) *HTTPHandler {
 	return &HTTPHandler{
@@ -23,42 +26,37 @@ func NewHttpHandler(
 func (h *HTTPHandler) HandleRequest(
 	ctx context.Context,
 	lConn net.Conn, // Use the net.Conn interface, not a concrete *net.TCPConn.
-	req *HttpRequest, // Assumes HttpRequest is a custom type for request parsing.
-	domain string,
+	req *proto.HTTPRequest, // Assumes HttpRequest is a custom type for request parsing.
 	dstAddrs []net.IPAddr,
 	dstPort int,
 	timeout time.Duration,
-) {
-	logger := h.logger.With().Ctx(ctx).Logger()
-
-	// The client connection is always closed when Serve returns.
-	defer closeConns(lConn) // Assumes closeConns is a nil-safe helper.
+) error {
+	logger := applog.WithLocalScope(h.logger, ctx, "http")
 
 	rConn, err := dialFirstSuccessful(ctx, dstAddrs, dstPort, timeout)
 	if err != nil {
-		logger.Debug().Msgf("all dial attempts to %s failed: %s", domain, err)
-
-		return
+		return err
 	}
 
 	// Ensure the remote connection is also closed on exit.
 	defer closeConns(rConn)
 
-	logger.Debug().Msgf("new conn; http; %s -> %s(%s);",
-		rConn.LocalAddr(), domain, rConn.RemoteAddr(),
-	)
+	logger.Debug().Msgf("new remote conn -> %s", rConn.RemoteAddr())
 
 	// Assumes our custom HttpRequest type has a WriteProxy method
 	// (like net/http.Request.WriteProxy) that correctly formats the
 	// request for the origin server (e.g., "GET /path" instead of "GET http://...").
 	if err := req.WriteProxy(rConn); err != nil {
-		logger.Debug().Msgf("error sending request to %s: %v", domain, err)
-		return
+		return fmt.Errorf("failed to send request: %w", err)
 	}
 
 	errCh := make(chan error, 2)
-	go tunnel(ctx, logger, errCh, rConn, lConn, domain, false)
-	go tunnel(ctx, logger, errCh, lConn, rConn, domain, true)
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	go tunnelConns(ctx, logger, errCh, rConn, lConn)
+	go tunnelConns(ctx, logger, errCh, lConn, rConn)
 
 	for range 2 {
 		e := <-errCh
@@ -66,8 +64,13 @@ func (h *HTTPHandler) HandleRequest(
 			continue
 		}
 
-		logger.Error().Msgf("tunnel error; src=%s; dst=%s; name=%s; %s",
-			lConn.RemoteAddr().String(), rConn.RemoteAddr().String(), domain, err,
+		return fmt.Errorf(
+			"unsuccessful tunnel %s -> %s: %w",
+			lConn.RemoteAddr(),
+			rConn.RemoteAddr(),
+			e,
 		)
 	}
+
+	return nil
 }

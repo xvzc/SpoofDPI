@@ -13,9 +13,10 @@ import (
 
 const (
 	// scopeFieldName defines the key for the "scope" field in structured logs.
-	scopeFieldName = "scope"
-	// traceIDFieldName defines the key for the "trace_id" field in structured logs.
-	traceIDFieldName = "trace_id"
+	scopeFieldName      = "scope"
+	localScopeFieldName = "local_scope"
+	traceIDFieldName    = "trace_id"
+	remoteInfoFieldName = "remote_info"
 )
 
 // SetGlobalLogger creates and configures the global zerolog.Logger instance
@@ -25,19 +26,10 @@ func SetGlobalLogger(ctx context.Context, level string) {
 	zerolog.SetGlobalLevel(l)
 
 	// Define the order of parts in the console output.
-	partsOrder := []string{
-		zerolog.LevelFieldName,
-		zerolog.TimestampFieldName,
-		traceIDFieldName, // Custom fields are placed before the message.
-		scopeFieldName,
-		zerolog.MessageFieldName,
-	}
-
 	// Configure a human-readable console writer.
 	consoleWriter := zerolog.ConsoleWriter{
 		Out:        os.Stdout,
 		TimeFormat: time.RFC3339,
-		PartsOrder: partsOrder,
 		// FormatPrepare intercepts fields just before printing
 		// to apply custom formatting, like adding brackets [SCOPE] or parens (trace_id).
 		FormatPrepare: func(m map[string]any) error {
@@ -53,13 +45,49 @@ func SetGlobalLogger(ctx context.Context, level string) {
 				m[scopeFieldName] = fmt.Sprintf("[%s]", v)
 			} else {
 				// Do the same for scope for consistency.
-				m[scopeFieldName] = ""
+				m[scopeFieldName] = "[app]"
 			}
+
+			if v, ok := m[localScopeFieldName].(string); ok && v != "" {
+				m[localScopeFieldName] = fmt.Sprintf("%s;", v)
+			} else {
+				// Do the same for scope for consistency.
+				m[localScopeFieldName] = ""
+			}
+
+			if v, ok := m[remoteInfoFieldName].(string); ok && v != "" {
+				m[remoteInfoFieldName] = fmt.Sprintf("%s;", v)
+			} else {
+				// Do the same for scope for consistency.
+				m[remoteInfoFieldName] = ""
+			}
+
+			if v, ok := m["message"].(string); ok && v != "" {
+				m["message"] = fmt.Sprintf("%s;", v)
+			} else {
+				// Do the same for scope for consistency.
+				m["message"] = ""
+			}
+
 			return nil
 		},
 		// Exclude the raw field names since we have already formatted them
 		// in FormatPrepare. This prevents duplicate output (e.g., [SCOPE] scope="SCOPE").
-		FieldsExclude: []string{traceIDFieldName, scopeFieldName},
+		FieldsExclude: []string{
+			traceIDFieldName,
+			scopeFieldName,
+			remoteInfoFieldName,
+			localScopeFieldName,
+		},
+		PartsOrder: []string{
+			zerolog.LevelFieldName,
+			zerolog.TimestampFieldName,
+			traceIDFieldName, // Custom fields are placed before the message.
+			scopeFieldName,
+			remoteInfoFieldName,
+			localScopeFieldName,
+			zerolog.MessageFieldName,
+		},
 	}
 
 	// Create the base logger instance with the console writer and attach the hook.
@@ -72,6 +100,14 @@ func SetGlobalLogger(ctx context.Context, level string) {
 // to create a sub-logger with their component name.
 func WithScope(logger zerolog.Logger, scope string) zerolog.Logger {
 	return logger.With().Str(scopeFieldName, scope).Logger()
+}
+
+func WithLocalScope(
+	logger zerolog.Logger,
+	ctx context.Context,
+	localScope string,
+) zerolog.Logger {
+	return logger.With().Ctx(ctx).Str(localScopeFieldName, localScope).Logger()
 }
 
 // ctxHook implements the zerolog.Hook interface.
@@ -91,7 +127,11 @@ func (h ctxHook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 
 	// Request-scoped values like trace_id.
 	// Scope is expected to be added at the component's creation time.
-	if traceId, ok := appctx.TraceIDFrom(ctx); ok {
-		e.Str(traceIDFieldName, traceId)
+	if traceID, ok := appctx.TraceIDFrom(ctx); ok {
+		e.Str(traceIDFieldName, traceID)
+	}
+
+	if domain, ok := appctx.RemoteInfoFrom(ctx); ok {
+		e.Str(remoteInfoFieldName, domain)
 	}
 }

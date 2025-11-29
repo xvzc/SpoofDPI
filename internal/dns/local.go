@@ -6,7 +6,6 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/appctx"
 )
 
 var _ Resolver = (*LocalResolver)(nil)
@@ -30,18 +29,10 @@ func (lr *LocalResolver) Info() []ResolverInfo {
 	return []ResolverInfo{
 		{
 			Name:   "local",
-			Dest:   "system-dns",
+			Dst:    "system-dns",
 			Cached: CachedStatus{false},
 		},
 	}
-}
-
-func (lr *LocalResolver) Route(ctx context.Context) Resolver {
-	if include, ok := appctx.DomainIncludedFrom(ctx); ok && !include {
-		return lr
-	}
-
-	return nil
 }
 
 func filtterAddrs(addrs []net.IPAddr, qTypes []uint16) []net.IPAddr {

@@ -1,4 +1,98 @@
-package packet
+package desync
+
+import (
+	"context"
+	"net"
+
+	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/internal/packet"
+	"github.com/xvzc/SpoofDPI/internal/proto"
+)
+
+// TLSFake wraps another strategy to inject fake packets before the actual transmission.
+type TLSFake struct {
+	next           TLSDesyncer
+	hopTracker     *packet.HopTracker
+	packetInjector *packet.Injector
+	windowSize     uint8
+	count          uint8
+	fakeMsg        *proto.TLSMessage
+}
+
+// NewTLSFake creates a decorator that sends fake packets before delegating to the next strategy.
+func NewTLSFake(
+	next TLSDesyncer,
+	tracker *packet.HopTracker,
+	injector *packet.Injector,
+	windowSize uint8,
+	count uint8,
+	fakeMsg *proto.TLSMessage,
+) TLSDesyncer {
+	return &TLSFake{
+		next:           next,
+		hopTracker:     tracker,
+		packetInjector: injector,
+		windowSize:     windowSize,
+		count:          count,
+		fakeMsg:        fakeMsg,
+	}
+}
+
+func (s *TLSFake) Send(
+	ctx context.Context,
+	logger zerolog.Logger,
+	conn net.Conn,
+	msg *proto.TLSMessage,
+) (int, error) {
+	err := s.sendFakePackets(ctx, logger, conn)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to send fake packets. skipping")
+	}
+
+	// Delegate to the wrapped strategy (e.g., ChunkStrategy or PlainStrategy)
+	return s.next.Send(ctx, logger, conn, msg)
+}
+
+func (s *TLSFake) sendFakePackets(
+	ctx context.Context,
+	logger zerolog.Logger,
+	conn net.Conn,
+) error {
+	src := conn.LocalAddr().(*net.TCPAddr)
+	dst := conn.RemoteAddr().(*net.TCPAddr)
+	ttl := s.hopTracker.GetOptimalTTL(dst.String())
+
+	var fakeChunks [][]byte
+	if s.windowSize > 0 {
+		fakeChunks = split(s.fakeMsg.Raw, int(s.windowSize))
+	} else {
+		fakeChunks = [][]byte{s.fakeMsg.Raw}
+	}
+
+	var totalSent int
+	for range s.count {
+		for _, c := range fakeChunks {
+			n, err := s.packetInjector.WriteCraftedPacket(ctx, src, dst, ttl, c)
+			if err != nil {
+				logger.Warn().Msg("failed to send fake packets")
+				break
+			}
+
+			totalSent += n
+		}
+	}
+
+	logger.Trace().
+		Int("len", totalSent).
+		Uint8("ttl", ttl).
+		Msg("sent fake packets")
+
+	return nil
+}
+
+func (s *TLSFake) String() string {
+	return "fake+" + s.next.String()
+}
 
 // FakeClientHello is a pre-constructed Client Hello packet payload.
 // This can be used for injection.
@@ -41,9 +135,4 @@ var FakeClientHello = []byte{
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-}
-
-var FakeClientHelloHeader = []byte{
-	// TLS 1.2 ClientHello header
-	0x16, 0x03, 0x01, 0xDD, 0xDD, 0x01, 0x00, 0xDD, 0xDD, 0x03, 0x03,
 }

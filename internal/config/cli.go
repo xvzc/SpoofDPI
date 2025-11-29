@@ -58,6 +58,22 @@ func CreateCommand(
 				Sources:  cli.EnvVars("SPOOFDPI_CONFIG"),
 			},
 
+			&cli.IntFlag{
+				Name: "default-ttl",
+				Usage: `
+				Default TTL value for manipulated packets.`,
+				Value:     64,
+				OnlyOnce:  true,
+				Validator: validateUint8,
+			},
+
+			&cli.BoolFlag{
+				Name: "disorder",
+				Usage: `
+				If set, the fragmented Client Hello packets will be sent out-of-order.`,
+				OnlyOnce: true,
+			},
+
 			&cli.StringFlag{
 				Name: "dns-addr",
 				Usage: `
@@ -100,12 +116,11 @@ func CreateCommand(
 			},
 
 			&cli.IntFlag{
-				Name: "fake-https-packets",
+				Name: "fake-count",
 				Usage: `
-				Number of fake packets to send before the client hello, higher values
-        may increase success, but the lowest possible value is recommended. 
-				(default: 0, max: 255)`,
-				Value:     0,
+				Number of fake packets to be sent before Client Hello. 
+				If 'window-size' is greater than 0, each fake packet will be 
+				fragmented into segments of the specified window size. (default: 0)`,
 				OnlyOnce:  true,
 				Validator: validateUint8,
 			},
@@ -195,11 +210,10 @@ func CreateCommand(
 			&cli.IntFlag{
 				Name: "window-size",
 				Usage: `
-        Chunk size, in number of bytes, for fragmented client hello,
-        try lower values if the default value doesn't bypass the DPI;
-        when not given, the client hello packet will be sent in two parts:
-				fragmentation for the first data packet and the rest (default: 0, max: 255)`,
-				Value:     0,
+				Specifies the chunk size in bytes for the Client Hello packet.
+				Try lower values if the default fails to bypass the DPI.
+				Setting this to 0 disables fragmentation. (default: 35, max: 255)`,
+				Value:     35,
 				OnlyOnce:  true,
 				Validator: validateUint8,
 			},
@@ -231,14 +245,14 @@ func CreateCommand(
 					configDir = c
 					tomlCfg, err = parseTomlConfig(c)
 					if err != nil {
-						return fmt.Errorf("error parsing toml config: %s", err)
+						return fmt.Errorf("error parsing toml config: %w", err)
 					}
 				}
 			}
 
 			argsCfg, err := parseConfigFromArgs(cmd)
 			if err != nil {
-				return fmt.Errorf("error parsing config from args: %s", err)
+				return fmt.Errorf("error parsing config from args: %w", err)
 			}
 
 			var finalCfg *Config
@@ -289,6 +303,8 @@ func parseConfigFromArgs(cmd *cli.Command) (*Config, error) {
 	cfg := &Config{
 		AutoPolicy:        cmd.Bool("auto-policy"),
 		CacheShards:       Uint8Number{uint8(cmd.Int("cache-shards"))},
+		DefaultTTL:        Uint8Number{uint8(cmd.Int("default-ttl"))},
+		Disorder:          cmd.Bool("disorder"),
 		DnsAddr:           IPAddress{net.ParseIP(cmd.String("dns-addr"))},
 		DnsPort:           Uint16Number{uint16(cmd.Int("dns-port"))},
 		DnsIPv4Only:       cmd.Bool("dns-ipv4-only"),
@@ -302,7 +318,7 @@ func parseConfigFromArgs(cmd *cli.Command) (*Config, error) {
 		Silent:            cmd.Bool("silent"),
 		Timeout:           Uint16Number{uint16(cmd.Int("timeout"))},
 		WindowSize:        Uint8Number{uint8(cmd.Int("window-size"))},
-		FakeHTTPSPackets:  Uint8Number{uint8(cmd.Int("fake-https-packets"))},
+		FakeCount:         Uint8Number{uint8(cmd.Int("fake-count"))},
 	}
 
 	return cfg, nil

@@ -8,7 +8,6 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/appctx"
 )
 
 var _ Resolver = (*PlainResolver)(nil)
@@ -33,19 +32,11 @@ func NewPlainResolver(
 	}
 }
 
-func (pr *PlainResolver) Route(ctx context.Context) Resolver {
-	if include, ok := appctx.DomainIncludedFrom(ctx); ok && include {
-		return pr
-	}
-
-	return nil
-}
-
 func (pr *PlainResolver) Info() []ResolverInfo {
 	return []ResolverInfo{
 		{
 			Name:   "plain",
-			Dest:   pr.upstream,
+			Dst:    pr.upstream,
 			Cached: CachedStatus{false},
 		},
 	}
@@ -58,7 +49,7 @@ func (pr *PlainResolver) Resolve(
 ) (RecordSet, error) {
 	resCh := lookupAllTypes(ctx, domain, qTypes, pr.exchange)
 	rSet, err := processMessages(ctx, resCh)
-	if rSet.Counts() == 0 {
+	if rSet.Count() == 0 {
 		return RecordSet{}, fmt.Errorf("could not resolve '%s'", domain)
 	}
 

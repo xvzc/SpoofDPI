@@ -3,13 +3,14 @@ package packet
 import (
 	"context"
 	"fmt"
-	"math"
 	"net"
+	"strconv"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/appctx"
+	"github.com/xvzc/SpoofDPI/internal/applog"
 	"github.com/xvzc/SpoofDPI/internal/datastruct/cache"
 )
 
@@ -20,6 +21,8 @@ type HopTracker struct {
 
 	nhopCache cache.Cache // The cache stores hop counts (uint8)
 	handle    Handle
+
+	defaultTTL uint8
 }
 
 func (ht *HopTracker) Cache() cache.Cache {
@@ -31,14 +34,16 @@ func NewHopTracker(
 	logger zerolog.Logger,
 	cache cache.Cache,
 	handle Handle,
+	defaultTTL uint8,
 ) *HopTracker {
 	// Error checking for nil handle and cache has been removed
 	// as per the request.
 
 	return &HopTracker{
-		logger:    logger,
-		nhopCache: cache,
-		handle:    handle,
+		logger:     logger,
+		nhopCache:  cache,
+		handle:     handle,
+		defaultTTL: defaultTTL,
 	}
 }
 
@@ -61,14 +66,15 @@ func (ht *HopTracker) StartCapturing() {
 	}()
 }
 
-// GetOptimalTTL retrieves the estimated hop count for a given key from the cache.
-// It returns the hop count and true if found, or 0 and false if not found.
-func (ht *HopTracker) RegisterUntracked(addrs []net.IPAddr) {
+// RegisterUntracked registers new IP addresses for tracking.
+// Addresses that are already being tracked are ignored.
+func (ht *HopTracker) RegisterUntracked(addrs []net.IPAddr, port int) {
+	portStr := strconv.Itoa(port)
 	for _, v := range addrs {
 		ht.nhopCache.Set(
-			v.String(),
-			math.MaxUint8,
-			cache.Options().WithOverride(false).InsertOnly(true),
+			v.String()+":"+portStr,
+			ht.defaultTTL,
+			cache.Options().WithSkipExisting(true),
 		)
 	}
 }
@@ -80,12 +86,12 @@ func (ht *HopTracker) GetOptimalTTL(key string) uint8 {
 		return max(nhops.(uint8), 2) - 1
 	}
 
-	return math.MaxUint8 - 1
+	return ht.defaultTTL
 }
 
 // processPacket analyzes a single packet to find SYN/ACKs and store hop counts.
 func (ht *HopTracker) processPacket(ctx context.Context, p gopacket.Packet) {
-	logger := ht.logger.With().Ctx(ctx).Logger()
+	logger := applog.WithLocalScope(ht.logger, ctx, "track")
 
 	tcpLayer := p.Layer(layers.LayerTypeTCP)
 	if tcpLayer == nil {
@@ -120,14 +126,16 @@ func (ht *HopTracker) processPacket(ctx context.Context, p gopacket.Packet) {
 	// Create the cache key: ServerIP:ServerPort
 	// (The source of the SYN/ACK is the server)
 	key := fmt.Sprintf("%s:%d", srcIP, tcp.SrcPort)
-
 	// Calculate hop count from the TTL
 	nhops := calculateHops(ttl)
-	ht.nhopCache.Set(key, nhops, cache.Options().WithOverride(true))
-	logger.Trace().
-		Msgf("received syn+ack; src=%s; ttl=%d; nhops=%d;",
-			key, ttl, nhops,
-		)
+	ok := ht.nhopCache.Set(key, nhops, cache.Options().WithUpdateExistingOnly(true))
+	if ok {
+		logger.Trace().
+			Str("remote_info", key).
+			Uint8("nhops", nhops).
+			Uint8("ttlLeft", ttl).
+			Msgf("received syn+ack")
+	}
 }
 
 // calculateHops estimates the number of hops based on TTL.
@@ -138,7 +146,7 @@ func calculateHops(ttl uint8) uint8 {
 		// Likely Windows (Initial TTL 128)
 		return 128 - ttl
 	} else if ttl > 34 && ttl < 64 {
-		// Likely Linux/MacOS (Initial TTL 64)
+		// Likely Linux/macOS (Initial TTL 64)
 		return 64 - ttl
 	}
 	// Unrecognizable initial TTL

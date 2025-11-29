@@ -81,18 +81,18 @@ func (c *LRUCache) Get(key string) (any, bool) {
 }
 
 // Set adds a value to the cache, applying any provided options.
-func (c *LRUCache) Set(key string, value any, opts *options) {
+func (c *LRUCache) Set(key string, value any, opts *options) bool {
 	// Use Write Lock for modification operations
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	element, ok := c.cache[key]
-	if ok && opts.insertOnly {
-		return
+	if ok && opts.skipExisting {
+		return false
 	}
 
-	if ok && !opts.override {
-		return
+	if !ok && opts.updateExistingOnly {
+		return false
 	}
 
 	if ok {
@@ -100,7 +100,7 @@ func (c *LRUCache) Set(key string, value any, opts *options) {
 		entry.value = value
 
 		c.list.MoveToFront(element)
-		return
+		return true
 	}
 
 	// Key is new: Create a new entry
@@ -117,4 +117,6 @@ func (c *LRUCache) Set(key string, value any, opts *options) {
 	if c.list.Len() > c.capacity {
 		c.evictOldest()
 	}
+
+	return true
 }

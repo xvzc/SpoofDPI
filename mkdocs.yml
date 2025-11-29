@@ -56,25 +56,31 @@ nav:
   - 'User Guide':
     - 'Configuration': user-guide/configuration.md
     - 'CLI Reference':
-      - 'listen-addr': user-guide/cli-reference/listen-addr.md
-      - 'listen-port': user-guide/cli-reference/listen-port.md
-      - 'dns-addr': user-guide/cli-reference/dns-addr.md
-      - 'dns-port': user-guide/cli-reference/dns-port.md
-      - 'dns-ipv4-only': user-guide/cli-reference/dns-ipv4-only.md
-      - 'enable-doh': user-guide/cli-reference/enable-doh.md
-      - 'doh-endpoint': user-guide/cli-reference/doh-endpoint.md
-      - 'policy': user-guide/cli-reference/policy.md
-      - 'auto-policy': user-guide/cli-reference/auto-policy.md
-      - 'window-size': user-guide/cli-reference/window-size.md
-      - 'fake-https-packets': user-guide/cli-reference/fake-https-packets.md
-      - 'cache-shards': user-guide/cli-reference/cache-shards.md
-      - 'system-proxy': user-guide/cli-reference/system-proxy.md
-      - 'timeout': user-guide/cli-reference/timeout.md
-      - 'config': user-guide/cli-reference/config.md
-      - 'clean': user-guide/cli-reference/clean.md
-      - 'log-level': user-guide/cli-reference/log-level.md
-      - 'silent': user-guide/cli-reference/silent.md
-      - 'version': user-guide/cli-reference/version.md
+      - 'Network':
+        - 'listen-addr': user-guide/cli-reference/listen-addr.md
+        - 'listen-port': user-guide/cli-reference/listen-port.md
+        - 'default-ttl': user-guide/cli-reference/default-ttl.md
+        - 'system-proxy': user-guide/cli-reference/system-proxy.md
+        - 'timeout': user-guide/cli-reference/timeout.md
+      - 'DNS':
+        - 'dns-addr': user-guide/cli-reference/dns-addr.md
+        - 'dns-port': user-guide/cli-reference/dns-port.md
+        - 'dns-ipv4-only': user-guide/cli-reference/dns-ipv4-only.md
+        - 'enable-doh': user-guide/cli-reference/enable-doh.md
+        - 'doh-endpoint': user-guide/cli-reference/doh-endpoint.md
+      - 'DPI Bypass':
+        - 'policy': user-guide/cli-reference/policy.md
+        - 'auto-policy': user-guide/cli-reference/auto-policy.md
+        - 'window-size': user-guide/cli-reference/window-size.md
+        - 'disorder': user-guide/cli-reference/disorder.md
+        - 'fake-count': user-guide/cli-reference/fake-count.md
+      - 'General':
+        - 'cache-shards': user-guide/cli-reference/cache-shards.md
+        - 'config': user-guide/cli-reference/config.md
+        - 'clean': user-guide/cli-reference/clean.md
+        - 'log-level': user-guide/cli-reference/log-level.md
+        - 'silent': user-guide/cli-reference/silent.md
+        - 'version': user-guide/cli-reference/version.md
     - 'Configuration Recipes': 
       - 'South Korea': user-guide/configuration-recipes/south-korea.md
   - 'Developer Guide':

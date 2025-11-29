@@ -8,13 +8,13 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-var _ Handle = (*DefaultPcapHandle)(nil)
+var _ Handle = (*DefaultHandle)(nil)
 
-type DefaultPcapHandle struct {
+type DefaultHandle struct {
 	*pcap.Handle
 }
 
-func NewPcapHandle(iface *net.Interface) (Handle, error) {
+func NewHandle(iface *net.Interface) (Handle, error) {
 	iHandle, err := pcap.NewInactiveHandle(iface.Name)
 	if err != nil {
 		return nil, err
@@ -42,14 +42,14 @@ func NewPcapHandle(iface *net.Interface) (Handle, error) {
 	// activation successful, nil the inactive handle so defer doesn't close it
 	iHandle = nil
 
-	return &DefaultPcapHandle{handle}, err
+	return &DefaultHandle{handle}, err
 }
 
-func (h *DefaultPcapHandle) ClearBPF() error {
+func (h *DefaultHandle) ClearBPF() error {
 	return h.SetBPFFilter("")
 }
 
-func (h *DefaultPcapHandle) SetBPFRawInstructionFilter(
+func (h *DefaultHandle) SetBPFRawInstructionFilter(
 	inst []BPFInstruction,
 ) error {
 	var converted []pcap.BPFInstruction

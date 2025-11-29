@@ -2,58 +2,58 @@ package appctx
 
 import (
 	"context"
-	"math/rand"
-	"strings"
+	"math/rand/v2"
+	"unsafe"
 )
 
 // We define unexported key types to prevent key collisions with other packages.
 type (
-	scopeCtxKey          struct{}
 	traceIDCtxKey        struct{}
-	domainIncludedCtxKey struct{}
+	policyIncludedCtxKey struct{}
 	shouldExploitCtxKey  struct{}
+	remoteInfoCtxKey     struct{}
 )
-
-// WithScope returns a new context carrying the given scope string.
-func WithScope(ctx context.Context, scope string) context.Context {
-	return context.WithValue(ctx, scopeCtxKey{}, scope)
-}
-
-// ScopeFrom extracts a scope string from the context, if one exists.
-func ScopeFrom(ctx context.Context) (string, bool) {
-	scope, ok := ctx.Value(scopeCtxKey{}).(string)
-	return scope, ok
-}
 
 // WithNewTraceID ensures a trace ID is present in the context.
 // If one does not exist, it generates a new random trace ID and returns
 // a new context carrying it.
 // If one already exists, it returns the original context unmodified.
 func WithNewTraceID(ctx context.Context) context.Context {
-	// Check if a traceId already exists.
+	// Check if a traceID already exists.
 	if _, ok := TraceIDFrom(ctx); ok {
 		// If it already exists, do nothing.
 		return ctx
 	}
 	// If it does not exist, create a new one.
-	return context.WithValue(ctx, traceIDCtxKey{}, generateTraceId())
+	return context.WithValue(ctx, traceIDCtxKey{}, generateTraceID())
 }
 
 // TraceIDFrom extracts a trace ID string from the context, if one exists.
 func TraceIDFrom(ctx context.Context) (string, bool) {
-	traceId, ok := ctx.Value(traceIDCtxKey{}).(string)
+	traceID, ok := ctx.Value(traceIDCtxKey{}).(string)
 	if ok {
-		return traceId, true
+		return traceID, true
 	}
 	return "", false
 }
 
-func WithDomainIncluded(ctx context.Context, patternMatched bool) context.Context {
-	return context.WithValue(ctx, domainIncludedCtxKey{}, patternMatched)
+// WithRemoteInfo returns a new context carrying the given domain name string.
+func WithRemoteInfo(ctx context.Context, domain string) context.Context {
+	return context.WithValue(ctx, remoteInfoCtxKey{}, domain)
 }
 
-func DomainIncludedFrom(ctx context.Context) (bool, bool) {
-	patternMatched, ok := ctx.Value(domainIncludedCtxKey{}).(bool)
+// RemoteInfoFrom extracts a domain name string from the context, if one exists.
+func RemoteInfoFrom(ctx context.Context) (string, bool) {
+	domain, ok := ctx.Value(remoteInfoCtxKey{}).(string)
+	return domain, ok
+}
+
+func WithPolicyIncluded(ctx context.Context, patternMatched bool) context.Context {
+	return context.WithValue(ctx, policyIncludedCtxKey{}, patternMatched)
+}
+
+func PolicyIncludedFrom(ctx context.Context) (bool, bool) {
+	patternMatched, ok := ctx.Value(policyIncludedCtxKey{}).(bool)
 
 	return patternMatched, ok
 }
@@ -68,26 +68,24 @@ func ShouldExploitFrom(ctx context.Context) (bool, bool) {
 	return shouldExploit, ok
 }
 
-// generateTraceId creates a new random trace ID.
+// generateTraceID creates a new random trace ID.
 // This logic remains unexported as it's an implementation detail.
-func generateTraceId() string {
-	sb := strings.Builder{}
-	sb.Grow(35)
+func generateTraceID() string {
+	// 16 hex chars require 16 bytes (each hex char is 1 byte).
+	b := make([]byte, 16)
 
-	var q uint64
-	var r uint8
-	for i := range 32 {
-		if i%15 == 0 {
-			q = rand.Uint64()
-		}
-		q, r = q>>4, uint8(q&0xF)
+	// We use a 64-bit (8 byte) random value, which is encoded as 16 hex characters.
+	q := rand.Uint64()
+
+	// iterate from last index (15) down to 0
+	for i := 15; i >= 0; i-- {
+		r := uint8(q & 0xF)
+		q >>= 4
 		if r > 9 {
-			r += 0x27 // 'a' - 10
+			r += 0x27
 		}
-		sb.WriteByte(r + 0x30) // '0'
-		if i&7 == 7 && i != 31 {
-			sb.WriteByte(0x2D) // '-'
-		}
+		b[i] = r + 0x30
 	}
-	return sb.String()
+
+	return unsafe.String(unsafe.SliceData(b), 16)
 }

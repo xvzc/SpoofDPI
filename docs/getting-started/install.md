@@ -3,7 +3,7 @@
 SpoofDPI requires the [libpcap](https://github.com/the-tcpdump-group/libpcap) library on all operating systems **except Linux**.
 
 ```console
-- MacOS
+- macOS
 $ brew install libpcap 
 
 - FreeBSD
@@ -25,7 +25,7 @@ $ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | b
 You can also install SpoofDPI using package managers of your choice, but note that the version may not be the latest, depending on the [Packaging Status](#packaging-status).
 
 ```console
-- MacOS
+- macOS
 $ brew install spoofdpi
 
 - Arch Linux

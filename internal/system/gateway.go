@@ -13,21 +13,19 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/packet"
 )
 
+func FindGatewayIPAddr() (net.IP, error) {
+	return gateway.DiscoverGateway()
+}
+
 // ResolveGatewayMACAddr finds the default gateway's IP and then resolves its MAC address
 // by actively sending an ARP request.
 func ResolveGatewayMACAddr(
 	logger zerolog.Logger,
 	handle packet.Handle,
+	gatewayIP net.IP,
 	iface *net.Interface,
 	srcIP net.IP, // [MODIFIED] srcIP is now a parameter
 ) (net.HardwareAddr, error) {
-	// 1. Find Gateway (Router) IP
-	gatewayIP, err := gateway.DiscoverGateway()
-	if err != nil {
-		return nil, fmt.Errorf("could not discover gateway: %w", err)
-	}
-	logger.Info().Msgf("gateway ip; %s;", gatewayIP.String())
-
 	// 2. Get our local MAC (srcIP is now provided)
 	// [REMOVED] getInterfaceIPv4 call
 	srcMAC := iface.HardwareAddr
@@ -73,7 +71,7 @@ func ResolveGatewayMACAddr(
 	}
 
 	// 6. Listen for the reply
-	logger.Info().Msgf("arp request sent; %d bytes;", len(buf.Bytes()))
+	logger.Trace().Int("len", len(buf.Bytes())).Msg("arp request sent")
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 
 	timeout := time.After(3 * time.Second) // 3-second timeout
@@ -85,7 +83,7 @@ func ResolveGatewayMACAddr(
 				// Check if it's a reply (Operation=2) and from the IP we expect
 				if arpReply.Operation == layers.ARPReply &&
 					net.IP(arpReply.SourceProtAddress).Equal(gatewayIP) {
-					logger.Info().Msgf("arp reply received; %d bytes;", len(packet.Data()))
+					logger.Trace().Int("len", len(packet.Data())).Msg("arp reply received")
 
 					return net.HardwareAddr(arpReply.SourceHwAddress), nil
 				}
