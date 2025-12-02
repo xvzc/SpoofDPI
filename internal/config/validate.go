@@ -117,3 +117,23 @@ func validateHTTPSEndpoint(v string) error {
 
 	return nil
 }
+
+func validateHTTPSSplitMode(v string) error {
+	if v == "chunk" {
+		return nil
+	}
+
+	if v == "1byte" {
+		return nil
+	}
+
+	if v == "sni" {
+		return nil
+	}
+
+	if v == "none" {
+		return nil
+	}
+
+	return fmt.Errorf("invalid value for https split mode")
+}

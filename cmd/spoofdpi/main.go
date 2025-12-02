@@ -55,6 +55,11 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 			Msgf("config file loaded")
 	}
 
+	// set system-wide proxy configuration.
+	if !cfg.SetSystemProxy {
+		logger.Info().Msg("use `--system-proxy` to automatically set system proxy")
+	}
+
 	resolver := createResolver(logger, cfg)
 	p, err := createProxy(logger, cfg, resolver)
 	if err != nil {
@@ -77,8 +82,6 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 				logger.Fatal().Err(err).Msg("failed to disable system proxy")
 			}
 		}()
-	} else {
-		logger.Info().Msg("use `--system-proxy` to automatically set system proxy")
 	}
 
 	logger.Info().Msg("dns info")
@@ -94,9 +97,17 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 			Msgf("  %s", dnsInfo[i].Name)
 	}
 
+	logger.Info().Msg("https info")
 	logger.Info().
-		Uint8("value", cfg.WindowSize.Value).
-		Msgf("window size")
+		Str("default", cfg.HTTPSSplitDefault.Value).
+		Uint8("chunk-size", cfg.HTTPSChunkSize.Value).
+		Bool("disorder", cfg.HTTPSDisorder).
+		Msg(" split")
+
+	logger.Info().
+		Uint8("count", cfg.HTTPSFakeCount.Value).
+		Msg(" fake")
+
 	logger.Info().
 		Int("len", len(cfg.DomainPolicySlice)).
 		Bool("auto", cfg.AutoPolicy).
@@ -209,6 +220,7 @@ func createPacketObjects(
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not find MAC address of gateway: %w", err)
 	}
+
 	logger.Info().Msg("network info")
 	logger.Info().Str("name", iface.Name).
 		Str("mac", iface.HardwareAddr.String()).
@@ -258,17 +270,17 @@ func createProxy(
 	// create an HTTPS handler.
 	tlsDefault := desync.NewTLSDefault()
 	tlsBypass := tlsDefault
-	if cfg.WindowSize.Value > 0 {
+	if cfg.HTTPSSplitDefault.Value == "chunk" {
 		tlsBypass = desync.NewTLSSplit(
-			cfg.Disorder,
+			cfg.HTTPSDisorder,
 			cfg.DefaultTTL.Value,
-			cfg.WindowSize.Value,
+			cfg.HTTPSChunkSize.Value,
 		)
 	}
 
 	var hopTracker *packet.HopTracker
 	var packetInjector *packet.Injector
-	if cfg.FakeCount.Value > 0 {
+	if cfg.HTTPSFakeCount.Value > 0 {
 		var err error
 		hopTracker, packetInjector, err = createPacketObjects(logger, cfg)
 		if err != nil {
@@ -284,8 +296,8 @@ func createProxy(
 			tlsBypass,
 			hopTracker,
 			packetInjector,
-			cfg.WindowSize.Value,
-			cfg.FakeCount.Value,
+			cfg.HTTPSChunkSize.Value,
+			cfg.HTTPSFakeCount.Value,
 			fakeMsg,
 		)
 	}

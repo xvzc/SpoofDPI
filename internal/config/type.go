@@ -147,6 +147,21 @@ func (e *HTTPSEndpoint) UnmarshalText(text []byte) error {
 	return nil
 }
 
+type HTTPSSplitMode struct {
+	Value string
+}
+
+func (m *HTTPSSplitMode) UnmarshalText(text []byte) error {
+	err := validateHTTPSSplitMode(string(text))
+	if err != nil {
+		return err
+	}
+
+	m.Value = string(text)
+
+	return nil
+}
+
 // ┌──────────────┐
 // │ DomainPolicy │
 // └──────────────┘
