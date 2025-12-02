@@ -7,31 +7,35 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/miekg/dns"
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/applog"
+	"github.com/xvzc/SpoofDPI/internal/logging"
 )
 
-var _ Resolver = (*HTTPSResolver)(nil)
+var _ Resolver = (*DOHResolver)(nil)
 
-type HTTPSResolver struct {
+type DOHResolver struct {
 	logger zerolog.Logger
 
 	client   *http.Client
-	endpoint string
+	upstream string
 }
 
-func (hr *HTTPSResolver) Upstream() string {
-	return hr.endpoint
-}
-
-func NewHTTPSResolver(
+func NewDOHResolver(
 	logger zerolog.Logger,
-	endpoint string,
-) *HTTPSResolver {
-	return &HTTPSResolver{
+	upstream string,
+) *DOHResolver {
+	var dohUpstream string
+	if strings.HasPrefix(upstream, "https://") {
+		dohUpstream = upstream
+	} else {
+		dohUpstream = "https://" + upstream + "/dns-query"
+	}
+
+	return &DOHResolver{
 		logger: logger,
 		client: &http.Client{
 			Timeout: 5 * time.Second,
@@ -45,32 +49,31 @@ func NewHTTPSResolver(
 				MaxIdleConns:        100,
 			},
 		},
-		endpoint: endpoint,
+		upstream: dohUpstream,
 	}
 }
 
-func (hr *HTTPSResolver) Info() []ResolverInfo {
+func (hr *DOHResolver) Info() []ResolverInfo {
 	return []ResolverInfo{
 		{
-			Name:   "https",
-			Dst:    hr.endpoint,
+			Name:   "doh",
+			Dst:    hr.upstream,
 			Cached: CachedStatus{false},
 		},
 	}
 }
 
-func (hr *HTTPSResolver) Resolve(
+func (hr *DOHResolver) Resolve(
 	ctx context.Context,
 	domain string,
 	qTypes []uint16,
-) (RecordSet, error) {
+) (*RecordSet, error) {
 	resCh := lookupAllTypes(ctx, domain, qTypes, hr.exchange)
-	rSet, err := processMessages(ctx, resCh)
-	return rSet, err
+	return processMessages(ctx, resCh)
 }
 
-func (hr *HTTPSResolver) exchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
-	logger := applog.WithLocalScope(hr.logger, ctx, "dns-over-https")
+func (hr *DOHResolver) exchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
+	logger := logging.WithLocalScope(hr.logger, ctx, "dns-over-https")
 
 	pack, err := msg.Pack()
 	if err != nil {
@@ -79,7 +82,7 @@ func (hr *HTTPSResolver) exchange(ctx context.Context, msg *dns.Msg) (*dns.Msg, 
 
 	url := fmt.Sprintf(
 		"%s?dns=%s",
-		hr.endpoint,
+		hr.upstream,
 		base64.RawURLEncoding.EncodeToString(pack),
 		// base64.RawStdEncoding.EncodeToString(pack),
 	)

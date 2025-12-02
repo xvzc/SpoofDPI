@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/applog"
+	"github.com/xvzc/SpoofDPI/internal/logging"
 )
 
 var errBlocked = errors.New("request blocked")
@@ -115,7 +115,7 @@ func tunnelConns(
 	src net.Conn, // Source connection (io.Reader)
 ) {
 	var n int64
-	logger = applog.WithLocalScope(logger, ctx, "tunnel")
+	logger = logging.WithLocalScope(logger, ctx, "tunnel")
 
 	var once sync.Once
 	closeOnce := func() {

@@ -4,7 +4,7 @@
 
 ## Description
 
-Specifies the number of shards used for the cache. (default: 32)
+Specifies the number of shards used for the cache. `(default: 32, max: 255)`
 
 Cached data (e.g., DNS records) must be thread-safe. To avoid lock contention, SpoofDPI stores data across multiple shards.
 

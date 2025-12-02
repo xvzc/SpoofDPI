@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/appctx"
-	"github.com/xvzc/SpoofDPI/internal/applog"
 	"github.com/xvzc/SpoofDPI/internal/desync"
+	"github.com/xvzc/SpoofDPI/internal/logging"
 	"github.com/xvzc/SpoofDPI/internal/proto"
+	"github.com/xvzc/SpoofDPI/internal/session"
 )
 
 var _ Handler = (*HTTPSHandler)(nil)
@@ -43,7 +43,7 @@ func (h *HTTPSHandler) HandleRequest(
 	dstPort int,
 	timeout time.Duration,
 ) error {
-	logger := applog.WithLocalScope(h.logger, ctx, "https")
+	logger := logging.WithLocalScope(h.logger, ctx, "https")
 
 	rConn, err := dialFirstSuccessful(ctx, dstAddrs, dstPort, timeout)
 	if err != nil {
@@ -107,15 +107,16 @@ func (h *HTTPSHandler) HandleRequest(
 	return nil
 }
 
-// handleProxyHandshake sends "200 Connection Established" and reads the subsequent Client Hello.
+// handleProxyHandshake sends "200 Connection Established"
+// and reads the subsequent Client Hello.
 func (h *HTTPSHandler) handleProxyHandshake(
 	ctx context.Context,
 	lConn net.Conn,
 	req *proto.HTTPRequest,
 ) (*proto.TLSMessage, error) {
-	logger := applog.WithLocalScope(h.logger, ctx, "handshake")
+	logger := logging.WithLocalScope(h.logger, ctx, "handshake")
 
-	if _, err := lConn.Write(req.ResConnectionEstablished()); err != nil {
+	if _, err := lConn.Write(req.ConnEstablishedResponse()); err != nil {
 		return nil, err
 	}
 	logger.Trace().Msgf("sent 200 connection established -> %s", lConn.RemoteAddr())
@@ -138,11 +139,11 @@ func (h *HTTPSHandler) sendClientHello(
 	conn net.Conn,
 	msg *proto.TLSMessage,
 ) (int, error) {
-	logger := applog.WithLocalScope(h.logger, ctx, "client_hello")
+	logger := logging.WithLocalScope(h.logger, ctx, "client_hello")
 
 	var strategy desync.TLSDesyncer
 
-	shouldExploit, ok := appctx.ShouldExploitFrom(ctx)
+	shouldExploit, ok := session.ShouldExploitFrom(ctx)
 	if ok {
 		if shouldExploit {
 			strategy = h.tlsBypass

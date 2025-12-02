@@ -8,28 +8,28 @@ import (
 	"github.com/rs/zerolog"
 )
 
-var _ Resolver = (*LocalResolver)(nil)
+var _ Resolver = (*SysResolver)(nil)
 
-type LocalResolver struct {
+type SysResolver struct {
 	logger zerolog.Logger
 
 	*net.Resolver
 }
 
-func NewLocalResolver(
+func NewSystemResolver(
 	logger zerolog.Logger,
-) *LocalResolver {
-	return &LocalResolver{
+) *SysResolver {
+	return &SysResolver{
 		logger:   logger,
 		Resolver: &net.Resolver{PreferGo: true},
 	}
 }
 
-func (lr *LocalResolver) Info() []ResolverInfo {
+func (lr *SysResolver) Info() []ResolverInfo {
 	return []ResolverInfo{
 		{
-			Name:   "local",
-			Dst:    "system-dns",
+			Name:   "sys",
+			Dst:    "system-resolver",
 			Cached: CachedStatus{false},
 		},
 	}
@@ -81,15 +81,15 @@ func filtterAddrs(addrs []net.IPAddr, qTypes []uint16) []net.IPAddr {
 	return filtered
 }
 
-func (lr *LocalResolver) Resolve(
+func (lr *SysResolver) Resolve(
 	ctx context.Context,
 	domain string,
 	qTypes []uint16,
-) (RecordSet, error) {
+) (*RecordSet, error) {
 	addrs, err := lr.LookupIPAddr(ctx, domain)
 	if err != nil {
-		return RecordSet{addrs: []net.IPAddr{}, ttl: 0}, err
+		return nil, err
 	}
 
-	return RecordSet{addrs: filtterAddrs(addrs, qTypes), ttl: 0}, nil
+	return &RecordSet{addrs: filtterAddrs(addrs, qTypes), ttl: 0}, nil
 }

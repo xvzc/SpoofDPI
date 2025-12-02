@@ -9,9 +9,9 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/appctx"
-	"github.com/xvzc/SpoofDPI/internal/applog"
 	"github.com/xvzc/SpoofDPI/internal/datastruct/cache"
+	"github.com/xvzc/SpoofDPI/internal/logging"
+	"github.com/xvzc/SpoofDPI/internal/session"
 )
 
 // HopTracker monitors a pcap handle to find SYN/ACK packets and
@@ -59,7 +59,7 @@ func (ht *HopTracker) StartCapturing() {
 	// Start a dedicated goroutine to process incoming packets.
 	go func() {
 		// Create a base context for this goroutine.
-		ctx := appctx.WithNewTraceID(context.Background())
+		ctx := session.WithNewTraceID(context.Background())
 		for packet := range packets {
 			ht.processPacket(ctx, packet)
 		}
@@ -91,7 +91,7 @@ func (ht *HopTracker) GetOptimalTTL(key string) uint8 {
 
 // processPacket analyzes a single packet to find SYN/ACKs and store hop counts.
 func (ht *HopTracker) processPacket(ctx context.Context, p gopacket.Packet) {
-	logger := applog.WithLocalScope(ht.logger, ctx, "track")
+	logger := logging.WithLocalScope(ht.logger, ctx, "track")
 
 	tcpLayer := p.Layer(layers.LayerTypeTCP)
 	if tcpLayer == nil {

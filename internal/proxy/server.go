@@ -9,18 +9,17 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/appctx"
-	"github.com/xvzc/SpoofDPI/internal/applog"
 	"github.com/xvzc/SpoofDPI/internal/datastruct/tree"
 	"github.com/xvzc/SpoofDPI/internal/dns"
+	"github.com/xvzc/SpoofDPI/internal/logging"
 	"github.com/xvzc/SpoofDPI/internal/packet"
 	"github.com/xvzc/SpoofDPI/internal/proto"
+	"github.com/xvzc/SpoofDPI/internal/session"
 )
 
 type ProxyOptions struct {
+	ListenAddr    net.TCPAddr
 	AutoPolicy    bool
-	ListenAddr    net.IP
-	ListenPort    uint16
 	DNSQueryTypes []uint16
 	Timeout       time.Duration
 }
@@ -63,19 +62,15 @@ func (pxy *Proxy) ListenAndServe(ctx context.Context, wait chan struct{}) {
 
 	logger := pxy.logger.With().Ctx(ctx).Logger()
 
-	listener, err := net.ListenTCP(
-		"tcp",
-		&net.TCPAddr{IP: pxy.opts.ListenAddr, Port: int(pxy.opts.ListenPort)},
-	)
+	listener, err := net.ListenTCP("tcp", &pxy.opts.ListenAddr)
 	if err != nil {
 		pxy.logger.Fatal().
 			Err(err).
-			Msgf("error creating listener on %s:%d", pxy.opts.ListenAddr, pxy.opts.ListenPort)
+			Msgf("error creating listener on %s", pxy.opts.ListenAddr.String())
 	}
 
 	logger.Info().
-		Str("addr", fmt.Sprintf("%s:%d", pxy.opts.ListenAddr, pxy.opts.ListenPort)).
-		Msg("created a listener")
+		Msgf("created a listener on %s", pxy.opts.ListenAddr.String())
 
 	for {
 		conn, err := listener.Accept()
@@ -87,12 +82,12 @@ func (pxy *Proxy) ListenAndServe(ctx context.Context, wait chan struct{}) {
 			continue
 		}
 
-		go pxy.handleConnection(appctx.WithNewTraceID(context.Background()), conn)
+		go pxy.handleConnection(session.WithNewTraceID(context.Background()), conn)
 	}
 }
 
 func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
-	logger := applog.WithLocalScope(pxy.logger, ctx, "conn")
+	logger := logging.WithLocalScope(pxy.logger, ctx, "conn")
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -121,7 +116,7 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 		return
 	}
 
-	ctx = appctx.WithRemoteInfo(ctx, domain)
+	ctx = session.WithRemoteInfo(ctx, domain)
 	logger = logger.With().Ctx(ctx).Logger()
 
 	logger.Debug().
@@ -134,29 +129,15 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 	logger.Debug().Bool("include", domainIncluded).
 		Msg("checked domain policy")
 
-	ctx = appctx.WithPolicyIncluded(ctx, domainIncluded)
+	ctx = session.WithPolicyIncluded(ctx, domainIncluded)
 
-	var dnsFailed bool
 	t1 := time.Now()
 	rSet, err := pxy.resolver.Resolve(ctx, domain, pxy.opts.DNSQueryTypes)
 	dt := time.Since(t1).Milliseconds()
 	if err != nil {
-		dnsFailed = true
-		logger.Warn().
-			Err(err).
-			Str("took", fmt.Sprintf("%dms", dt)).
-			Msg("dns lookup failed")
-	}
+		_, _ = conn.Write(req.BadGatewayResponse())
+		logging.ErrorUnwrapped(&logger, "dns lookup failed", err)
 
-	if rSet.Count() == 0 {
-		dnsFailed = true
-		logger.Warn().
-			Str("took", fmt.Sprintf("%dms", dt)).
-			Msg("dns record not found")
-	}
-
-	if dnsFailed {
-		_, _ = conn.Write(req.ResBadGateway())
 		return
 	}
 
@@ -174,7 +155,7 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 
 	isPrivate := pxy.isPrivateDst(ctx, dstAddrs)
 	shouldExploit := (!isPrivate && domainIncluded)
-	ctx = appctx.WithShouldExploit(ctx, shouldExploit)
+	ctx = session.WithShouldExploit(ctx, shouldExploit)
 
 	if pxy.hopTracker != nil && shouldExploit {
 		pxy.hopTracker.RegisterUntracked(dstAddrs, port)
@@ -209,9 +190,9 @@ func (pxy *Proxy) isRecursiveDst(
 	dstAddrs []net.IPAddr,
 	dstPort int,
 ) bool {
-	logger := applog.WithLocalScope(pxy.logger, ctx, "is_recursive")
+	logger := logging.WithLocalScope(pxy.logger, ctx, "is_recursive")
 
-	if dstPort != int(pxy.opts.ListenPort) {
+	if dstPort != int(pxy.opts.ListenAddr.Port) {
 		return false
 	}
 
@@ -250,7 +231,7 @@ func (pxy *Proxy) isRecursiveDst(
 }
 
 func (pxy *Proxy) isPrivateDst(ctx context.Context, dstAddrs []net.IPAddr) bool {
-	logger := applog.WithLocalScope(pxy.logger, ctx, "is_private")
+	logger := logging.WithLocalScope(pxy.logger, ctx, "is_private")
 
 	for _, dstAddr := range dstAddrs {
 		ip := dstAddr.IP

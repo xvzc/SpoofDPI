@@ -10,7 +10,7 @@ require (
 	github.com/jackpal/gateway v1.1.1
 	github.com/miekg/dns v1.1.61
 	github.com/rs/zerolog v1.33.0
-	github.com/urfave/cli/v3 v3.5.0
+	github.com/urfave/cli/v3 v3.6.1
 	golang.org/x/sys v0.31.0
 )
 

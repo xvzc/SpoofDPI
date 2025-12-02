@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/appctx"
-	"github.com/xvzc/SpoofDPI/internal/applog"
+	"github.com/xvzc/SpoofDPI/internal/logging"
+	"github.com/xvzc/SpoofDPI/internal/session"
 )
 
 type RouteResolver struct {
@@ -39,11 +39,11 @@ func (rr *RouteResolver) Resolve(
 	ctx context.Context,
 	domain string,
 	qTypes []uint16,
-) (RecordSet, error) {
-	logger := applog.WithLocalScope(rr.logger, ctx, "route")
+) (*RecordSet, error) {
+	logger := logging.WithLocalScope(rr.logger, ctx, "route")
 
 	if ip, err := parseIpAddr(domain); err == nil {
-		return RecordSet{addrs: []net.IPAddr{(*ip)}, ttl: 0}, nil
+		return &RecordSet{addrs: []net.IPAddr{(*ip)}, ttl: 0}, nil
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
@@ -51,7 +51,7 @@ func (rr *RouteResolver) Resolve(
 
 	resolver := rr.route(ctx)
 	if resolver == nil {
-		return RecordSet{addrs: []net.IPAddr{}, ttl: 0}, fmt.Errorf(
+		return nil, fmt.Errorf(
 			"error routing dns resolver",
 		)
 	}
@@ -64,14 +64,14 @@ func (rr *RouteResolver) Resolve(
 
 	rSet, err := resolver.Resolve(ctx, domain, qTypes)
 	if err != nil {
-		return RecordSet{addrs: []net.IPAddr{}, ttl: 0}, err
+		return nil, err
 	}
 
 	return rSet, nil
 }
 
 func (rr *RouteResolver) route(ctx context.Context) Resolver {
-	policyIncluded, _ := appctx.PolicyIncludedFrom(ctx)
+	policyIncluded, _ := session.PolicyIncludedFrom(ctx)
 	if policyIncluded {
 		return rr.mainResolver
 	}

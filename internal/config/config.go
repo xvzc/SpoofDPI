@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 
@@ -13,14 +12,12 @@ type Config struct {
 	CacheShards       Uint8Number    `toml:"cache-shards"`
 	DefaultTTL        Uint8Number    `toml:"default-ttl"`
 	Disorder          bool           `toml:"disorder"`
-	DnsAddr           IPAddress      `toml:"dns-addr"`
-	DnsIPv4Only       bool           `toml:"dns-ipv4-only"`
-	DnsPort           Uint16Number   `toml:"dns-port"`
-	DOHEndpoint       HTTPSEndpoint  `toml:"doh-endpoint"`
-	EnableDOH         bool           `toml:"enable-doh"`
+	DNSAddr           HostPort       `toml:"dns-addr"`
+	DNSDefault        DNSMode        `toml:"dns-default"`
+	DNSQueryType      DNSQueryType   `toml:"dns-qtype"`
+	DOHURL            HTTPSEndpoint  `toml:"doh-url"`
 	FakeCount         Uint8Number    `toml:"fake-count"`
-	ListenAddr        IPAddress      `toml:"listen-addr"`
-	ListenPort        Uint16Number   `toml:"listen-port"`
+	ListenAddr        HostPort       `toml:"listen-addr"`
 	LogLevel          LogLevel       `toml:"log-level"`
 	DomainPolicySlice []DomainPolicy `toml:"policy"`
 	SetSystemProxy    bool           `toml:"system-proxy"`
@@ -30,23 +27,16 @@ type Config struct {
 }
 
 func (c *Config) GenerateDnsQueryTypes() []uint16 {
-	if c.DnsIPv4Only {
+	switch c.DNSQueryType.Value {
+	case "ipv4":
 		return []uint16{dns.TypeA}
-	} else {
+	case "ipv6":
+		return []uint16{dns.TypeAAAA}
+	case "all":
 		return []uint16{dns.TypeA, dns.TypeAAAA}
+	default:
+		return []uint16{}
 	}
-}
-
-func (c *Config) GenerateDOHEndpoint() string {
-	if c.DOHEndpoint.Value() == "" {
-		return fmt.Sprintf("https://%s/dns-query", c.DnsAddr.value.String())
-	} else {
-		return c.DOHEndpoint.Value()
-	}
-}
-
-func (c *Config) ShouldEnableDOH() bool {
-	return c.EnableDOH || (c.DOHEndpoint.Value() != "")
 }
 
 func mergeConfig(argsCfg *Config, tomlCfg *Config, args []string) *Config {
