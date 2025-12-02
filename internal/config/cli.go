@@ -149,9 +149,11 @@ func CreateCommand(
 			&cli.IntFlag{
 				Name: "https-chunk-size",
 				Usage: `
-				The chunk size (in bytes) for packet fragmentation. Only used when 
-				'https-split-default' is 'chunk'. Setting to '0' disables fragmentation 
-				regardless of the split mode. (default: 35, max: 255)`,
+				The chunk size (in bytes) for packet fragmentation. This value is only applied 
+				when 'https-split-default' is 'chunk'. While setting the size to '0' internally 
+				disables fragmentation (to avoid division-by-zero errors), you should set 
+				'https-split-default' to 'none' to disable the feature cleanly.
+				(default: 35, max: 255)`,
 				Value:            35,
 				OnlyOnce:         true,
 				Validator:        validateUint8,
