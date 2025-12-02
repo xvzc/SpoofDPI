@@ -42,7 +42,7 @@ func validatePolicy(v string) error {
 	}
 
 	if !r.MatchString(v) {
-		return fmt.Errorf("wrong formatted policy")
+		return fmt.Errorf("invalid policy format")
 	}
 
 	return nil
@@ -61,7 +61,7 @@ func validateDNSDefaultMode(v string) error {
 		return nil
 	}
 
-	return fmt.Errorf("wrong value '%s' for default dns mode", v)
+	return fmt.Errorf("invalid value '%s' for default dns mode", v)
 }
 
 func validateDNSMode(v string) error {
@@ -85,7 +85,7 @@ func validateDNSQueryType(v string) error {
 		return nil
 	}
 
-	return fmt.Errorf("wrong value '%s' for dns query type", v)
+	return fmt.Errorf("invalid value '%s' for dns query type", v)
 }
 
 func validateHostPort(v string) error {
