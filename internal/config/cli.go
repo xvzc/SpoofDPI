@@ -138,9 +138,9 @@ func CreateCommand(
 
 			&cli.StringFlag{
 				Name: "https-split-default",
-				Usage: ` <'chunk'|'1byte'|'sni'|none'>
+				Usage: `<'chunk'|'1byte'|'sni'|'none'>
 				Specifies the default packet fragmentation strategy to use. (default: 'chunk')`,
-				Value:            "none",
+				Value:            "chunk",
 				OnlyOnce:         true,
 				Validator:        validateHTTPSSplitMode,
 				ValidateDefaults: true,
@@ -149,8 +149,9 @@ func CreateCommand(
 			&cli.IntFlag{
 				Name: "https-chunk-size",
 				Usage: `
-				The chunk size (in bytes) used when 'https-split-default' is set to 'chunk'.
-				Setting this option to '0' disables fragmentation. (default: 35, max: 255)`,
+				The chunk size (in bytes) for packet fragmentation. Only used when 
+				'https-split-default' is 'chunk'. Setting to '0' disables fragmentation 
+				regardless of the split mode. (default: 35, max: 255)`,
 				Value:            35,
 				OnlyOnce:         true,
 				Validator:        validateUint8,

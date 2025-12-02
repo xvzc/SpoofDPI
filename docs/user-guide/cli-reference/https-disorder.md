@@ -1,4 +1,4 @@
-# disorder
+# https-disorder
 
 `type: boolean`
 
@@ -11,16 +11,16 @@ This simulates network disorder, potentially causing fragments to arrive out of 
 It complicates the packet reassembly process, improving bypass reliability.
 
 !!! note
-    If [window-size](./window-size.md) is `0`, all data is sent as a single chunk, so disordering does not occur.
+    If [https-chunk-size](./https-chunk-size.md) is `0`, all data is sent as a single chunk, so disordering does not occur.
 
 ## Usage
 
 ### Command-Line Flag
 ```console
-$ spoofdpi --disorder
+$ spoofdpi --https-disorder
 ```
 
 ### TOML Config
 ```toml
-disorder = true
+https-disorder = true
 ```
