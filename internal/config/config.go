@@ -11,19 +11,20 @@ type Config struct {
 	AutoPolicy        bool           `toml:"auto-policy"`
 	CacheShards       Uint8Number    `toml:"cache-shards"`
 	DefaultTTL        Uint8Number    `toml:"default-ttl"`
-	Disorder          bool           `toml:"disorder"`
 	DNSAddr           HostPort       `toml:"dns-addr"`
 	DNSDefault        DNSMode        `toml:"dns-default"`
 	DNSQueryType      DNSQueryType   `toml:"dns-qtype"`
 	DOHURL            HTTPSEndpoint  `toml:"doh-url"`
-	FakeCount         Uint8Number    `toml:"fake-count"`
+	HTTPSDisorder     bool           `toml:"https-disorder"`
+	HTTPSFakeCount    Uint8Number    `toml:"https-fake-count"`
+	HTTPSSplitDefault HTTPSSplitMode `toml:"https-split-default"`
+	HTTPSChunkSize    Uint8Number    `toml:"https-chunk-size"`
 	ListenAddr        HostPort       `toml:"listen-addr"`
 	LogLevel          LogLevel       `toml:"log-level"`
 	DomainPolicySlice []DomainPolicy `toml:"policy"`
 	SetSystemProxy    bool           `toml:"system-proxy"`
 	Silent            bool           `toml:"silent"`
 	Timeout           Uint16Number   `toml:"timeout"`
-	WindowSize        Uint8Number    `toml:"window-size"`
 }
 
 func (c *Config) GenerateDnsQueryTypes() []uint16 {

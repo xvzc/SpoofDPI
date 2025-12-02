@@ -74,13 +74,6 @@ func CreateCommand(
 				ValidateDefaults: true,
 			},
 
-			&cli.BoolFlag{
-				Name: "disorder",
-				Usage: `
-				If set, the fragmented Client Hello packets will be sent out-of-order.`,
-				OnlyOnce: true,
-			},
-
 			&cli.StringFlag{
 				Name: "dns-addr",
 				Usage: `<ip:port>
@@ -126,11 +119,42 @@ func CreateCommand(
 			},
 
 			&cli.IntFlag{
-				Name: "fake-count",
+				Name: "https-fake-count",
 				Usage: `
-				Number of fake packets to be sent before Client Hello. 
-				If 'window-size' is greater than 0, each fake packet will be 
-				fragmented into segments of the specified window size. (default: 0)`,
+				Number of fake packets to be sent before the Client Hello.
+				Requires 'https-chunk-size' > 0 for fragmentation. (default: 0)`,
+				Value:            0,
+				OnlyOnce:         true,
+				Validator:        validateUint8,
+				ValidateDefaults: true,
+			},
+
+			&cli.BoolFlag{
+				Name: "https-disorder",
+				Usage: `
+				If set, sends fragmented Client Hello packets out-of-order. (default: false)`,
+				OnlyOnce: true,
+			},
+
+			&cli.StringFlag{
+				Name: "https-split-default",
+				Usage: `<'chunk'|'1byte'|'sni'|'none'>
+				Specifies the default packet fragmentation strategy to use. (default: 'chunk')`,
+				Value:            "chunk",
+				OnlyOnce:         true,
+				Validator:        validateHTTPSSplitMode,
+				ValidateDefaults: true,
+			},
+
+			&cli.IntFlag{
+				Name: "https-chunk-size",
+				Usage: `
+				The chunk size (in bytes) for packet fragmentation. This value is only applied 
+				when 'https-split-default' is 'chunk'. While setting the size to '0' internally 
+				disables fragmentation (to avoid division-by-zero errors), you should set 
+				'https-split-default' to 'none' to disable the feature cleanly.
+				(default: 35, max: 255)`,
+				Value:            35,
 				OnlyOnce:         true,
 				Validator:        validateUint8,
 				ValidateDefaults: true,
@@ -202,18 +226,6 @@ func CreateCommand(
 				Print version; this may contain some other relevant information`,
 				Aliases:  []string{"v"},
 				OnlyOnce: true,
-			},
-
-			&cli.IntFlag{
-				Name: "window-size",
-				Usage: `
-				Specifies the chunk size in bytes for the Client Hello packet.
-				Try lower values if the default fails to bypass the DPI.
-				Setting this to 0 disables fragmentation. (default: 35, max: 255)`,
-				Value:            35,
-				OnlyOnce:         true,
-				Validator:        validateUint8,
-				ValidateDefaults: true,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -308,19 +320,20 @@ func parseConfigFromArgs(cmd *cli.Command) (*Config, error) {
 		AutoPolicy:        cmd.Bool("auto-policy"),
 		CacheShards:       Uint8Number{uint8(cmd.Int("cache-shards"))},
 		DefaultTTL:        Uint8Number{uint8(cmd.Int("default-ttl"))},
-		Disorder:          cmd.Bool("disorder"),
 		DNSAddr:           dnsAddr,
 		DNSDefault:        DNSMode{cmd.String("dns-default")},
 		DNSQueryType:      DNSQueryType{cmd.String("dns-qtype")},
 		DOHURL:            HTTPSEndpoint{cmd.String("doh-url")},
 		DomainPolicySlice: parseDomainPolicySlice(cmd.StringSlice("policy")),
+		HTTPSChunkSize:    Uint8Number{uint8(cmd.Int("https-chunk-size"))},
+		HTTPSDisorder:     cmd.Bool("https-disorder"),
+		HTTPSFakeCount:    Uint8Number{uint8(cmd.Int("https-fake-count"))},
+		HTTPSSplitDefault: HTTPSSplitMode{cmd.String("https-split-default")},
 		ListenAddr:        listenAddr,
 		LogLevel:          LogLevel{cmd.String("log-level")},
 		SetSystemProxy:    cmd.Bool("system-proxy"),
 		Silent:            cmd.Bool("silent"),
 		Timeout:           Uint16Number{uint16(cmd.Int("timeout"))},
-		WindowSize:        Uint8Number{uint8(cmd.Int("window-size"))},
-		FakeCount:         Uint8Number{uint8(cmd.Int("fake-count"))},
 	}
 
 	return cfg, nil

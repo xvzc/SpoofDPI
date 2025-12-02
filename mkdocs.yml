@@ -69,9 +69,10 @@ nav:
       - 'DPI Bypass':
         - 'policy': user-guide/cli-reference/policy.md
         - 'auto-policy': user-guide/cli-reference/auto-policy.md
-        - 'window-size': user-guide/cli-reference/window-size.md
-        - 'disorder': user-guide/cli-reference/disorder.md
-        - 'fake-count': user-guide/cli-reference/fake-count.md
+        - 'https-split-default': user-guide/cli-reference/https-split-default.md
+        - 'https-chunk-size': user-guide/cli-reference/https-chunk-size.md
+        - 'https-disorder': user-guide/cli-reference/https-disorder.md
+        - 'https-fake-count': user-guide/cli-reference/https-fake-count.md
       - 'General':
         - 'cache-shards': user-guide/cli-reference/cache-shards.md
         - 'config': user-guide/cli-reference/config.md

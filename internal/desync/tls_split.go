@@ -119,6 +119,10 @@ func split(data []byte, size int) [][]byte {
 		return [][]byte{}
 	}
 
+	if size == 0 {
+		return [][]byte{data}
+	}
+
 	capacity := (len(data) + size - 1) / size
 	chunks := make([][]byte, 0, capacity)
 

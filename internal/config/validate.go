@@ -5,6 +5,7 @@ import (
 	"math"
 	"net"
 	"regexp"
+	"slices"
 	"strconv"
 
 	"github.com/rs/zerolog"
@@ -116,4 +117,17 @@ func validateHTTPSEndpoint(v string) error {
 	}
 
 	return nil
+}
+
+func validateHTTPSSplitMode(v string) error {
+	validModes := []string{"chunk", "1byte", "sni", "none"}
+	if slices.Contains(validModes, v) {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"invalid value for https split mode: %s (expected one of: %v)",
+		v,
+		validModes,
+	)
 }
