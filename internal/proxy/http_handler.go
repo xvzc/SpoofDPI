@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/applog"
+	"github.com/xvzc/SpoofDPI/internal/logging"
 	"github.com/xvzc/SpoofDPI/internal/proto"
 )
 
@@ -31,7 +31,7 @@ func (h *HTTPHandler) HandleRequest(
 	dstPort int,
 	timeout time.Duration,
 ) error {
-	logger := applog.WithLocalScope(h.logger, ctx, "http")
+	logger := logging.WithLocalScope(h.logger, ctx, "http")
 
 	rConn, err := dialFirstSuccessful(ctx, dstAddrs, dstPort, timeout)
 	if err != nil {

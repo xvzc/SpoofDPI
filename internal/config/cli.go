@@ -3,7 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
-	"net"
+	"io"
 	"os"
 	"path"
 	"strings"
@@ -23,6 +23,10 @@ func CreateCommand(
 		Name:        "spoofdpi",
 		Description: "Simple and fast anti-censorship tool to bypass DPI",
 		Copyright:   "Apache License, Version 2.0, January 2004",
+		ErrWriter:   io.Discard,
+		OnUsageError: func(ctx context.Context, cmd *cli.Command, err error, sub bool) error {
+			return err
+		},
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name: "auto-policy",
@@ -36,9 +40,10 @@ func CreateCommand(
 				Usage: `
 				Number of shards to use for ttlcache. It is recommended to set this to be 
 				at least the number of CPU cores for optimal performance (default: 32, max: 255)`,
-				Value:     32,
-				OnlyOnce:  true,
-				Validator: validateUint8,
+				Value:            32,
+				OnlyOnce:         true,
+				Validator:        validateUint8,
+				ValidateDefaults: true,
 			},
 
 			&cli.BoolFlag{
@@ -54,17 +59,19 @@ func CreateCommand(
 				Usage: `
 				Custom location of the config file to load. Options given through the command 
 				line flags will override the options set in this file.`,
-				OnlyOnce: true,
-				Sources:  cli.EnvVars("SPOOFDPI_CONFIG"),
+				OnlyOnce:         true,
+				Sources:          cli.EnvVars("SPOOFDPI_CONFIG"),
+				ValidateDefaults: true,
 			},
 
 			&cli.IntFlag{
 				Name: "default-ttl",
 				Usage: `
 				Default TTL value for manipulated packets.`,
-				Value:     64,
-				OnlyOnce:  true,
-				Validator: validateUint8,
+				Value:            64,
+				OnlyOnce:         true,
+				Validator:        validateUint8,
+				ValidateDefaults: true,
 			},
 
 			&cli.BoolFlag{
@@ -76,43 +83,46 @@ func CreateCommand(
 
 			&cli.StringFlag{
 				Name: "dns-addr",
-				Usage: `
-				DNS address (default: 8.8.8.8)`,
-				Value:     "8.8.8.8",
-				OnlyOnce:  true,
-				Validator: validateIPAddr,
-			},
-
-			&cli.BoolFlag{
-				Name: "dns-ipv4-only",
-				Usage: `
-				Resolve only IPv4 addresses`,
-				OnlyOnce: true,
-			},
-
-			&cli.IntFlag{
-				Name: "dns-port",
-				Usage: `
-				Port number for dns (default: 53)`,
-				Value:     53,
-				OnlyOnce:  true,
-				Validator: validateUint16,
+				Usage: `<ip:port>
+				Upstream DNS server address for standard UDP queries.
+				(default: 8.8.8.8:53)`,
+				Value:            "8.8.8.8:53",
+				OnlyOnce:         true,
+				Validator:        validateHostPort,
+				ValidateDefaults: true,
 			},
 
 			&cli.StringFlag{
-				Name: "doh-endpoint",
-				Usage: `
-				Endpoint for 'dns over https' (default: "https://${DNS_ADDR}/dns-query")`,
-				Value:     "",
-				OnlyOnce:  true,
-				Validator: validateHTTPSEndpoint,
+				Name: "dns-default",
+				Usage: `<'udp'|'doh'|'sys'>
+				Default resolution mode for domains that do not match any specific rule.
+				(default: "udp")`,
+				Value:            "udp",
+				OnlyOnce:         true,
+				Validator:        validateDNSMode,
+				ValidateDefaults: true,
 			},
 
-			&cli.BoolFlag{
-				Name: "enable-doh",
-				Usage: `
-				Enable 'dns-over-https'`,
-				OnlyOnce: true,
+			&cli.StringFlag{
+				Name: "dns-qtype",
+				Usage: `<'ipv4'|'ipv6'|'all'>
+				Filters DNS queries by record type (A for IPv4, AAAA for IPv6).
+				(default: "ipv4")`,
+				Value:            "ipv4",
+				OnlyOnce:         true,
+				Validator:        validateDNSQueryType,
+				ValidateDefaults: true,
+			},
+
+			&cli.StringFlag{
+				Name: "doh-url",
+				Usage: `<https_url>
+				Endpoint URL for DNS over HTTPS (DoH) queries.
+				(default: "https://dns.google/dns-query")`,
+				Value:            "https://dns.google/dns-query",
+				OnlyOnce:         true,
+				Validator:        validateHTTPSEndpoint,
+				ValidateDefaults: true,
 			},
 
 			&cli.IntFlag{
@@ -121,42 +131,29 @@ func CreateCommand(
 				Number of fake packets to be sent before Client Hello. 
 				If 'window-size' is greater than 0, each fake packet will be 
 				fragmented into segments of the specified window size. (default: 0)`,
-				OnlyOnce:  true,
-				Validator: validateUint8,
+				OnlyOnce:         true,
+				Validator:        validateUint8,
+				ValidateDefaults: true,
 			},
 
 			&cli.StringFlag{
 				Name: "listen-addr",
 				Usage: `
-				IP address to listen on (default: 127.0.0.1)`,
-				Value:    "127.0.0.1",
-				OnlyOnce: true,
-				Validator: func(v string) error {
-					err := validateIPAddr(v)
-					if err != nil {
-						return err
-					}
-
-					return nil
-				},
-			},
-
-			&cli.IntFlag{
-				Name: "listen-port",
-				Usage: `
-				Port number to listen on (default: 8080)`,
-				Value:     8080,
-				OnlyOnce:  true,
-				Validator: validateUint16,
+				IP address to listen on (default: 127.0.0.1:8080)`,
+				Value:            "127.0.0.1:8080",
+				OnlyOnce:         true,
+				Validator:        validateHostPort,
+				ValidateDefaults: true,
 			},
 
 			&cli.StringFlag{
 				Name: "log-level",
 				Usage: `
 				Set log level (default: 'info')`,
-				Value:     "info",
-				OnlyOnce:  true,
-				Validator: validateLogLevel,
+				Value:            "info",
+				OnlyOnce:         true,
+				Validator:        validateLogLevel,
+				ValidateDefaults: true,
 			},
 
 			&cli.StringSliceFlag{
@@ -213,9 +210,10 @@ func CreateCommand(
 				Specifies the chunk size in bytes for the Client Hello packet.
 				Try lower values if the default fails to bypass the DPI.
 				Setting this to 0 disables fragmentation. (default: 35, max: 255)`,
-				Value:     35,
-				OnlyOnce:  true,
-				Validator: validateUint8,
+				Value:            35,
+				OnlyOnce:         true,
+				Validator:        validateUint8,
+				ValidateDefaults: true,
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -289,10 +287,10 @@ GLOBAL OPTIONS:
 	{{end}}{{end}}
 	`,
 		"{{.Name}} - {{.Description}}",
-		"{{.Name}}",
+		"{{.Name}}", // spoofdpi
 		"[global options]",
-		"--{{.Name}}",
-		", -{{.}}",
+		"--{{.Name}}", // --option
+		", -{{.}}",    // -o
 		"{{.TypeName}}",
 		"{{.Usage}}",
 		"{{.DefaultText}}",
@@ -300,19 +298,23 @@ GLOBAL OPTIONS:
 }
 
 func parseConfigFromArgs(cmd *cli.Command) (*Config, error) {
+	listenAddr := HostPort{}
+	_ = listenAddr.UnmarshalText([]byte(cmd.String("listen-addr")))
+
+	dnsAddr := HostPort{}
+	_ = dnsAddr.UnmarshalText([]byte(cmd.String("dns-addr")))
+
 	cfg := &Config{
 		AutoPolicy:        cmd.Bool("auto-policy"),
 		CacheShards:       Uint8Number{uint8(cmd.Int("cache-shards"))},
 		DefaultTTL:        Uint8Number{uint8(cmd.Int("default-ttl"))},
 		Disorder:          cmd.Bool("disorder"),
-		DnsAddr:           IPAddress{net.ParseIP(cmd.String("dns-addr"))},
-		DnsPort:           Uint16Number{uint16(cmd.Int("dns-port"))},
-		DnsIPv4Only:       cmd.Bool("dns-ipv4-only"),
-		DOHEndpoint:       HTTPSEndpoint{cmd.String("doh-endpoint")},
+		DNSAddr:           dnsAddr,
+		DNSDefault:        DNSMode{cmd.String("dns-default")},
+		DNSQueryType:      DNSQueryType{cmd.String("dns-qtype")},
+		DOHURL:            HTTPSEndpoint{cmd.String("doh-url")},
 		DomainPolicySlice: parseDomainPolicySlice(cmd.StringSlice("policy")),
-		EnableDOH:         cmd.Bool("enable-doh"),
-		ListenAddr:        IPAddress{net.ParseIP(cmd.String("listen-addr"))},
-		ListenPort:        Uint16Number{uint16(cmd.Int("listen-port"))},
+		ListenAddr:        listenAddr,
 		LogLevel:          LogLevel{cmd.String("log-level")},
 		SetSystemProxy:    cmd.Bool("system-proxy"),
 		Silent:            cmd.Bool("silent"),

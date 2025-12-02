@@ -15,7 +15,7 @@ import (
 
 type Resolver interface {
 	Info() []ResolverInfo
-	Resolve(ctx context.Context, domain string, qTypes []uint16) (RecordSet, error)
+	Resolve(ctx context.Context, domain string, qTypes []uint16) (*RecordSet, error)
 }
 
 type ResolverInfo struct {
@@ -42,7 +42,7 @@ func (s *CachedStatus) String() string {
 
 type exchangeFunc = func(ctx context.Context, msg *dns.Msg) (*dns.Msg, error)
 
-type MsgEnvelope struct {
+type MsgChan struct {
 	msg *dns.Msg
 	err error
 }
@@ -87,7 +87,7 @@ func lookupType(
 	domain string,
 	queryType uint16,
 	exchange exchangeFunc,
-) *MsgEnvelope {
+) *MsgChan {
 	resMsg, err := exchange(ctx, newMsg(domain, queryType))
 	if err != nil {
 		queryName := recordTypeIDToName(queryType)
@@ -98,10 +98,10 @@ func lookupType(
 			err,
 		)
 
-		return &MsgEnvelope{msg: nil, err: err}
+		return &MsgChan{msg: nil, err: err}
 	}
 
-	return &MsgEnvelope{msg: resMsg, err: nil}
+	return &MsgChan{msg: resMsg, err: nil}
 }
 
 func lookupAllTypes(
@@ -109,9 +109,9 @@ func lookupAllTypes(
 	domain string,
 	qTypes []uint16,
 	exchange exchangeFunc,
-) <-chan *MsgEnvelope {
+) <-chan *MsgChan {
 	var wg sync.WaitGroup
-	resCh := make(chan *MsgEnvelope)
+	resCh := make(chan *MsgChan)
 
 	for _, qType := range qTypes {
 		wg.Add(1)
@@ -158,8 +158,8 @@ func parseMsg(msg *dns.Msg) ([]net.IPAddr, uint32, bool) {
 
 func processMessages(
 	ctx context.Context,
-	resCh <-chan *MsgEnvelope,
-) (RecordSet, error) {
+	resCh <-chan *MsgChan,
+) (*RecordSet, error) {
 	var errs []error
 	var addrs []net.IPAddr
 
@@ -183,10 +183,10 @@ func processMessages(
 
 	select {
 	case <-ctx.Done():
-		return RecordSet{}, fmt.Errorf("context is canceled")
+		return nil, fmt.Errorf("context is canceled")
 	default:
 		if len(addrs) == 0 {
-			return RecordSet{}, errors.Join(errs...)
+			return nil, errors.Join(errs...)
 		}
 	}
 
@@ -196,5 +196,5 @@ func processMessages(
 
 	addrselect.SortByRFC6724(addrs)
 
-	return RecordSet{addrs: addrs, ttl: minTTL}, nil
+	return &RecordSet{addrs: addrs, ttl: minTTL}, nil
 }

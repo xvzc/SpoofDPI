@@ -13,11 +13,7 @@ import (
 // │ UINT8 │
 // └───────┘
 type Uint8Number struct {
-	value uint8
-}
-
-func (u *Uint8Number) Value() uint8 {
-	return u.value
+	Value uint8
 }
 
 func (u *Uint8Number) UnmarshalText(text []byte) error {
@@ -30,25 +26,7 @@ func (u *Uint8Number) UnmarshalText(text []byte) error {
 		return fmt.Errorf("out of range[%d-%d]", 0, math.MaxUint8)
 	}
 
-	u.value = uint8(v)
-
-	return nil
-}
-
-type LogLevel struct {
-	value string
-}
-
-func (l *LogLevel) Value() string {
-	return l.value
-}
-
-func (l *LogLevel) UnmarshalText(text []byte) error {
-	if err := validateLogLevel(string(text)); err != nil {
-		return err
-	}
-
-	l.value = string(text)
+	u.Value = uint8(v)
 
 	return nil
 }
@@ -57,11 +35,7 @@ func (l *LogLevel) UnmarshalText(text []byte) error {
 // │ UINT16 │
 // └────────┘
 type Uint16Number struct {
-	value uint16
-}
-
-func (u *Uint16Number) Value() uint16 {
-	return u.value
+	Value uint16
 }
 
 func (u *Uint16Number) UnmarshalText(text []byte) error {
@@ -74,30 +48,83 @@ func (u *Uint16Number) UnmarshalText(text []byte) error {
 		return err
 	}
 
-	u.value = uint16(v)
+	u.Value = uint16(v)
 
 	return nil
 }
 
-// ┌────────────┐
-// │ IP_ADDRESS │
-// └────────────┘
-type IPAddress struct {
-	value net.IP
+// ┌───────────┐
+// │ LOG_LEVEL │
+// └───────────┘
+type LogLevel struct {
+	Value string
 }
 
-func (a *IPAddress) Value() net.IP {
-	return a.value
+func (l *LogLevel) UnmarshalText(text []byte) error {
+	if err := validateLogLevel(string(text)); err != nil {
+		return err
+	}
+
+	l.Value = string(text)
+
+	return nil
 }
 
-func (c *IPAddress) UnmarshalText(text []byte) error {
+func (l *LogLevel) String() string {
+	return l.Value
+}
+
+// ┌─────────────┐
+// │ TCP_ADDRESS │
+// └─────────────┘
+type HostPort struct {
+	net.TCPAddr
+}
+
+func (a *HostPort) UnmarshalText(text []byte) error {
 	s := string(text)
-	err := validateIPAddr(s)
+	err := validateHostPort(s)
 	if err != nil {
 		return err
 	}
 
-	c.value = net.ParseIP(s)
+	host, port, _ := net.SplitHostPort(s)
+	a.IP = net.ParseIP(host)
+	a.Port, _ = strconv.Atoi(port)
+
+	return nil
+}
+
+// ┌──────────┐
+// │ DNS_MODE │
+// └──────────┘
+type DNSMode struct {
+	Value string
+}
+
+func (a *DNSMode) UnmarshalText(text []byte) error {
+	if err := validateDNSDefaultMode(string(text)); err != nil {
+		return err
+	}
+
+	a.Value = string(text)
+
+	return nil
+}
+
+// ┌────────────────┐
+// │ DNS_QUERY_TYPE │
+// └────────────────┘
+type DNSQueryType struct {
+	Value string
+}
+
+func (a *DNSQueryType) UnmarshalText(text []byte) error {
+	if err := validateDNSQueryType(string(text)); err != nil {
+		return err
+	}
+
+	a.Value = string(text)
 
 	return nil
 }
@@ -106,11 +133,7 @@ func (c *IPAddress) UnmarshalText(text []byte) error {
 // │ HTTPS_ENDPOINT │
 // └────────────────┘
 type HTTPSEndpoint struct {
-	value string
-}
-
-func (e *HTTPSEndpoint) Value() string {
-	return e.value
+	Value string
 }
 
 func (e *HTTPSEndpoint) UnmarshalText(text []byte) error {
@@ -119,7 +142,7 @@ func (e *HTTPSEndpoint) UnmarshalText(text []byte) error {
 		return err
 	}
 
-	e.value = string(text)
+	e.Value = string(text)
 
 	return nil
 }
@@ -129,16 +152,8 @@ func (e *HTTPSEndpoint) UnmarshalText(text []byte) error {
 // └──────────────┘
 // DomainPolicyAction defines the type of action to take for a domain.
 type DomainPolicy struct {
-	value   string
-	include bool
-}
-
-func (dp *DomainPolicy) Value() string {
-	return dp.value
-}
-
-func (dp *DomainPolicy) IsIncluded() bool {
-	return dp.include
+	Rule    string
+	Include bool
 }
 
 func (dp *DomainPolicy) UnmarshalText(text []byte) error {
@@ -150,14 +165,14 @@ func (dp *DomainPolicy) UnmarshalText(text []byte) error {
 
 	parsed := parseDomainPolicy(string(text))
 
-	dp.value = parsed.Value()
-	dp.include = parsed.IsIncluded()
+	dp.Rule = parsed.Rule
+	dp.Include = parsed.Include
 
 	return nil
 }
 
 func parseDomainPolicy(s string) DomainPolicy {
-	prefix, value := string(s[0]), s[2:]
+	prefix, rule := string(s[0]), s[2:]
 
 	var action bool
 	switch prefix {
@@ -170,8 +185,8 @@ func parseDomainPolicy(s string) DomainPolicy {
 	}
 
 	return DomainPolicy{
-		value:   value,
-		include: action,
+		Rule:    rule,
+		Include: action,
 	}
 }
 
@@ -187,7 +202,7 @@ func parseDomainPolicySlice(ss []string) []DomainPolicy {
 func ParseDomainSearchTree(ps []DomainPolicy) tree.SearchTree {
 	rt := tree.NewDomainSearchTree()
 	for _, p := range ps {
-		rt.Insert(p.Value(), p.IsIncluded())
+		rt.Insert(p.Rule, p.Include)
 	}
 
 	return rt

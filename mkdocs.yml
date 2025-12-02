@@ -58,16 +58,14 @@ nav:
     - 'CLI Reference':
       - 'Network':
         - 'listen-addr': user-guide/cli-reference/listen-addr.md
-        - 'listen-port': user-guide/cli-reference/listen-port.md
         - 'default-ttl': user-guide/cli-reference/default-ttl.md
         - 'system-proxy': user-guide/cli-reference/system-proxy.md
         - 'timeout': user-guide/cli-reference/timeout.md
       - 'DNS':
         - 'dns-addr': user-guide/cli-reference/dns-addr.md
-        - 'dns-port': user-guide/cli-reference/dns-port.md
-        - 'dns-ipv4-only': user-guide/cli-reference/dns-ipv4-only.md
-        - 'enable-doh': user-guide/cli-reference/enable-doh.md
-        - 'doh-endpoint': user-guide/cli-reference/doh-endpoint.md
+        - 'dns-default': user-guide/cli-reference/dns-default.md
+        - 'dns-qtype': user-guide/cli-reference/dns-qtype.md
+        - 'doh-url': user-guide/cli-reference/doh-url.md
       - 'DPI Bypass':
         - 'policy': user-guide/cli-reference/policy.md
         - 'auto-policy': user-guide/cli-reference/auto-policy.md

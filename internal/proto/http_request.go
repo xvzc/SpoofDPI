@@ -101,10 +101,10 @@ func (r *HTTPRequest) IsConnectMethod() bool {
 	return r.Method == http.MethodConnect
 }
 
-func (r *HTTPRequest) ResBadGateway() []byte {
+func (r *HTTPRequest) BadGatewayResponse() []byte {
 	return []byte(r.Proto + " 502 Bad Gateway\r\n\r\n")
 }
 
-func (r *HTTPRequest) ResConnectionEstablished() []byte {
+func (r *HTTPRequest) ConnEstablishedResponse() []byte {
 	return []byte(r.Proto + " 200 Connection Established\r\n\r\n")
 }

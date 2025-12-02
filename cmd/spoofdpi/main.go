@@ -11,16 +11,16 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/xvzc/SpoofDPI/internal/appctx"
-	"github.com/xvzc/SpoofDPI/internal/applog"
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/datastruct/cache"
 	"github.com/xvzc/SpoofDPI/internal/datastruct/tree"
 	"github.com/xvzc/SpoofDPI/internal/desync"
 	"github.com/xvzc/SpoofDPI/internal/dns"
+	"github.com/xvzc/SpoofDPI/internal/logging"
 	"github.com/xvzc/SpoofDPI/internal/packet"
 	"github.com/xvzc/SpoofDPI/internal/proto"
 	"github.com/xvzc/SpoofDPI/internal/proxy"
+	"github.com/xvzc/SpoofDPI/internal/session"
 	"github.com/xvzc/SpoofDPI/internal/system"
 )
 
@@ -33,9 +33,9 @@ var (
 
 func main() {
 	cmd := config.CreateCommand(runApp, version, commit, build)
-	ctx := appctx.WithNewTraceID(context.Background())
+	ctx := session.WithNewTraceID(context.Background())
 	if err := cmd.Run(ctx, os.Args); err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
 }
@@ -45,7 +45,7 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 		printBanner()
 	}
 
-	applog.SetGlobalLogger(ctx, cfg.LogLevel.Value())
+	logging.SetGlobalLogger(ctx, cfg.LogLevel.String())
 
 	logger := log.Logger.With().Ctx(ctx).Logger()
 	logger.Info().Str("version", version).Msg("started spoofdpi")
@@ -69,7 +69,7 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 
 	// set system-wide proxy configuration.
 	if cfg.SetSystemProxy {
-		if err := system.SetProxy(logger, cfg.ListenPort.Value()); err != nil {
+		if err := system.SetProxy(logger, uint16(cfg.ListenAddr.Port)); err != nil {
 			logger.Fatal().Err(err).Msg("failed to enable system proxy")
 		}
 		defer func() {
@@ -78,8 +78,7 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 			}
 		}()
 	} else {
-		logger.Info().Bool("enabled", cfg.SetSystemProxy).
-			Msg("use `--system-proxy` to automatically set system proxy")
+		logger.Info().Msg("use `--system-proxy` to automatically set system proxy")
 	}
 
 	logger.Info().Msg("dns info")
@@ -90,23 +89,22 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 	dnsInfo := resolver.Info()
 	for i := range dnsInfo {
 		logger.Info().
-			Str("alias", dnsInfo[i].Name).
 			Str("cached", dnsInfo[i].Cached.String()).
 			Str("dst", dnsInfo[i].Dst).
-			Msgf("  item")
+			Msgf("  %s", dnsInfo[i].Name)
 	}
 
 	logger.Info().
-		Uint8("value", cfg.WindowSize.Value()).
+		Uint8("value", cfg.WindowSize.Value).
 		Msgf("window size")
 	logger.Info().
 		Int("len", len(cfg.DomainPolicySlice)).
 		Bool("auto", cfg.AutoPolicy).
 		Msgf("policy")
 
-	if cfg.Timeout.Value() > 0 {
+	if cfg.Timeout.Value > 0 {
 		logger.Info().
-			Str("value", fmt.Sprintf("%dms", cfg.Timeout.Value())).
+			Str("value", fmt.Sprintf("%dms", cfg.Timeout.Value)).
 			Msgf("connection timeout")
 	}
 
@@ -133,38 +131,37 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 func createResolver(logger zerolog.Logger, cfg *config.Config) dns.Resolver {
 	// create a TTL cache for storing DNS records.
 	dnsCache := cache.NewTTLCache(
-		cfg.CacheShards.Value(),
+		cfg.CacheShards.Value,
 		time.Duration(1*time.Minute),
 	)
 
 	var mainResolver dns.Resolver
-	if cfg.ShouldEnableDOH() { // create a cached DOH resolver if enabled.
+	if cfg.DNSDefault.Value == "doh" { // create a cached DOH resolver if enabled.
 		mainResolver = dns.NewCacheResolver(
-			applog.WithScope(logger, "dns"),
+			logging.WithScope(logger, "dns"),
 			dnsCache,
-			dns.NewHTTPSResolver(
-				applog.WithScope(logger, "dns"),
-				cfg.GenerateDOHEndpoint(),
+			dns.NewDOHResolver(
+				logging.WithScope(logger, "dns"),
+				cfg.DOHURL.Value,
 			),
 		)
 	} else { // create a cached plain resolver if DOH is disabled.
 		mainResolver = dns.NewCacheResolver(
-			applog.WithScope(logger, "dns"),
+			logging.WithScope(logger, "dns"),
 			dnsCache,
-			dns.NewPlainResolver(
-				applog.WithScope(logger, "dns"),
-				cfg.DnsAddr.Value(),
-				cfg.DnsPort.Value(),
+			dns.NewUDPResolver(
+				logging.WithScope(logger, "dns"),
+				cfg.DNSAddr.String(),
 			),
 		)
 	}
 
 	// create a non-cached local resolver.
-	localResolver := dns.NewLocalResolver(applog.WithScope(logger, "dns"))
+	localResolver := dns.NewSystemResolver(logging.WithScope(logger, "dns"))
 
 	// create a resolver that routes DNS queries based on rules.
 	return dns.NewRouteResolver(
-		applog.WithScope(logger, "dns"),
+		logging.WithScope(logger, "dns"),
 		mainResolver,
 		localResolver,
 	)
@@ -185,10 +182,6 @@ func createPacketObjects(
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not find IP address of NIC: %w", err)
 	}
-	logger.Info().Msg("interface info")
-	logger.Info().Str("name", iface.Name).Msg(" item")
-	logger.Info().Str("mac", iface.HardwareAddr.String()).Msg(" item")
-	logger.Info().Str("ip", ifaceIP.String()).Msg(" item")
 
 	// create a pcap handle for packet capturing.
 	handle, err := packet.NewHandle(iface)
@@ -216,22 +209,28 @@ func createPacketObjects(
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not find MAC address of gateway: %w", err)
 	}
-	logger.Info().Msgf("gateway info")
-	logger.Info().Str("mac", gatewayMAC.String()).Msgf(" item")
-	logger.Info().Str("ip", gatewayIP.String()).Msgf(" item")
+	logger.Info().Msg("network info")
+	logger.Info().Str("name", iface.Name).
+		Str("mac", iface.HardwareAddr.String()).
+		Str("ip", ifaceIP.String()).
+		Msg(" interface")
+	logger.Info().
+		Str("mac", gatewayMAC.String()).
+		Str("ip", gatewayIP.String()).
+		Msgf(" gateway")
 
 	hopCache := cache.NewLRUCache(4096)
 	hopTracker := packet.NewHopTracker(
-		applog.WithScope(logger, "pkt"),
+		logging.WithScope(logger, "pkt"),
 		hopCache,
 		handle,
-		cfg.DefaultTTL.Value(),
+		cfg.DefaultTTL.Value,
 	)
 	hopTracker.StartCapturing()
 
 	// create a packet injector instance.
 	packetInjector, err := packet.NewPacketInjector(
-		applog.WithScope(logger, "pkt"),
+		logging.WithScope(logger, "pkt"),
 		handle,
 		iface,
 		gatewayMAC,
@@ -254,22 +253,22 @@ func createProxy(
 	}
 
 	// create an HTTP handler.
-	httpHandler := proxy.NewHTTPHandler(applog.WithScope(logger, "hnd"))
+	httpHandler := proxy.NewHTTPHandler(logging.WithScope(logger, "hnd"))
 
 	// create an HTTPS handler.
 	tlsDefault := desync.NewTLSDefault()
 	tlsBypass := tlsDefault
-	if cfg.WindowSize.Value() > 0 {
+	if cfg.WindowSize.Value > 0 {
 		tlsBypass = desync.NewTLSSplit(
 			cfg.Disorder,
-			cfg.DefaultTTL.Value(),
-			cfg.WindowSize.Value(),
+			cfg.DefaultTTL.Value,
+			cfg.WindowSize.Value,
 		)
 	}
 
 	var hopTracker *packet.HopTracker
 	var packetInjector *packet.Injector
-	if cfg.FakeCount.Value() > 0 {
+	if cfg.FakeCount.Value > 0 {
 		var err error
 		hopTracker, packetInjector, err = createPacketObjects(logger, cfg)
 		if err != nil {
@@ -285,20 +284,20 @@ func createProxy(
 			tlsBypass,
 			hopTracker,
 			packetInjector,
-			cfg.WindowSize.Value(),
-			cfg.FakeCount.Value(),
+			cfg.WindowSize.Value,
+			cfg.FakeCount.Value,
 			fakeMsg,
 		)
 	}
 
 	httpsHandler := proxy.NewHTTPSHandler(
-		applog.WithScope(logger, "hnd"),
+		logging.WithScope(logger, "hnd"),
 		tlsDefault,
 		tlsBypass,
 	)
 
 	return proxy.NewProxy(
-		applog.WithScope(logger, "pxy"),
+		logging.WithScope(logger, "pxy"),
 		resolver,
 		httpHandler,
 		httpsHandler,
@@ -306,10 +305,9 @@ func createProxy(
 		hopTracker,
 		proxy.ProxyOptions{
 			AutoPolicy:    cfg.AutoPolicy,
-			ListenAddr:    cfg.ListenAddr.Value(),
-			ListenPort:    cfg.ListenPort.Value(),
+			ListenAddr:    cfg.ListenAddr.TCPAddr,
 			DNSQueryTypes: cfg.GenerateDnsQueryTypes(),
-			Timeout:       time.Duration(cfg.Timeout.Value()) * time.Millisecond,
+			Timeout:       time.Duration(cfg.Timeout.Value) * time.Millisecond,
 		},
 	), nil
 }

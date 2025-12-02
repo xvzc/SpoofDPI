@@ -2,12 +2,11 @@ package dns
 
 import (
 	"context"
-	"net"
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/applog"
 	"github.com/xvzc/SpoofDPI/internal/datastruct/cache"
+	"github.com/xvzc/SpoofDPI/internal/logging"
 )
 
 // CacheResolver is a decorator that adds caching functionality to another Resolver.
@@ -43,12 +42,12 @@ func (cr *CacheResolver) Resolve(
 	ctx context.Context,
 	domain string,
 	qTypes []uint16,
-) (RecordSet, error) {
-	logger := applog.WithLocalScope(cr.logger, ctx, "cache")
+) (*RecordSet, error) {
+	logger := logging.WithLocalScope(cr.logger, ctx, "cache")
 	// 1. [Cache Read]
 	if item, ok := cr.ttlCache.Get(domain); ok {
 		logger.Trace().Msgf("hit")
-		return item.(RecordSet), nil
+		return item.(*RecordSet), nil
 	}
 
 	// 2. [Cache Miss]
@@ -56,7 +55,7 @@ func (cr *CacheResolver) Resolve(
 	logger.Trace().Str("next", cr.next.Info()[0].Name).Msgf("miss")
 	rSet, err := cr.next.Resolve(ctx, domain, qTypes)
 	if err != nil {
-		return RecordSet{addrs: []net.IPAddr{}, ttl: 0}, err
+		return nil, err
 	}
 
 	// 3. [Cache Write]

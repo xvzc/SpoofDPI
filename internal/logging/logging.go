@@ -1,14 +1,15 @@
-package applog
+package logging
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/xvzc/SpoofDPI/internal/appctx"
+	"github.com/xvzc/SpoofDPI/internal/session"
 )
 
 const (
@@ -127,11 +128,43 @@ func (h ctxHook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 
 	// Request-scoped values like trace_id.
 	// Scope is expected to be added at the component's creation time.
-	if traceID, ok := appctx.TraceIDFrom(ctx); ok {
+	if traceID, ok := session.TraceIDFrom(ctx); ok {
 		e.Str(traceIDFieldName, traceID)
 	}
 
-	if domain, ok := appctx.RemoteInfoFrom(ctx); ok {
+	if domain, ok := session.RemoteInfoFrom(ctx); ok {
 		e.Str(remoteInfoFieldName, domain)
 	}
+}
+
+type joinableError interface {
+	Unwrap() []error
+}
+
+// ErrorUnwrapped tries to unwrap an error and prints each error separately.
+// If the error is not joined, it logs the single error normally.
+func ErrorUnwrapped(logger *zerolog.Logger, msg string, err error) {
+	logUnwrapped(logger, zerolog.ErrorLevel, msg, err)
+}
+
+func WarnUnwrapped(logger *zerolog.Logger, msg string, err error) {
+	logUnwrapped(logger, zerolog.WarnLevel, msg, err)
+}
+
+func TraceUnwrapped(logger *zerolog.Logger, msg string, err error) {
+	logUnwrapped(logger, zerolog.TraceLevel, msg, err)
+}
+
+func logUnwrapped(logger *zerolog.Logger, level zerolog.Level, msg string, err error) {
+	var joinedErrs joinableError
+
+	if errors.As(err, &joinedErrs) {
+		for _, e := range joinedErrs.Unwrap() {
+			logger.WithLevel(level).Err(e).Msg(msg)
+		}
+
+		return
+	}
+
+	logger.WithLevel(level).Err(err).Msg(msg)
 }
