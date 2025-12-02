@@ -34,9 +34,9 @@ func (c *Config) GenerateDnsQueryTypes() []uint16 {
 		return []uint16{dns.TypeAAAA}
 	case "all":
 		return []uint16{dns.TypeA, dns.TypeAAAA}
+	default:
+		return []uint16{}
 	}
-
-	panic("failed to generate dns query types")
 }
 
 func mergeConfig(argsCfg *Config, tomlCfg *Config, args []string) *Config {

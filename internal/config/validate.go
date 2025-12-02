@@ -38,7 +38,7 @@ func validatePolicy(v string) error {
 	rs := `^([i|x]):([a-zA-Z0-9\-]+|\*{2}|\*)(?:\.([a-zA-Z0-9\-]+|\*{2}|\*))*$`
 	r, err := regexp.Compile(rs)
 	if err != nil {
-		return fmt.Errorf("wrong regex syntax")
+		return err
 	}
 
 	if !r.MatchString(v) {
@@ -61,7 +61,7 @@ func validateDNSDefaultMode(v string) error {
 		return nil
 	}
 
-	return fmt.Errorf("wrong value for default dns mode")
+	return fmt.Errorf("wrong value '%s' for default dns mode", v)
 }
 
 func validateDNSMode(v string) error {
@@ -85,7 +85,7 @@ func validateDNSQueryType(v string) error {
 		return nil
 	}
 
-	return fmt.Errorf("wrong value for dns query type")
+	return fmt.Errorf("wrong value '%s' for dns query type", v)
 }
 
 func validateHostPort(v string) error {
@@ -96,7 +96,7 @@ func validateHostPort(v string) error {
 
 	ip := net.ParseIP(host)
 	if ip == nil {
-		return fmt.Errorf("wrong ip")
+		return fmt.Errorf("invalid IP address format")
 	}
 
 	portInt, err := strconv.Atoi(port)
@@ -111,7 +111,7 @@ func validateHTTPSEndpoint(v string) error {
 	if v != "" {
 		if ok, err := regexp.MatchString("^https?://", v); !ok ||
 			err != nil {
-			return fmt.Errorf("should start with 'https://")
+			return fmt.Errorf("should start with 'https://'")
 		}
 	}
 
