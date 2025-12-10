@@ -7,6 +7,7 @@ import (
 	"math/bits"
 	"math/rand/v2"
 	"net"
+	"runtime"
 	"syscall"
 
 	"github.com/rs/zerolog"
@@ -165,7 +166,9 @@ func setTTL(conn net.Conn, isIPv4 bool, ttl uint8) error {
 
 	// Invoke Control to manipulate file descriptor directly
 	err = rawConn.Control(func(fd uintptr) {
-		sysErr = syscall.SetsockoptInt(int(fd), level, opt, int(ttl))
+		switch runtime.GOOS:
+		case "windows": sysErr = syscall.SetsockoptInt(fd, level, opt, int(ttl))
+		default: sysErr = syscall.SetsockoptInt(int(fd), level, opt, int(ttl))
 	})
 	if err != nil {
 		return err
