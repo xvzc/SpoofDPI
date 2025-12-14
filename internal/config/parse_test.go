@@ -346,4 +346,3 @@ func TestHelperFunctions(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
-

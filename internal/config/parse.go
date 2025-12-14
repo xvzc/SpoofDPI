@@ -81,7 +81,7 @@ func MustParsePortRange(s string) (uint16, uint16) {
 		panic(err)
 	}
 
-	if s == "all" {
+	if s == "all" { //nolint:goconst
 		return 0, 65535
 	}
 

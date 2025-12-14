@@ -527,4 +527,3 @@ func TestFromTomlFile(t *testing.T) {
 		assert.True(t, *override.HTTPS.Skip)
 	})
 }
-

@@ -67,21 +67,21 @@ func (c *Config) Clone() *Config {
 	}
 }
 
-func (self *Config) Merge(other *Config) *Config {
-	if other == nil {
-		return self.Clone()
+func (origin *Config) Merge(overrides *Config) *Config {
+	if overrides == nil {
+		return origin.Clone()
 	}
 
-	if self == nil {
-		return other.Clone()
+	if origin == nil {
+		return overrides.Clone()
 	}
 
 	return &Config{
-		General: self.General.Merge(other.General),
-		Server:  self.Server.Merge(other.Server),
-		DNS:     self.DNS.Merge(other.DNS),
-		HTTPS:   self.HTTPS.Merge(other.HTTPS),
-		Policy:  self.Policy.Merge(other.Policy),
+		General: origin.General.Merge(overrides.General),
+		Server:  origin.Server.Merge(overrides.Server),
+		DNS:     origin.DNS.Merge(overrides.DNS),
+		HTTPS:   origin.HTTPS.Merge(overrides.HTTPS),
+		Policy:  origin.Policy.Merge(overrides.Policy),
 	}
 }
 

@@ -38,8 +38,7 @@ func int64Range(mini, maxi int64) func(int64) error {
 var (
 	checkUint8          = int64Range(0, math.MaxUint8)
 	checkUint16         = int64Range(0, math.MaxUint16)
-	checkDefaultTTL     = int64Range(1, math.MaxUint8)
-	checkChunkSize      = int64Range(1, math.MaxUint8)
+	checkUint8NonZero   = int64Range(1, math.MaxUint8)
 	checkDNSMode        = checkOneOf(availableDNSModes...)
 	checkDNSQueryType   = checkOneOf(availableDNSQueries...)
 	checkHTTPSSplitMode = checkOneOf(availableHTTPSModes...)

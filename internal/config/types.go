@@ -64,22 +64,19 @@ func (o *GeneralOptions) Clone() *GeneralOptions {
 	}
 }
 
-func (o *GeneralOptions) Merge(m *GeneralOptions) *GeneralOptions {
-	self := o
-	other := m
-
-	if other == nil {
-		return self.Clone()
+func (origin *GeneralOptions) Merge(overrides *GeneralOptions) *GeneralOptions {
+	if overrides == nil {
+		return origin.Clone()
 	}
 
-	if self == nil {
-		return other.Clone()
+	if origin == nil {
+		return overrides.Clone()
 	}
 
 	return &GeneralOptions{
-		LogLevel:       ptr.CloneOr(other.LogLevel, self.LogLevel),
-		Silent:         ptr.CloneOr(other.Silent, self.Silent),
-		SetSystemProxy: ptr.CloneOr(other.SetSystemProxy, self.SetSystemProxy),
+		LogLevel:       ptr.CloneOr(overrides.LogLevel, origin.LogLevel),
+		Silent:         ptr.CloneOr(overrides.Silent, origin.Silent),
+		SetSystemProxy: ptr.CloneOr(overrides.SetSystemProxy, origin.SetSystemProxy),
 	}
 }
 
@@ -100,7 +97,7 @@ func (o *ServerOptions) UnmarshalTOML(data any) (err error) {
 		return fmt.Errorf("non-table type server config")
 	}
 
-	o.DefaultTTL = findFrom(v, "default-ttl", parseIntFn[uint8](checkUint8), &err)
+	o.DefaultTTL = findFrom(v, "default-ttl", parseIntFn[uint8](checkUint8NonZero), &err)
 	listenAddrStr := findFrom(v, "listen-addr", parseStringFn(checkHostPort), &err)
 	if err == nil && listenAddrStr != nil {
 		o.ListenAddr = ptr.FromValue(MustParseTCPAddr(*listenAddrStr))
@@ -135,19 +132,19 @@ func (o *ServerOptions) Clone() *ServerOptions {
 	}
 }
 
-func (self *ServerOptions) Merge(other *ServerOptions) *ServerOptions {
-	if other == nil {
-		return self.Clone()
+func (origin *ServerOptions) Merge(overrides *ServerOptions) *ServerOptions {
+	if overrides == nil {
+		return origin.Clone()
 	}
 
-	if self == nil {
-		return other.Clone()
+	if origin == nil {
+		return overrides.Clone()
 	}
 
 	return &ServerOptions{
-		DefaultTTL: ptr.CloneOr(other.DefaultTTL, self.DefaultTTL),
-		ListenAddr: ptr.CloneOr(other.ListenAddr, self.ListenAddr),
-		Timeout:    ptr.CloneOr(other.Timeout, self.Timeout),
+		DefaultTTL: ptr.CloneOr(overrides.DefaultTTL, origin.DefaultTTL),
+		ListenAddr: ptr.CloneOr(overrides.ListenAddr, origin.ListenAddr),
+		Timeout:    ptr.CloneOr(overrides.Timeout, origin.Timeout),
 	}
 }
 
@@ -247,21 +244,21 @@ func (o *DNSOptions) Clone() *DNSOptions {
 	}
 }
 
-func (self *DNSOptions) Merge(other *DNSOptions) *DNSOptions {
-	if other == nil {
-		return self.Clone()
+func (origin *DNSOptions) Merge(overrides *DNSOptions) *DNSOptions {
+	if overrides == nil {
+		return origin.Clone()
 	}
 
-	if self == nil {
-		return other.Clone()
+	if origin == nil {
+		return overrides.Clone()
 	}
 
 	return &DNSOptions{
-		Mode:     ptr.CloneOr(other.Mode, self.Mode),
-		Addr:     ptr.CloneOr(other.Addr, self.Addr),
-		HTTPSURL: ptr.CloneOr(other.HTTPSURL, self.HTTPSURL),
-		QType:    ptr.CloneOr(other.QType, self.QType),
-		Cache:    ptr.CloneOr(other.Cache, self.Cache),
+		Mode:     ptr.CloneOr(overrides.Mode, origin.Mode),
+		Addr:     ptr.CloneOr(overrides.Addr, origin.Addr),
+		HTTPSURL: ptr.CloneOr(overrides.HTTPSURL, origin.HTTPSURL),
+		QType:    ptr.CloneOr(overrides.QType, origin.QType),
+		Cache:    ptr.CloneOr(overrides.Cache, origin.Cache),
 	}
 }
 
@@ -348,7 +345,7 @@ func (o *HTTPSOptions) UnmarshalTOML(data any) (err error) {
 		o.SplitMode = ptr.FromValue(mustParseHTTPSSplitModeType(*splitModeStr))
 	}
 
-	o.ChunkSize = findFrom(m, "chunk-size", parseIntFn[uint8](checkUint8), &err)
+	o.ChunkSize = findFrom(m, "chunk-size", parseIntFn[uint8](checkUint8NonZero), &err)
 	o.Skip = findFrom(m, "skip", parseBoolFn(), &err)
 
 	return nil
@@ -369,25 +366,22 @@ func (o *HTTPSOptions) Clone() *HTTPSOptions {
 	}
 }
 
-func (o *HTTPSOptions) Merge(m *HTTPSOptions) *HTTPSOptions {
-	self := o
-	other := m
-
-	if other == nil {
-		return self
+func (origin *HTTPSOptions) Merge(overrides *HTTPSOptions) *HTTPSOptions {
+	if overrides == nil {
+		return origin
 	}
 
-	if self == nil {
-		return other
+	if origin == nil {
+		return overrides
 	}
 
 	return &HTTPSOptions{
-		Disorder:   ptr.CloneOr(other.Disorder, self.Disorder),
-		FakeCount:  ptr.CloneOr(other.FakeCount, self.FakeCount),
-		FakePacket: ptr.CloneSliceOr(other.FakePacket, self.FakePacket),
-		SplitMode:  ptr.CloneOr(other.SplitMode, self.SplitMode),
-		ChunkSize:  ptr.CloneOr(other.ChunkSize, self.ChunkSize),
-		Skip:       ptr.CloneOr(other.Skip, self.Skip),
+		Disorder:   ptr.CloneOr(overrides.Disorder, origin.Disorder),
+		FakeCount:  ptr.CloneOr(overrides.FakeCount, origin.FakeCount),
+		FakePacket: ptr.CloneSliceOr(overrides.FakePacket, origin.FakePacket),
+		SplitMode:  ptr.CloneOr(overrides.SplitMode, origin.SplitMode),
+		ChunkSize:  ptr.CloneOr(overrides.ChunkSize, origin.ChunkSize),
+		Skip:       ptr.CloneOr(overrides.Skip, origin.Skip),
 	}
 }
 
@@ -436,25 +430,25 @@ func (o *PolicyOptions) Clone() *PolicyOptions {
 	}
 }
 
-func (self *PolicyOptions) Merge(other *PolicyOptions) *PolicyOptions {
-	if other == nil {
-		return self.Clone()
+func (origin *PolicyOptions) Merge(overrides *PolicyOptions) *PolicyOptions {
+	if overrides == nil {
+		return origin.Clone()
 	}
 
-	if self == nil {
-		return other.Clone()
+	if origin == nil {
+		return overrides.Clone()
 	}
 
-	otherCopy := other.Clone()
+	otherCopy := overrides.Clone()
 
-	merged := self.Clone()
-	merged.Auto = ptr.CloneOr(other.Auto, self.Auto)
+	merged := origin.Clone()
+	merged.Auto = ptr.CloneOr(overrides.Auto, origin.Auto)
 
-	if other.Template != nil {
+	if overrides.Template != nil {
 		merged.Template = otherCopy.Template
 	}
 
-	if other.Overrides != nil {
+	if overrides.Overrides != nil {
 		merged.Overrides = otherCopy.Overrides
 	}
 

@@ -58,7 +58,7 @@ func CreateCommand(
 					*defaultCfg.Server.DefaultTTL,
 				),
 				OnlyOnce:  true,
-				Validator: checkUint8,
+				Validator: checkUint8NonZero,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
 					argsCfg.Server.DefaultTTL = ptr.FromValue(uint8(v))
 					return nil
@@ -226,7 +226,7 @@ func CreateCommand(
 				),
 				Value:     0,
 				OnlyOnce:  true,
-				Validator: checkUint8,
+				Validator: checkUint8NonZero,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
 					argsCfg.HTTPS.ChunkSize = ptr.FromValue(uint8(v))
 					return nil
