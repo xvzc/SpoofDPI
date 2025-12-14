@@ -83,7 +83,7 @@ func checkHostPort(v string) error {
 // checkPortRange validates if the input is a single port, a range, or "all".
 func checkPortRange(v string) error {
 	// 1. Check for "all" keyword
-	if strings.ToLower(v) == "all" {
+	if v == "all" { //nolint:goconst
 		return nil
 	}
 

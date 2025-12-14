@@ -127,7 +127,7 @@ func MustParseDNSQueryType(s string) DNSQueryType {
 		return DNSQueryIPv4
 	case "ipv6":
 		return DNSQueryIPv6
-	case "all":
+	case "all": //nolint:goconst
 		return DNSQueryAll
 	default:
 		panic(fmt.Sprintf("cannot parse %q to DNSQueryType", s))
