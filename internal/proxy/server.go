@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -9,20 +10,14 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/datastruct/tree"
+	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/dns"
 	"github.com/xvzc/SpoofDPI/internal/logging"
-	"github.com/xvzc/SpoofDPI/internal/packet"
+	"github.com/xvzc/SpoofDPI/internal/matcher"
 	"github.com/xvzc/SpoofDPI/internal/proto"
+	"github.com/xvzc/SpoofDPI/internal/ptr"
 	"github.com/xvzc/SpoofDPI/internal/session"
 )
-
-type ProxyOptions struct {
-	ListenAddr    net.TCPAddr
-	AutoPolicy    bool
-	DNSQueryTypes []uint16
-	Timeout       time.Duration
-}
 
 type Proxy struct {
 	logger zerolog.Logger
@@ -30,64 +25,62 @@ type Proxy struct {
 	resolver     dns.Resolver
 	httpHandler  Handler
 	httpsHandler Handler
-	domainTree   tree.SearchTree
-	hopTracker   *packet.HopTracker
-	opts         ProxyOptions
+	ruleMatcher  matcher.RuleMatcher
+	serverOpts   *config.ServerOptions
+	policyOpts   *config.PolicyOptions
 }
 
 func NewProxy(
 	logger zerolog.Logger,
-
 	resolver dns.Resolver,
 	httpHandler Handler,
 	httpsHandler Handler,
-	domainTree tree.SearchTree,
-	hopTracker *packet.HopTracker,
-
-	opts ProxyOptions,
+	ruleMatcher matcher.RuleMatcher,
+	serverOpts *config.ServerOptions,
+	policyOpts *config.PolicyOptions,
 ) *Proxy {
 	return &Proxy{
 		logger:       logger,
 		resolver:     resolver,
 		httpHandler:  httpHandler,
 		httpsHandler: httpsHandler,
-		domainTree:   domainTree,
-		hopTracker:   hopTracker,
-		opts:         opts,
+		ruleMatcher:  ruleMatcher,
+		serverOpts:   serverOpts,
+		policyOpts:   policyOpts,
 	}
 }
 
-func (pxy *Proxy) ListenAndServe(ctx context.Context, wait chan struct{}) {
+func (p *Proxy) ListenAndServe(ctx context.Context, wait chan struct{}) {
 	<-wait
 
-	logger := pxy.logger.With().Ctx(ctx).Logger()
+	logger := p.logger.With().Ctx(ctx).Logger()
 
-	listener, err := net.ListenTCP("tcp", &pxy.opts.ListenAddr)
+	listener, err := net.ListenTCP("tcp", p.serverOpts.ListenAddr)
 	if err != nil {
-		pxy.logger.Fatal().
+		p.logger.Fatal().
 			Err(err).
-			Msgf("error creating listener on %s", pxy.opts.ListenAddr.String())
+			Msgf("error creating listener on %s", p.serverOpts.ListenAddr.String())
 	}
 
 	logger.Info().
-		Msgf("created a listener on %s", pxy.opts.ListenAddr.String())
+		Msgf("created a listener on %s", p.serverOpts.ListenAddr)
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			pxy.logger.Error().
+			p.logger.Error().
 				Err(err).
 				Msgf("failed to accept new connection")
 
 			continue
 		}
 
-		go pxy.handleConnection(session.WithNewTraceID(context.Background()), conn)
+		go p.handleConnection(session.WithNewTraceID(context.Background()), conn)
 	}
 }
 
-func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
-	logger := logging.WithLocalScope(pxy.logger, ctx, "conn")
+func (p *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
+	logger := logging.WithLocalScope(ctx, p.logger, "conn")
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -109,7 +102,7 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 	}
 
 	domain := req.ExtractDomain()
-	port, err := req.ExtractPort()
+	dstPort, err := req.ExtractPort()
 	if err != nil {
 		logger.Warn().Str("host", req.Host).Msg("failed to extract port")
 
@@ -124,15 +117,16 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 		Str("from", conn.RemoteAddr().String()).
 		Msg("new request")
 
-	domainIncluded := pxy.checkDomainPolicy([]byte(domain))
-
-	logger.Debug().Bool("include", domainIncluded).
-		Msg("checked domain policy")
-
-	ctx = session.WithPolicyIncluded(ctx, domainIncluded)
+	nameMatch := p.ruleMatcher.Search(
+		&matcher.Selector{Kind: matcher.MatchKindDomain, Domain: ptr.FromValue(domain)},
+	)
+	if nameMatch != nil && logger.GetLevel() == zerolog.TraceLevel {
+		jsonAttrs, _ := json.Marshal(nameMatch)
+		logger.Trace().RawJSON("values", jsonAttrs).Msg("name match")
+	}
 
 	t1 := time.Now()
-	rSet, err := pxy.resolver.Resolve(ctx, domain, pxy.opts.DNSQueryTypes)
+	rSet, err := p.resolver.Resolve(ctx, domain, nil, nameMatch)
 	dt := time.Since(t1).Milliseconds()
 	if err != nil {
 		_, _ = conn.Write(req.BadGatewayResponse())
@@ -142,57 +136,105 @@ func (pxy *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 	}
 
 	logger.Debug().
-		Int("len", rSet.Count()).
+		Int("cnt", len(rSet.Addrs)).
 		Str("took", fmt.Sprintf("%dms", dt)).
 		Msgf("dns lookup ok")
 
-	dstAddrs := rSet.CopyAddrs()
-
 	// Avoid recursively querying self.
-	if pxy.isRecursiveDst(ctx, dstAddrs, port) {
+	if p.isRecursiveDst(ctx, rSet.Addrs, dstPort) {
 		return
 	}
 
-	isPrivate := pxy.isPrivateDst(ctx, dstAddrs)
-	shouldExploit := (!isPrivate && domainIncluded)
-	ctx = session.WithShouldExploit(ctx, shouldExploit)
-
-	if pxy.hopTracker != nil && shouldExploit {
-		pxy.hopTracker.RegisterUntracked(dstAddrs, port)
+	var selectors []*matcher.Selector
+	for _, v := range rSet.Addrs {
+		selectors = append(selectors, &matcher.Selector{
+			Kind: matcher.MatchKindAddr,
+			IP:   ptr.FromValue(v.IP),
+			Port: ptr.FromValue(uint16(dstPort)),
+		})
 	}
 
-	var h Handler
+	addrMatch := p.ruleMatcher.SearchAll(selectors)
+	if addrMatch != nil && logger.GetLevel() == zerolog.TraceLevel {
+		jsonAttrs, _ := json.Marshal(addrMatch)
+		logger.Trace().RawJSON("values", jsonAttrs).Msg("addr match")
+	}
+
+	bestMatch := matcher.GetHigherPriorityRule(addrMatch, nameMatch)
+	if bestMatch != nil && logger.GetLevel() == zerolog.TraceLevel {
+		jsonAttrs, _ := json.Marshal(bestMatch)
+		logger.Trace().RawJSON("values", jsonAttrs).Msg("best match")
+	}
+
+	if bestMatch != nil && *bestMatch.Block {
+		logger.Debug().Msg("request is blocked by policy")
+		return
+	}
+
+	dst := &Destination{
+		Domain:  domain,
+		Addrs:   rSet.Addrs,
+		Port:    dstPort,
+		Timeout: *p.serverOpts.Timeout,
+	}
+
+	var handler Handler
 	if req.IsConnectMethod() {
-		h = pxy.httpsHandler
+		handler = p.httpsHandler
 	} else {
-		h = pxy.httpHandler
+		handler = p.httpHandler
 	}
 
-	err = h.HandleRequest(ctx, conn, req, dstAddrs, port, pxy.opts.Timeout)
-	if err == nil { // Early exit if no error found
+	handleErr := handler.HandleRequest(ctx, conn, req, dst, bestMatch)
+	if handleErr == nil { // Early exit if no error found
 		return
 	}
 
-	logger.Warn().Err(err).Msg("error handling request")
-	if !errors.Is(err, errBlocked) { // Early exit if not blocked
+	logger.Warn().Err(handleErr).Msg("error handling request")
+	if !errors.Is(handleErr, errBlocked) { // Early exit if not blocked
 		return
 	}
 
-	if pxy.opts.AutoPolicy && pxy.domainTree != nil { // Perform auto policy if enabled
-		if added := pxy.addIncludedPolicy(domain); added {
-			logger.Info().Msg("automatically added to policy")
+	// ┌─────────────┐
+	// │ AUTO config │
+	// └─────────────┘
+	if nameMatch != nil {
+		logger.Info().
+			Str("match", *nameMatch.Match.Domain).
+			Str("name", *nameMatch.Name).
+			Msg("skipping auto-config (duplicate policy)")
+		return
+	}
+
+	if addrMatch != nil {
+		logger.Info().
+			Str("match", addrMatch.Match.CIDR.String()).
+			Str("name", *addrMatch.Name).
+			Msg("skipping auto-config (duplicate policy)")
+		return
+	}
+
+	// Perform auto config if enabled and RuleTemplate is not nil
+	if *p.policyOpts.Auto && p.policyOpts.Template != nil {
+		newRule := p.policyOpts.Template.Clone()
+		newRule.Match = &config.MatchAttrs{Domain: ptr.FromValue(domain)}
+
+		if err := p.ruleMatcher.Add(newRule); err != nil {
+			logger.Info().Err(err).Msg("failed to add config automatically")
+		} else {
+			logger.Info().Msg("automatically added to config")
 		}
 	}
 }
 
-func (pxy *Proxy) isRecursiveDst(
+func (p *Proxy) isRecursiveDst(
 	ctx context.Context,
 	dstAddrs []net.IPAddr,
 	dstPort int,
 ) bool {
-	logger := logging.WithLocalScope(pxy.logger, ctx, "is_recursive")
+	logger := logging.WithLocalScope(ctx, p.logger, "is_recursive")
 
-	if dstPort != int(pxy.opts.ListenAddr.Port) {
+	if dstPort != int(p.serverOpts.ListenAddr.Port) {
 		return false
 	}
 
@@ -210,14 +252,14 @@ func (pxy *Proxy) isRecursiveDst(
 		// See `ip -4 ifAddrs show`
 		ifAddrs, err := net.InterfaceAddrs() // Needs AF_NETLINK on Linux.
 		if err != nil {
-			logger.Trace().Err(err).Msg("failed to retrieve interface addrs")
+			logger.Warn().Err(err).Msg("failed to retrieve interface addrs")
 			return false
 		}
 
 		for _, addr := range ifAddrs {
 			if ipnet, ok := addr.(*net.IPNet); ok {
 				if ipnet.IP.Equal(ip) {
-					logger.Trace().
+					logger.Debug().
 						Str("addr", fmt.Sprintf("%s:%d", ip.String(), dstPort)).
 						Msg("found a recursive destination")
 
@@ -225,45 +267,6 @@ func (pxy *Proxy) isRecursiveDst(
 				}
 			}
 		}
-	}
-
-	return false
-}
-
-func (pxy *Proxy) isPrivateDst(ctx context.Context, dstAddrs []net.IPAddr) bool {
-	logger := logging.WithLocalScope(pxy.logger, ctx, "is_private")
-
-	for _, dstAddr := range dstAddrs {
-		ip := dstAddr.IP
-		if ip.IsPrivate() {
-			logger.Trace().Str("ip", ip.String()).Msg("found a private ip addr")
-			return true
-		}
-	}
-
-	return false
-}
-
-func (pxy *Proxy) checkDomainPolicy(
-	bytes []byte,
-) bool {
-	// always return true when there's no patterns to check
-	if pxy.domainTree == nil {
-		return true
-	}
-
-	value, found := pxy.domainTree.Search(string(bytes))
-	if found {
-		return value.(bool)
-	}
-
-	return false
-}
-
-func (pxy *Proxy) addIncludedPolicy(domain string) bool {
-	if _, found := pxy.domainTree.Search(domain); !found {
-		pxy.domainTree.Insert(domain, true)
-		return true
 	}
 
 	return false

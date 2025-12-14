@@ -22,8 +22,7 @@ const (
 
 // SetGlobalLogger creates and configures the global zerolog.Logger instance
 // based on the application configuration.
-func SetGlobalLogger(ctx context.Context, level string) {
-	l, _ := zerolog.ParseLevel(level)
+func SetGlobalLogger(ctx context.Context, l zerolog.Level) {
 	zerolog.SetGlobalLevel(l)
 
 	// Define the order of parts in the console output.
@@ -104,8 +103,8 @@ func WithScope(logger zerolog.Logger, scope string) zerolog.Logger {
 }
 
 func WithLocalScope(
-	logger zerolog.Logger,
 	ctx context.Context,
+	logger zerolog.Logger,
 	localScope string,
 ) zerolog.Logger {
 	return logger.With().Ctx(ctx).Str(localScopeFieldName, localScope).Logger()

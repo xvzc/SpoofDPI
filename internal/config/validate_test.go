@@ -1,0 +1,282 @@
+package config
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/xvzc/SpoofDPI/internal/ptr"
+)
+
+func TestCheckDomainPattern(t *testing.T) {
+	tcs := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"valid domain", "example.com", false},
+		{"valid subdomain", "sub.example.com", false},
+		{"valid wildcard start", "*.example.com", false},
+		{"valid globstar start", "**.example.com", false},
+		{"valid wildcard segment", "example.*.com", false},
+		{"valid single segment", "localhost", false},
+		{"invalid empty", "", true},
+		{"invalid characters", "ex&ample.com", true},
+		{"invalid start with hyphen", "-example.com", true},
+		{"valid hyphen in middle", "ex-ample.com", false},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkDomainPattern(tc.input)
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCheckHostPort(t *testing.T) {
+	tcs := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"valid ipv4 port", "127.0.0.1:8080", false},
+		{"valid ipv6 port", "[::1]:8080", false},
+		{"invalid port range", "127.0.0.1:70000", true},
+		{"invalid ip", "999.999.999.999:8080", true},
+		{"missing port", "127.0.0.1", true},
+		{"missing ip", ":8080", true},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkHostPort(tc.input)
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCheckPortRange(t *testing.T) {
+	tcs := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"valid single", "8080", false},
+		{"valid range", "1000-2000", false},
+		{"valid all", "all", false},
+		{"valid all caps", "ALL", false},
+		{"invalid non-numeric", "abc", true},
+		{"invalid range format", "100-", true},
+		{"invalid range inverted", "2000-1000", true},
+		{"invalid port too high", "70000", true},
+		{"invalid range too high", "80-70000", true},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkPortRange(tc.input)
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCheckCIDR(t *testing.T) {
+	tcs := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"valid ipv4 cidr", "192.168.1.0/24", false},
+		{"valid ipv6 cidr", "2001:db8::/32", false},
+		{"invalid cidr", "192.168.1.0", true},
+		{"invalid ip", "300.300.300.300/24", true},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkCIDR(tc.input)
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCheckHTTPSEndpoint(t *testing.T) {
+	tcs := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"valid https", "https://dns.google/dns-query", false},
+		{"valid http", "http://dns.google/dns-query", false},
+		{"invalid ftp", "ftp://dns.google/dns-query", true},
+		{"invalid no scheme", "dns.google/dns-query", true},
+		{"empty", "", false},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkHTTPSEndpoint(tc.input)
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCheckHexBytesStr(t *testing.T) {
+	tcs := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"valid single", "0x16", false},
+		{"valid multiple", "0x16, 0x03, 0x01", false},
+		{"valid with spaces", " 0x16 , 0x03 ", false},
+		{"invalid format", "16, 03", true},
+		{"invalid hex", "0xGG", true},
+		{"empty", "", false},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkHexBytesStr(tc.input)
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCheckMatchAttrs(t *testing.T) {
+	tcs := []struct {
+		name    string
+		input   MatchAttrs
+		wantErr bool
+	}{
+		{
+			name: "valid match both",
+			input: MatchAttrs{
+				Domain:   ptr.FromValue("www.google.com"),
+				CIDR:     ptr.FromValue(MustParseCIDR("192.168.0.1/24")),
+				PortFrom: ptr.FromValue(uint16(80)),
+				PortTo:   ptr.FromValue(uint16(443)),
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid match domain",
+			input: MatchAttrs{
+				Domain: ptr.FromValue("www.youtube.com"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid match addr",
+			input: MatchAttrs{
+				CIDR:     ptr.FromValue(MustParseCIDR("10.0.0.0/8")),
+				PortFrom: ptr.FromValue(uint16(0)),
+				PortTo:   ptr.FromValue(uint16(65535)),
+			},
+			wantErr: false,
+		},
+		{
+			name: "missig ports wiht cidr",
+			input: MatchAttrs{
+				CIDR: ptr.FromValue(MustParseCIDR("10.0.0.0/8")),
+			},
+			wantErr: true,
+		},
+		{
+			name: "missig cidr with ports",
+			input: MatchAttrs{
+				PortFrom: ptr.FromValue(uint16(80)),
+				PortTo:   ptr.FromValue(uint16(443)),
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkMatchAttrs(tc.input)
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCheckRule(t *testing.T) {
+	tcs := []struct {
+		name    string
+		rule    Rule
+		wantErr bool
+	}{
+		{
+			name: "valid domain rule",
+			rule: Rule{
+				Match: &MatchAttrs{
+					Domain: ptr.FromValue("example.com"),
+				},
+				DNS: &DNSOptions{
+					Mode: ptr.FromValue(DNSModeUDP),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid cidr rule",
+			rule: Rule{
+				Match: &MatchAttrs{
+					CIDR:     ptr.FromValue(MustParseCIDR("192.168.1.0/24")),
+					PortFrom: ptr.FromValue(uint16(80)),
+					PortTo:   ptr.FromValue(uint16(80)),
+				},
+				HTTPS: &HTTPSOptions{
+					Disorder: ptr.FromValue(true),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "missing match",
+			rule: Rule{
+				Match: nil,
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkRule(tc.rule)
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

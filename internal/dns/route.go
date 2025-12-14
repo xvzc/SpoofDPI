@@ -8,75 +8,102 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/logging"
-	"github.com/xvzc/SpoofDPI/internal/session"
+	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
 type RouteResolver struct {
-	logger zerolog.Logger
-
-	mainResolver  Resolver
-	localResolver Resolver
+	logger      zerolog.Logger
+	https       Resolver
+	udp         Resolver
+	system      Resolver
+	cache       Resolver
+	defaultOpts *config.DNSOptions
 }
 
 func NewRouteResolver(
 	logger zerolog.Logger,
-	mainResolver Resolver,
-	localResolver Resolver,
+	doh Resolver,
+	udp Resolver,
+	sys Resolver,
+	cache Resolver,
+	defaultOpts *config.DNSOptions,
 ) *RouteResolver {
 	return &RouteResolver{
-		logger:        logger,
-		mainResolver:  mainResolver,
-		localResolver: localResolver,
+		logger:      logger,
+		https:       doh,
+		udp:         udp,
+		system:      sys,
+		cache:       cache,
+		defaultOpts: defaultOpts,
 	}
 }
 
 func (rr *RouteResolver) Info() []ResolverInfo {
-	return slices.Concat(rr.mainResolver.Info(), rr.localResolver.Info())
+	return slices.Concat(
+		rr.udp.Info(),
+		rr.https.Info(),
+		rr.system.Info(),
+		rr.cache.Info(),
+	)
 }
 
 func (rr *RouteResolver) Resolve(
 	ctx context.Context,
 	domain string,
-	qTypes []uint16,
+	fallback Resolver,
+	rule *config.Rule,
 ) (*RecordSet, error) {
-	logger := logging.WithLocalScope(rr.logger, ctx, "route")
-
-	if ip, err := parseIpAddr(domain); err == nil {
-		return &RecordSet{addrs: []net.IPAddr{(*ip)}, ttl: 0}, nil
+	attrs := rr.defaultOpts
+	if rule != nil {
+		attrs = attrs.Merge(rule.DNS)
 	}
 
+	logger := logging.WithLocalScope(ctx, rr.logger, "route")
+
+	// 1. Check for IP address in domain
+	if ip, err := parseIpAddr(domain); err == nil {
+		return &RecordSet{Addrs: []net.IPAddr{*ip}, TTL: 0}, nil
+	}
+
+	// 4. Handle ROUTE rule (or default)
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	resolver := rr.route(ctx)
+	resolver := rr.route(attrs)
 	if resolver == nil {
-		return nil, fmt.Errorf(
-			"error routing dns resolver",
-		)
+		return nil, fmt.Errorf("no resolver available for spec")
 	}
 
 	resolverInfo := resolver.Info()[0]
 	logger.Trace().
-		Str("cached", resolverInfo.Cached.String()).
 		Str("name", resolverInfo.Name).
-		Msgf("next resolver info")
+		Bool("cache", ptr.FromPtr(attrs.Cache)).
+		Msgf("ready to resolve")
 
-	rSet, err := resolver.Resolve(ctx, domain, qTypes)
-	if err != nil {
-		return nil, err
+	var rSet *RecordSet
+	var err error
+	if *attrs.Mode != config.DNSModeSystem && *attrs.Cache {
+		rSet, err = rr.cache.Resolve(ctx, domain, resolver, rule)
+	} else {
+		rSet, err = resolver.Resolve(ctx, domain, nil, rule)
 	}
 
-	return rSet, nil
+	return rSet, err
 }
 
-func (rr *RouteResolver) route(ctx context.Context) Resolver {
-	policyIncluded, _ := session.PolicyIncludedFrom(ctx)
-	if policyIncluded {
-		return rr.mainResolver
+func (rr *RouteResolver) route(attrs *config.DNSOptions) Resolver {
+	switch *attrs.Mode {
+	case config.DNSModeHTTPS:
+		return rr.https
+	case config.DNSModeUDP:
+		return rr.udp
+	case config.DNSModeSystem:
+		return rr.system
+	default:
+		return rr.system
 	}
-
-	return rr.localResolver
 }
 
 func parseIpAddr(addr string) (*net.IPAddr, error) {

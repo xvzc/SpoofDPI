@@ -5,9 +5,12 @@ import (
 	"os"
 
 	"github.com/BurntSushi/toml"
+	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
-func parseTomlConfig(dir string) (*Config, error) {
+func fromTomlFile(dir string) (*Config, error) {
+	_ = os.Setenv("BURNTSUSHI_TOML_110", "1") // allow new lines in toml file
+
 	var cfg *Config
 	_, err := toml.DecodeFile(dir, &cfg)
 	if err != nil {
@@ -17,7 +20,7 @@ func parseTomlConfig(dir string) (*Config, error) {
 	return cfg, nil
 }
 
-func findConfigFileToLoad(customDir string, lookupDirs []string) (string, error) {
+func searchTomlFile(customDir string, lookupDirs []string) (string, error) {
 	if customDir != "" {
 		_, err := os.Stat(customDir)
 		if err != nil { // Path exists
@@ -39,4 +42,127 @@ func findConfigFileToLoad(customDir string, lookupDirs []string) (string, error)
 
 	// Don't care even if config files are not found in lookupDirs
 	return "", nil
+}
+
+func findFrom[T any](
+	data map[string]any,
+	key string,
+	parser func(any) (T, error),
+	err *error,
+) *T {
+	if err != nil && *err != nil {
+		return nil
+	}
+
+	anyVal, ok := data[key]
+	if !ok {
+		return nil
+	}
+
+	val, parseErr := parser(anyVal)
+	if parseErr != nil {
+		*err = fmt.Errorf("field %q: %w", key, parseErr)
+		return nil
+	}
+
+	return ptr.FromValue(val)
+}
+
+func findStructFrom[T any, PT interface {
+	*T
+	toml.Unmarshaler
+}](m map[string]any, key string, errPtr *error) *T {
+	if errPtr != nil && *errPtr != nil {
+		return nil
+	}
+
+	val, ok := m[key]
+	if !ok {
+		return nil
+	}
+
+	var item T
+	if err := PT(&item).UnmarshalTOML(val); err != nil {
+		*errPtr = fmt.Errorf("failed to decode '%s': %w", key, err)
+		return nil
+	}
+
+	return &item
+}
+
+func findStructSliceFrom[T any, PT interface {
+	*T
+	toml.Unmarshaler
+}](m map[string]any, key string, errPtr *error) []T {
+	if errPtr != nil && *errPtr != nil {
+		return nil
+	}
+
+	val, ok := m[key]
+	if !ok {
+		return nil
+	}
+
+	rawList, ok := val.([]any)
+	if !ok {
+		if mapList, ok := val.([]map[string]any); ok {
+			rawList = make([]any, len(mapList))
+			for i, v := range mapList {
+				rawList[i] = v
+			}
+		} else {
+			*errPtr = fmt.Errorf("field '%s' is not a list", key)
+			return nil
+		}
+	}
+
+	res := make([]T, 0, len(rawList))
+	for i, raw := range rawList {
+		var item T
+		if err := PT(&item).UnmarshalTOML(raw); err != nil {
+			*errPtr = fmt.Errorf("failed to decode '%s' item [%d]: %w", key, i, err)
+			return nil
+		}
+		res = append(res, item)
+	}
+
+	return res
+}
+
+func findSliceFrom[T any](
+	data map[string]any,
+	key string,
+	elementParser func(any) (T, error),
+	err *error,
+) []T {
+	if err != nil && *err != nil {
+		return nil
+	}
+
+	val, ok := data[key]
+	if !ok {
+		return nil
+	}
+
+	rawList, ok := val.([]any)
+	if !ok {
+		if typedList, ok := val.([]T); ok {
+			return typedList
+		}
+		*err = fmt.Errorf("field %q: expected list, got %T", key, val)
+		return nil
+	}
+
+	result := make([]T, 0, len(rawList))
+
+	for i, rawItem := range rawList {
+		parsedItem, parseErr := elementParser(rawItem)
+		if parseErr != nil {
+			*err = fmt.Errorf("field %q[%d]: %w", key, i, parseErr)
+			return nil
+		}
+		result = append(result, parsedItem)
+	}
+
+	return result
 }

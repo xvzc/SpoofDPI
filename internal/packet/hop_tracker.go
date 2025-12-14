@@ -9,20 +9,22 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/datastruct/cache"
+	"github.com/xvzc/SpoofDPI/internal/cache"
 	"github.com/xvzc/SpoofDPI/internal/logging"
 	"github.com/xvzc/SpoofDPI/internal/session"
 )
 
 // HopTracker monitors a pcap handle to find SYN/ACK packets and
 // stores their estimated hop count into a TTLCache.
-type HopTracker struct {
-	logger zerolog.Logger
+type HopTrackerAttrs struct {
+	DefaultTTL uint8
+}
 
+type HopTracker struct {
+	logger    zerolog.Logger
 	nhopCache cache.Cache // The cache stores hop counts (uint8)
 	handle    Handle
-
-	defaultTTL uint8
+	attrs     HopTrackerAttrs
 }
 
 func (ht *HopTracker) Cache() cache.Cache {
@@ -34,16 +36,16 @@ func NewHopTracker(
 	logger zerolog.Logger,
 	cache cache.Cache,
 	handle Handle,
-	defaultTTL uint8,
+	attrs HopTrackerAttrs,
 ) *HopTracker {
 	// Error checking for nil handle and cache has been removed
 	// as per the request.
 
 	return &HopTracker{
-		logger:     logger,
-		nhopCache:  cache,
-		handle:     handle,
-		defaultTTL: defaultTTL,
+		logger:    logger,
+		nhopCache: cache,
+		handle:    handle,
+		attrs:     attrs,
 	}
 }
 
@@ -73,7 +75,7 @@ func (ht *HopTracker) RegisterUntracked(addrs []net.IPAddr, port int) {
 	for _, v := range addrs {
 		ht.nhopCache.Set(
 			v.String()+":"+portStr,
-			ht.defaultTTL,
+			uint8(ht.attrs.DefaultTTL),
 			cache.Options().WithSkipExisting(true),
 		)
 	}
@@ -82,16 +84,16 @@ func (ht *HopTracker) RegisterUntracked(addrs []net.IPAddr, port int) {
 // GetOptimalTTL retrieves the estimated hop count for a given key from the cache.
 // It returns the hop count and true if found, or 0 and false if not found.
 func (ht *HopTracker) GetOptimalTTL(key string) uint8 {
-	if nhops, ok := ht.nhopCache.Get(key); ok {
-		return max(nhops.(uint8), 2) - 1
+	if oTTL, ok := ht.nhopCache.Get(key); ok {
+		return max(oTTL.(uint8), 2) - 1
 	}
 
-	return ht.defaultTTL
+	return uint8(ht.attrs.DefaultTTL)
 }
 
 // processPacket analyzes a single packet to find SYN/ACKs and store hop counts.
 func (ht *HopTracker) processPacket(ctx context.Context, p gopacket.Packet) {
-	logger := logging.WithLocalScope(ht.logger, ctx, "track")
+	logger := logging.WithLocalScope(ctx, ht.logger, "track")
 
 	tcpLayer := p.Layer(layers.LayerTypeTCP)
 	if tcpLayer == nil {
@@ -128,7 +130,7 @@ func (ht *HopTracker) processPacket(ctx context.Context, p gopacket.Packet) {
 	key := fmt.Sprintf("%s:%d", srcIP, tcp.SrcPort)
 	// Calculate hop count from the TTL
 	nhops := calculateHops(ttl)
-	ok := ht.nhopCache.Set(key, nhops, cache.Options().WithUpdateExistingOnly(true))
+	ok := ht.nhopCache.Set(key, nhops, nil)
 	if ok {
 		logger.Trace().
 			Str("remote_info", key).

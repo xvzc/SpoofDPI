@@ -2,7 +2,6 @@ package dns
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -10,37 +9,42 @@ import (
 	"sync"
 
 	"github.com/miekg/dns"
+	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/dns/addrselect"
+)
+
+type ResolverKind int
+
+const (
+	UDP ResolverKind = iota
+	HTTPS
+	System
 )
 
 type Resolver interface {
 	Info() []ResolverInfo
-	Resolve(ctx context.Context, domain string, qTypes []uint16) (*RecordSet, error)
+	Resolve(
+		ctx context.Context,
+		domain string,
+		falback Resolver,
+		rule *config.Rule,
+	) (*RecordSet, error)
 }
 
 type ResolverInfo struct {
-	Name   string       `json:"name"`
-	Dst    string       `json:"dst"`
-	Cached CachedStatus `json:"cached"`
+	Name string `json:"name"`
+	Dst  string `json:"dst"`
 }
 
 func (i *ResolverInfo) String() string {
-	return fmt.Sprintf("name=%s; cached=%s; dst=%s;", i.Name, i.Cached.String(), i.Dst)
+	return fmt.Sprintf("name=%s; dst=%s;", i.Name, i.Dst)
 }
 
-type CachedStatus struct {
-	bool
-}
-
-func (s *CachedStatus) String() string {
-	if s.bool {
-		return "1"
-	} else {
-		return "0"
-	}
-}
-
-type exchangeFunc = func(ctx context.Context, msg *dns.Msg) (*dns.Msg, error)
+type exchangeFunc = func(
+	ctx context.Context,
+	msg *dns.Msg,
+	upstream string,
+) (*dns.Msg, error)
 
 type MsgChan struct {
 	msg *dns.Msg
@@ -48,20 +52,28 @@ type MsgChan struct {
 }
 
 type RecordSet struct {
-	addrs []net.IPAddr
-	ttl   uint32
+	Addrs []net.IPAddr
+	TTL   uint32
 }
 
-func (rs *RecordSet) CopyAddrs() []net.IPAddr {
-	return rs.addrs
+func (rs *RecordSet) Clone() *RecordSet {
+	return &RecordSet{
+		Addrs: append([]net.IPAddr(nil), rs.Addrs...),
+		TTL:   rs.TTL,
+	}
 }
 
-func (rs *RecordSet) TTL() uint32 {
-	return rs.ttl
-}
-
-func (rs *RecordSet) Count() int {
-	return len(rs.addrs)
+func parseQueryTypes(qtype config.DNSQueryType) []uint16 {
+	switch qtype {
+	case config.DNSQueryIPv4:
+		return []uint16{dns.TypeA}
+	case config.DNSQueryIPv6:
+		return []uint16{dns.TypeAAAA}
+	case config.DNSQueryAll:
+		return []uint16{dns.TypeA, dns.TypeAAAA}
+	default:
+		return []uint16{dns.TypeA}
+	}
 }
 
 func newMsg(domain string, qType uint16) *dns.Msg {
@@ -85,10 +97,11 @@ func recordTypeIDToName(id uint16) string {
 func lookupType(
 	ctx context.Context,
 	domain string,
+	upstream string,
 	queryType uint16,
 	exchange exchangeFunc,
 ) *MsgChan {
-	resMsg, err := exchange(ctx, newMsg(domain, queryType))
+	resMsg, err := exchange(ctx, newMsg(domain, queryType), upstream)
 	if err != nil {
 		queryName := recordTypeIDToName(queryType)
 		err = fmt.Errorf(
@@ -107,6 +120,7 @@ func lookupType(
 func lookupAllTypes(
 	ctx context.Context,
 	domain string,
+	upstream string,
 	qTypes []uint16,
 	exchange exchangeFunc,
 ) <-chan *MsgChan {
@@ -122,7 +136,7 @@ func lookupAllTypes(
 			select {
 			case <-ctx.Done():
 				return
-			case resCh <- lookupType(ctx, domain, qType, exchange):
+			case resCh <- lookupType(ctx, domain, upstream, qType, exchange):
 			}
 		}(qType)
 	}
@@ -166,35 +180,52 @@ func processMessages(
 	minTTL := uint32(math.MaxUint32)
 	found := false
 
-	for result := range resCh {
-		if result.err != nil {
-			errs = append(errs, result.err)
+loop: // Loop until the channel is closed or context is canceled
+	for {
+		select {
+		// Detect context cancellation immediately to prevent blocking
+		case <-ctx.Done():
+			return nil, ctx.Err()
 
-			continue
-		}
+		case result, ok := <-resCh:
+			// If the channel is closed, break the loop
+			if !ok {
+				break loop
+			}
 
-		resultAddrs, ttl, ok := parseMsg(result.msg)
-		if ok {
-			addrs = append(addrs, resultAddrs...)
-			minTTL = min(minTTL, ttl)
-			found = true
+			if result.err != nil {
+				errs = append(errs, result.err)
+				continue
+			}
+
+			// Defensive check for nil msg
+			if result.msg == nil {
+				continue
+			}
+
+			resultAddrs, ttl, ok := parseMsg(result.msg)
+			if ok {
+				addrs = append(addrs, resultAddrs...)
+				minTTL = min(minTTL, ttl)
+				found = true
+			}
 		}
 	}
 
-	select {
-	case <-ctx.Done():
-		return nil, fmt.Errorf("context is canceled")
-	default:
-		if len(addrs) == 0 {
-			return nil, errors.Join(errs...)
+	// If we found any valid addresses,
+	// return them even if some errors occurred (Partial Success)
+	if len(addrs) > 0 {
+		if !found {
+			minTTL = 0
 		}
+		addrselect.SortByRFC6724(addrs)
+		return &RecordSet{Addrs: addrs, TTL: minTTL}, nil
 	}
 
-	if !found {
-		minTTL = 0
+	// Only return errors if no addresses were found at all
+	if len(errs) > 0 {
+		return nil, fmt.Errorf("failed to resolve with %d errors", len(errs))
 	}
 
-	addrselect.SortByRFC6724(addrs)
-
-	return &RecordSet{addrs: addrs, ttl: minTTL}, nil
+	return nil, fmt.Errorf("record not found")
 }
