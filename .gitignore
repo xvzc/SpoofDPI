@@ -10,3 +10,4 @@ out/**
 .direnv/
 dist/
 COMMIT
+site/

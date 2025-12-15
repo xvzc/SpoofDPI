@@ -5,4 +5,4 @@ SpoofDPI provides a number of options to customize its behavior, and these optio
 $ spoofdpi
 ```
 
-If you can't get it working as expected, check [User Guide](../user-guide/configuration.md) for more information on customization.
+If you can't get it working as expected, check [User Guide](../user-guide/overview.md) for more information on customization.

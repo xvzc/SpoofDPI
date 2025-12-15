@@ -33,4 +33,16 @@ jobs:
 
       - run: pip install mkdocs-material 
 
-      - run: mkdocs gh-deploy --force
+      # - run: mkdocs gh-deploy --force
+
+      - name: Build MkDocs
+        run: mkdocs build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'site'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
