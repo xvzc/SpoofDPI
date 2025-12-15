@@ -6,6 +6,12 @@ on:
       - main
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Target Tag Name (e.g., v1.2.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -26,14 +32,26 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-and-publish:
-    if: github.event_name == 'release' && github.event.action == 'published'
+    if: >-
+      (github.event_name == 'release' && github.event.action == 'published') ||
+      github.event_name == 'workflow_dispatch'
     name: build-and-publish
     runs-on: macos-latest
     steps:
+      - name: Determine Tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "RELEASE_TAG=${{ inputs.tag_name }}" >> $GITHUB_ENV
+          else
+            echo "RELEASE_TAG=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -48,8 +66,6 @@ jobs:
       - uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad
 
       # Run GoReleaser to build binaries, archives, packages, and SBOMs.
-      # We use --skip=publish because we want to upload artifacts manually
-      # to the existing release created by Release Drafter, preserving its notes.
       - name: Build Artifacts
         # v6.4.0
         uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a
@@ -59,20 +75,17 @@ jobs:
           args: release --clean --skip=publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_CURRENT_TAG: ${{ github.event.release.tag_name }}
+          GORELEASER_CURRENT_TAG: ${{ env.RELEASE_TAG }}
 
       # Upload all generated artifacts to the release.
-      # GoReleaser generates everything into the 'dist/' folder.
       - name: Upload Artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG_NAME="${{ github.event.release.tag_name }}"
+          TAG_NAME="${{ env.RELEASE_TAG }}"
           
           echo "Uploading artifacts to release: $TAG_NAME"
           
-          # Upload archives, packages, checksums, and SBOMs
-          # --clobber overwrites files if they already exist (useful for retries)
           gh release upload "$TAG_NAME" \
             dist/*.tar.gz \
             dist/*.json \
