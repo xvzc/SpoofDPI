@@ -40,6 +40,27 @@ jobs:
         env:
           CGO_ENABLED: ${{ matrix.cgo }}
 
+  go-test:
+    name: go-test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # run tests on ubuntu, macos, and windows
+        os: [ubuntu-latest, macos-latest]
+        go-version: ['1.24']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Run tests
+        # execute tests including race condition check
+        run: go test -v -race ./...
+
   release-test:
     name: release-test
     permissions:
