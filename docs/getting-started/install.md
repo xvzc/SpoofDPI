@@ -15,8 +15,8 @@ $ echo "libpcap is not required on Linux"
 - ...
 ```
 
-## Install Using curl
-You can install `spoofdpi` using `curl`. The binary will be installed to `/usr/local/bin`.
+## Install Using Script
+You can install `spoofdpi` using the provided script. The binary will be installed to `/usr/local/bin`.
 ```console
 $ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash
 ```
