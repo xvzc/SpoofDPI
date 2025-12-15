@@ -21,7 +21,7 @@ func TestCreateCommand_Flags(t *testing.T) {
 	}{
 		{
 			name: "default values (no flags)",
-			args: []string{"spoofdpi"},
+			args: []string{"spoofdpi", "--clean"},
 			assert: func(t *testing.T, cfg *Config) {
 				// Verify defaults are preserved
 				assert.Equal(t, zerolog.InfoLevel, *cfg.General.LogLevel)

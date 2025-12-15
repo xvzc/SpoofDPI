@@ -10,6 +10,18 @@ import (
 	"strings"
 )
 
+func isOk[T any](p *T, err error) bool {
+	if err != nil {
+		return false
+	}
+
+	if p == nil {
+		return false
+	}
+
+	return true
+}
+
 func checkOneOf(allowed ...string) func(string) error {
 	return func(v string) error {
 		if slices.Contains(allowed, v) {
@@ -83,7 +95,7 @@ func checkHostPort(v string) error {
 // checkPortRange validates if the input is a single port, a range, or "all".
 func checkPortRange(v string) error {
 	// 1. Check for "all" keyword
-	if v == "all" { //nolint:goconst
+	if strings.ToLower(v) == "all" { //nolint:goconst
 		return nil
 	}
 

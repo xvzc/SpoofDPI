@@ -333,7 +333,7 @@ func CreateCommand(
 				os.Exit(0)
 			}
 
-			var tomlCfg *Config
+			tomlCfg := NewConfig()
 			var configDir string
 			if !cmd.Bool("clean") {
 				configFilename := "spoofdpi.toml"
@@ -358,11 +358,11 @@ func CreateCommand(
 				}
 			}
 
-			defaultCfg := getDefault()
-			// argsCfg := fromFlags(cmd)
-
-			finalCfg := defaultCfg.Merge(tomlCfg)
-			finalCfg = finalCfg.Merge(argsCfg)
+			// defaultCfg := getDefault()
+			// // argsCfg := fromFlags(cmd)
+			//
+			finalCfg := getDefault().Merge(tomlCfg.Merge(argsCfg))
+			// finalCfg = finalCfg.Merge(argsCfg)
 
 			runFunc(ctx, strings.Replace(configDir, os.Getenv("HOME"), "~", 1), finalCfg)
 			return nil

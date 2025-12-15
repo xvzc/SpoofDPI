@@ -32,16 +32,8 @@ func (o *GeneralOptions) UnmarshalTOML(data any) (err error) {
 
 	o.Silent = findFrom(m, "silent", parseBoolFn(), &err)
 	o.SetSystemProxy = findFrom(m, "system-proxy", parseBoolFn(), &err)
-	logLevelStr := findFrom(
-		m,
-		"log-level",
-		parseStringFn(checkLogLevel),
-		&err,
-	)
-
-	if err == nil && logLevelStr != nil {
-		level := MustParseLogLevel(*logLevelStr)
-		o.LogLevel = ptr.FromValue(level)
+	if p := findFrom(m, "log-level", parseStringFn(checkLogLevel), &err); isOk(p, err) {
+		o.LogLevel = ptr.FromValue(MustParseLogLevel(*p))
 	}
 
 	return err
@@ -98,14 +90,13 @@ func (o *ServerOptions) UnmarshalTOML(data any) (err error) {
 	}
 
 	o.DefaultTTL = findFrom(v, "default-ttl", parseIntFn[uint8](checkUint8NonZero), &err)
-	listenAddrStr := findFrom(v, "listen-addr", parseStringFn(checkHostPort), &err)
-	if err == nil && listenAddrStr != nil {
-		o.ListenAddr = ptr.FromValue(MustParseTCPAddr(*listenAddrStr))
+
+	if p := findFrom(v, "listen-addr", parseStringFn(checkHostPort), &err); isOk(p, err) {
+		o.ListenAddr = ptr.FromValue(MustParseTCPAddr(*p))
 	}
 
-	timeoutInt := findFrom(v, "timeout", parseIntFn[uint16](checkUint16), &err)
-	if err == nil && timeoutInt != nil {
-		o.Timeout = ptr.FromValue(time.Duration(*timeoutInt) * time.Millisecond)
+	if p := findFrom(v, "timeout", parseIntFn[uint16](checkUint16), &err); isOk(p, err) {
+		o.Timeout = ptr.FromValue(time.Duration(*p) * time.Millisecond)
 	}
 
 	return err
@@ -197,23 +188,18 @@ func (o *DNSOptions) UnmarshalTOML(data any) (err error) {
 		return fmt.Errorf("'dns' must be table type")
 	}
 
-	modeStr := findFrom(m, "mode", parseStringFn(checkDNSMode), &err)
-	if err == nil && modeStr != nil {
-		parsedMode := MustParseDNSModeType(*modeStr)
-		o.Mode = ptr.FromValue(parsedMode)
+	if p := findFrom(m, "mode", parseStringFn(checkDNSMode), &err); isOk(p, err) {
+		o.Mode = ptr.FromValue(MustParseDNSModeType(*p))
 	}
 
-	addrStr := findFrom(m, "addr", parseStringFn(checkHostPort), &err)
-	if err == nil && addrStr != nil {
-		o.Addr = ptr.FromValue(MustParseTCPAddr(*addrStr))
+	if p := findFrom(m, "addr", parseStringFn(checkHostPort), &err); isOk(p, err) {
+		o.Addr = ptr.FromValue(MustParseTCPAddr(*p))
 	}
 
 	o.HTTPSURL = findFrom(m, "https-url", parseStringFn(checkHTTPSEndpoint), &err)
 
-	qTypeStr := findFrom(m, "qtype", parseStringFn(checkDNSQueryType), &err)
-	if err == nil && qTypeStr != nil {
-		parsedQType := MustParseDNSQueryType(*qTypeStr)
-		o.QType = ptr.FromValue(parsedQType)
+	if p := findFrom(m, "qtype", parseStringFn(checkDNSQueryType), &err); isOk(p, err) {
+		o.QType = ptr.FromValue(MustParseDNSQueryType(*p))
 	}
 
 	o.Cache = findFrom(m, "cache", parseBoolFn(), &err)
@@ -340,9 +326,10 @@ func (o *HTTPSOptions) UnmarshalTOML(data any) (err error) {
 	o.Disorder = findFrom(m, "disorder", parseBoolFn(), &err)
 	o.FakeCount = findFrom(m, "fake-count", parseIntFn[uint8](checkUint8), &err)
 	o.FakePacket = findSliceFrom(m, "fake-packet", parseByteFn(nil), &err)
-	splitModeStr := findFrom(m, "split-mode", parseStringFn(checkHTTPSSplitMode), &err)
-	if err == nil && splitModeStr != nil {
-		o.SplitMode = ptr.FromValue(mustParseHTTPSSplitModeType(*splitModeStr))
+
+	splitModeParser := parseStringFn(checkHTTPSSplitMode)
+	if p := findFrom(m, "split-mode", splitModeParser, &err); isOk(p, err) {
+		o.SplitMode = ptr.FromValue(mustParseHTTPSSplitModeType(*p))
 	}
 
 	o.ChunkSize = findFrom(m, "chunk-size", parseIntFn[uint8](checkUint8NonZero), &err)
@@ -439,17 +426,17 @@ func (origin *PolicyOptions) Merge(overrides *PolicyOptions) *PolicyOptions {
 		return overrides.Clone()
 	}
 
-	otherCopy := overrides.Clone()
+	overridesCopy := overrides.Clone()
 
 	merged := origin.Clone()
 	merged.Auto = ptr.CloneOr(overrides.Auto, origin.Auto)
 
-	if overrides.Template != nil {
-		merged.Template = otherCopy.Template
+	if overridesCopy.Template != nil {
+		merged.Template = overridesCopy.Template
 	}
 
-	if overrides.Overrides != nil {
-		merged.Overrides = otherCopy.Overrides
+	if overridesCopy.Overrides != nil {
+		merged.Overrides = append(merged.Overrides, overridesCopy.Overrides...)
 	}
 
 	return merged
@@ -469,14 +456,13 @@ func (a *MatchAttrs) UnmarshalTOML(data any) (err error) {
 	}
 
 	a.Domain = findFrom(v, "domain", parseStringFn(checkDomainPattern), &err)
-	cidrStr := findFrom(v, "cidr", parseStringFn(checkCIDR), &err)
-	if err == nil && cidrStr != nil {
-		a.CIDR = ptr.FromValue(MustParseCIDR(*cidrStr))
+
+	if p := findFrom(v, "cidr", parseStringFn(checkCIDR), &err); isOk(p, err) {
+		a.CIDR = ptr.FromValue(MustParseCIDR(*p))
 	}
 
-	portStr := findFrom(v, "port", parseStringFn(checkPortRange), &err)
-	if err == nil && portStr != nil {
-		portFrom, portTo := MustParsePortRange(*portStr)
+	if p := findFrom(v, "port", parseStringFn(checkPortRange), &err); isOk(p, err) {
+		portFrom, portTo := MustParsePortRange(*p)
 		a.PortFrom, a.PortTo = ptr.FromValue(portFrom), ptr.FromValue(portTo)
 	}
 

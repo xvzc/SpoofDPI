@@ -681,8 +681,9 @@ func TestPolicyOptions_Merge(t *testing.T) {
 			},
 			assert: func(t *testing.T, output *PolicyOptions) {
 				assert.True(t, *output.Auto)
-				assert.Len(t, output.Overrides, 1)
-				assert.Equal(t, "rule2", *output.Overrides[0].Name)
+				assert.Len(t, output.Overrides, 2)
+				assert.Equal(t, "rule1", *output.Overrides[0].Name)
+				assert.Equal(t, "rule2", *output.Overrides[1].Name)
 			},
 		},
 	}

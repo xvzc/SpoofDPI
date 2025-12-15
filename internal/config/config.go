@@ -121,7 +121,7 @@ func (c *Config) ShouldEnablePcap() bool {
 	return false
 }
 
-func getDefault() *Config {
+func getDefault() *Config { //exhaustruct:enforce
 	return &Config{
 		General: &GeneralOptions{
 			LogLevel:       ptr.FromValue(zerolog.InfoLevel),
@@ -130,12 +130,12 @@ func getDefault() *Config {
 		},
 		Server: &ServerOptions{
 			DefaultTTL: ptr.FromValue(uint8(64)),
-			ListenAddr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8080},
+			ListenAddr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8080, Zone: ""},
 			Timeout:    ptr.FromValue(time.Duration(0)),
 		},
 		DNS: &DNSOptions{
 			Mode:     ptr.FromValue(DNSModeUDP),
-			Addr:     &net.TCPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53},
+			Addr:     &net.TCPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53, Zone: ""},
 			HTTPSURL: ptr.FromValue("https://dns.google/dns-query"),
 			QType:    ptr.FromValue(DNSQueryIPv4),
 			Cache:    ptr.FromValue(false),
@@ -150,8 +150,8 @@ func getDefault() *Config {
 		},
 		Policy: &PolicyOptions{
 			Auto:      ptr.FromValue(false),
-			Template:  nil,
-			Overrides: nil,
+			Template:  &Rule{},
+			Overrides: []Rule{},
 		},
 	}
 }
