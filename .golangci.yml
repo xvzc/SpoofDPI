@@ -16,7 +16,8 @@ linters:
   settings:
     exhaustruct:
       allow-empty: true
-      exclude: .*
+      exclude: 
+       - '.*'
 
 formatters:
   enable:
