@@ -81,6 +81,4 @@ jobs:
             dist/*.rpm \
             dist/*.zst \
             dist/checksums.txt \
-            dist/*.sig \
-            dist/*.pem \
             --clobber
