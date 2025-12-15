@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli/v3"
+	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
 func CreateCommand(
@@ -18,6 +21,9 @@ func CreateCommand(
 	build string,
 ) *cli.Command {
 	cli.RootCommandHelpTemplate = createHelpTemplate()
+
+	argsCfg := NewConfig()
+	defaultCfg := getDefault()
 
 	cmd := &cli.Command{
 		Name:        "spoofdpi",
@@ -29,27 +35,9 @@ func CreateCommand(
 		},
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
-				Name: "auto-policy",
-				Usage: `
-				Automatically detect the blocked sites and add policies (default: false)`,
-				OnlyOnce: true,
-			},
-
-			&cli.IntFlag{
-				Name: "cache-shards",
-				Usage: `
-				Number of shards to use for ttlcache. It is recommended to set this to be 
-				at least the number of CPU cores for optimal performance (default: 32, max: 255)`,
-				Value:            32,
-				OnlyOnce:         true,
-				Validator:        validateUint8,
-				ValidateDefaults: true,
-			},
-
-			&cli.BoolFlag{
 				Name: "clean",
 				Usage: `
-				if set, all configuration files will be ignored`,
+				if set, all configuration files will be ignored (default: %v)`,
 				OnlyOnce: true,
 			},
 
@@ -59,165 +47,275 @@ func CreateCommand(
 				Usage: `
 				Custom location of the config file to load. Options given through the command 
 				line flags will override the options set in this file.`,
-				OnlyOnce:         true,
-				Sources:          cli.EnvVars("SPOOFDPI_CONFIG"),
-				ValidateDefaults: true,
+				OnlyOnce: true,
+				Sources:  cli.EnvVars("SPOOFDPI_CONFIG"),
 			},
 
-			&cli.IntFlag{
+			&cli.Int64Flag{
 				Name: "default-ttl",
-				Usage: `
-				Default TTL value for manipulated packets.`,
-				Value:            64,
-				OnlyOnce:         true,
-				Validator:        validateUint8,
-				ValidateDefaults: true,
+				Usage: fmt.Sprintf(`
+				Default TTL value for manipulated packets. (default: %v)`,
+					*defaultCfg.Server.DefaultTTL,
+				),
+				OnlyOnce:  true,
+				Validator: checkUint8NonZero,
+				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
+					argsCfg.Server.DefaultTTL = ptr.FromValue(uint8(v))
+					return nil
+				},
 			},
 
 			&cli.StringFlag{
 				Name: "dns-addr",
-				Usage: `<ip:port>
-				Upstream DNS server address for standard UDP queries.
-				(default: 8.8.8.8:53)`,
-				Value:            "8.8.8.8:53",
-				OnlyOnce:         true,
-				Validator:        validateHostPort,
-				ValidateDefaults: true,
+				Usage: fmt.Sprintf(`<ip:port>
+				Upstream DNS server address for standard UDP queries. (default: %v)`,
+					defaultCfg.DNS.Addr.String(),
+				),
+				OnlyOnce:  true,
+				Validator: checkHostPort,
+				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
+					argsCfg.DNS.Addr = ptr.FromValue(MustParseTCPAddr(v))
+					return nil
+				},
+			},
+
+			&cli.BoolFlag{
+				Name: "dns-cache",
+				Usage: fmt.Sprintf(`
+				If set, DNS records will be cached. (default: %v)`,
+					defaultCfg.DNS.Cache,
+				),
+				Value:    false,
+				OnlyOnce: true,
+				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
+					argsCfg.DNS.Cache = ptr.FromValue(v)
+					return nil
+				},
 			},
 
 			&cli.StringFlag{
-				Name: "dns-default",
-				Usage: `<'udp'|'doh'|'sys'>
+				Name: "dns-mode",
+				Usage: fmt.Sprintf(`<"udp"|"doh"|"sys">
 				Default resolution mode for domains that do not match any specific rule.
-				(default: "udp")`,
-				Value:            "udp",
-				OnlyOnce:         true,
-				Validator:        validateDNSMode,
-				ValidateDefaults: true,
+				(default: %q)`,
+					defaultCfg.DNS.Mode.String(),
+				),
+				Value:     "udp",
+				OnlyOnce:  true,
+				Validator: checkDNSMode,
+				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
+					argsCfg.DNS.Mode = ptr.FromValue(MustParseDNSModeType(v))
+					return nil
+				},
+			},
+
+			&cli.StringFlag{
+				Name: "dns-https-url",
+				Usage: fmt.Sprintf(`<https_url>
+				Endpoint URL for DNS over HTTPS (DoH) queries. 
+				(default: %q)`,
+					*defaultCfg.DNS.HTTPSURL,
+				),
+				Value:     "https://dns.google/dns-query",
+				OnlyOnce:  true,
+				Validator: checkHTTPSEndpoint,
+				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
+					argsCfg.DNS.HTTPSURL = ptr.FromValue(v)
+					return nil
+				},
 			},
 
 			&cli.StringFlag{
 				Name: "dns-qtype",
-				Usage: `<'ipv4'|'ipv6'|'all'>
+				Usage: fmt.Sprintf(`<"ipv4"|"ipv6"|"all">
 				Filters DNS queries by record type (A for IPv4, AAAA for IPv6).
-				(default: "ipv4")`,
-				Value:            "ipv4",
-				OnlyOnce:         true,
-				Validator:        validateDNSQueryType,
-				ValidateDefaults: true,
+				(default: %q)`,
+					defaultCfg.DNS.QType.String(),
+				),
+				Value:     "ipv4",
+				OnlyOnce:  true,
+				Validator: checkDNSQueryType,
+				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
+					argsCfg.DNS.QType = ptr.FromValue(MustParseDNSQueryType(v))
+					return nil
+				},
+			},
+
+			&cli.Int64Flag{
+				Name: "https-fake-count",
+				Usage: fmt.Sprintf(`
+				Number of fake packets to be sent before the Client Hello.
+				Requires 'https-chunk-size' > 0 for fragmentation. (default: %v)`,
+					defaultCfg.HTTPS.FakeCount,
+				),
+				Value:     0,
+				OnlyOnce:  true,
+				Validator: checkUint8,
+				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
+					argsCfg.HTTPS.FakeCount = ptr.FromValue(uint8(v))
+					return nil
+				},
 			},
 
 			&cli.StringFlag{
-				Name: "doh-url",
-				Usage: `<https_url>
-				Endpoint URL for DNS over HTTPS (DoH) queries.
-				(default: "https://dns.google/dns-query")`,
-				Value:            "https://dns.google/dns-query",
-				OnlyOnce:         true,
-				Validator:        validateHTTPSEndpoint,
-				ValidateDefaults: true,
-			},
-
-			&cli.IntFlag{
-				Name: "https-fake-count",
-				Usage: `
-				Number of fake packets to be sent before the Client Hello.
-				Requires 'https-chunk-size' > 0 for fragmentation. (default: 0)`,
-				Value:            0,
-				OnlyOnce:         true,
-				Validator:        validateUint8,
-				ValidateDefaults: true,
+				Name: "https-fake-packet",
+				Usage: `<byte_array>
+				Comma-separated hexadecimal byte array used for fake Client Hello. 
+				(default: built-in fake packet)`,
+				Value:     MustParseHexCSV([]byte(FakeClientHello)),
+				OnlyOnce:  true,
+				Validator: checkHexBytesStr,
+				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
+					argsCfg.HTTPS.FakePacket = MustParseBytes(v)
+					return nil
+				},
 			},
 
 			&cli.BoolFlag{
 				Name: "https-disorder",
-				Usage: `
-				If set, sends fragmented Client Hello packets out-of-order. (default: false)`,
+				Usage: fmt.Sprintf(`
+				If set, sends fragmented Client Hello packets out-of-order. (default: %v)`,
+					defaultCfg.HTTPS.Disorder,
+				),
 				OnlyOnce: true,
+				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
+					argsCfg.HTTPS.Disorder = ptr.FromValue(v)
+					return nil
+				},
 			},
 
 			&cli.StringFlag{
-				Name: "https-split-default",
-				Usage: `<'chunk'|'1byte'|'sni'|'none'>
-				Specifies the default packet fragmentation strategy to use. (default: 'chunk')`,
-				Value:            "chunk",
-				OnlyOnce:         true,
-				Validator:        validateHTTPSSplitMode,
-				ValidateDefaults: true,
+				Name: "https-split-mode",
+				Usage: fmt.Sprintf(`<"sni"|"random"|"chunk"|"sni"|"none">
+				Specifies the default packet fragmentation strategy to use. (default: %q)`,
+					defaultCfg.HTTPS.SplitMode.String(),
+				),
+				Value:     "chunk",
+				OnlyOnce:  true,
+				Validator: checkHTTPSSplitMode,
+				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
+					argsCfg.HTTPS.SplitMode = ptr.FromValue(mustParseHTTPSSplitModeType(v))
+					return nil
+				},
 			},
 
-			&cli.IntFlag{
+			&cli.BoolFlag{
+				Name: "https-skip",
+				Usage: fmt.Sprintf(`
+				If set, HTTPS traffic will be processed without any DPI bypass techniques. 
+				(default: %v)`,
+					defaultCfg.HTTPS.Skip,
+				),
+				OnlyOnce: true,
+				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
+					argsCfg.HTTPS.Skip = ptr.FromValue(v)
+					return nil
+				},
+			},
+
+			&cli.Int64Flag{
 				Name: "https-chunk-size",
-				Usage: `
+				Usage: fmt.Sprintf(`
 				The chunk size (in bytes) for packet fragmentation. This value is only applied 
 				when 'https-split-default' is 'chunk'. While setting the size to '0' internally 
 				disables fragmentation (to avoid division-by-zero errors), you should set 
 				'https-split-default' to 'none' to disable the feature cleanly.
-				(default: 35, max: 255)`,
-				Value:            35,
-				OnlyOnce:         true,
-				Validator:        validateUint8,
-				ValidateDefaults: true,
+				(default: %v, max: %v)`,
+					defaultCfg.HTTPS.ChunkSize,
+					math.MaxUint8,
+				),
+				Value:     0,
+				OnlyOnce:  true,
+				Validator: checkUint8NonZero,
+				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
+					argsCfg.HTTPS.ChunkSize = ptr.FromValue(uint8(v))
+					return nil
+				},
 			},
 
 			&cli.StringFlag{
 				Name: "listen-addr",
-				Usage: `
-				IP address to listen on (default: 127.0.0.1:8080)`,
-				Value:            "127.0.0.1:8080",
-				OnlyOnce:         true,
-				Validator:        validateHostPort,
-				ValidateDefaults: true,
+				Usage: fmt.Sprintf(`
+				IP address to listen on (default: %v)`,
+					defaultCfg.Server.ListenAddr.String(),
+				),
+				Value:     "127.0.0.1:8080",
+				OnlyOnce:  true,
+				Validator: checkHostPort,
+				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
+					argsCfg.Server.ListenAddr = ptr.FromValue(MustParseTCPAddr(v))
+					return nil
+				},
 			},
 
 			&cli.StringFlag{
 				Name: "log-level",
 				Usage: `
-				Set log level (default: 'info')`,
-				Value:            "info",
-				OnlyOnce:         true,
-				Validator:        validateLogLevel,
-				ValidateDefaults: true,
+				Set log level (default: "info")`,
+				OnlyOnce:  true,
+				Validator: checkLogLevel,
+				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
+					argsCfg.General.LogLevel = ptr.FromValue(MustParseLogLevel(v))
+					return nil
+				},
 			},
 
-			&cli.StringSliceFlag{
-				Name: "policy",
-				Usage: `
-				Domain rules that determine whether to perform DPI circumvention on match.
-        This flag can be given multiple times.`,
-				Validator: func(ss []string) error {
-					for _, s := range ss {
-						if err := validatePolicy(s); err != nil {
-							return err
-						}
-					}
-
+			&cli.BoolFlag{
+				Name: "policy-auto",
+				Usage: fmt.Sprintf(`
+				Automatically detect the blocked sites and add policies (default: %v)`,
+					*defaultCfg.Policy.Auto,
+				),
+				OnlyOnce: true,
+				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
+					argsCfg.Policy.Auto = ptr.FromValue(v)
 					return nil
 				},
 			},
 
 			&cli.BoolFlag{
 				Name: "silent",
-				Usage: `
-				Do not show the banner and server information at start up`,
+				Usage: fmt.Sprintf(`
+				Do not show the banner at start up (default: %v)`,
+					defaultCfg.General.Silent,
+				),
 				OnlyOnce: true,
+				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
+					argsCfg.General.Silent = ptr.FromValue(v)
+					return nil
+				},
 			},
 
 			&cli.BoolFlag{
 				Name: "system-proxy",
-				Usage: `
-				Automatically set system-wide proxy configuration`,
+				Usage: fmt.Sprintf(`
+				Automatically set system-wide proxy configuration (default: %v)`,
+					defaultCfg.General.SetSystemProxy,
+				),
 				OnlyOnce: true,
+				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
+					argsCfg.General.SetSystemProxy = ptr.FromValue(v)
+					return nil
+				},
 			},
 
-			&cli.IntFlag{
+			&cli.Int64Flag{
 				Name: "timeout",
-				Usage: `
+				Usage: fmt.Sprintf(`
 				Timeout for tcp connection in milliseconds. 
-				No effect when the value is 0 (default: 0, max: 66535)`,
+				No effect when the value is 0 (default: %v, max: %v)`,
+					defaultCfg.Server.Timeout,
+					math.MaxUint16,
+				),
 				Value:     0,
 				OnlyOnce:  true,
-				Validator: validateUint16,
+				Validator: checkUint16,
+				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
+					argsCfg.Server.Timeout = ptr.FromValue(
+						time.Duration(v * int64(time.Millisecond)),
+					)
+					return nil
+				},
 			},
 
 			&cli.BoolFlag{
@@ -235,7 +333,7 @@ func CreateCommand(
 				os.Exit(0)
 			}
 
-			var tomlCfg *Config
+			tomlCfg := NewConfig()
 			var configDir string
 			if !cmd.Bool("clean") {
 				configFilename := "spoofdpi.toml"
@@ -246,31 +344,25 @@ func CreateCommand(
 					path.Join(os.Getenv("HOME"), ".config", "spoofdpi", configFilename),
 				}
 
-				c, err := findConfigFileToLoad(cmd.String("config"), configDirs)
+				c, err := searchTomlFile(cmd.String("config"), configDirs)
 				if err != nil {
 					return err
 				}
 
 				if c != "" {
 					configDir = c
-					tomlCfg, err = parseTomlConfig(c)
+					tomlCfg, err = fromTomlFile(c)
 					if err != nil {
-						return fmt.Errorf("error parsing toml config: %w", err)
+						return fmt.Errorf("error parsing '%s': %w", c, err)
 					}
 				}
 			}
 
-			argsCfg, err := parseConfigFromArgs(cmd)
-			if err != nil {
-				return fmt.Errorf("error parsing config from args: %w", err)
-			}
-
-			var finalCfg *Config
-			if tomlCfg == nil {
-				finalCfg = argsCfg
-			} else {
-				finalCfg = mergeConfig(argsCfg, tomlCfg, os.Args[1:])
-			}
+			// defaultCfg := getDefault()
+			// // argsCfg := fromFlags(cmd)
+			//
+			finalCfg := getDefault().Merge(tomlCfg.Merge(argsCfg))
+			// finalCfg = finalCfg.Merge(argsCfg)
 
 			runFunc(ctx, strings.Replace(configDir, os.Getenv("HOME"), "~", 1), finalCfg)
 			return nil
@@ -307,34 +399,4 @@ GLOBAL OPTIONS:
 		"{{.Usage}}",
 		"{{.DefaultText}}",
 	)
-}
-
-func parseConfigFromArgs(cmd *cli.Command) (*Config, error) {
-	listenAddr := HostPort{}
-	_ = listenAddr.UnmarshalText([]byte(cmd.String("listen-addr")))
-
-	dnsAddr := HostPort{}
-	_ = dnsAddr.UnmarshalText([]byte(cmd.String("dns-addr")))
-
-	cfg := &Config{
-		AutoPolicy:        cmd.Bool("auto-policy"),
-		CacheShards:       Uint8Number{uint8(cmd.Int("cache-shards"))},
-		DefaultTTL:        Uint8Number{uint8(cmd.Int("default-ttl"))},
-		DNSAddr:           dnsAddr,
-		DNSDefault:        DNSMode{cmd.String("dns-default")},
-		DNSQueryType:      DNSQueryType{cmd.String("dns-qtype")},
-		DOHURL:            HTTPSEndpoint{cmd.String("doh-url")},
-		DomainPolicySlice: parseDomainPolicySlice(cmd.StringSlice("policy")),
-		HTTPSChunkSize:    Uint8Number{uint8(cmd.Int("https-chunk-size"))},
-		HTTPSDisorder:     cmd.Bool("https-disorder"),
-		HTTPSFakeCount:    Uint8Number{uint8(cmd.Int("https-fake-count"))},
-		HTTPSSplitDefault: HTTPSSplitMode{cmd.String("https-split-default")},
-		ListenAddr:        listenAddr,
-		LogLevel:          LogLevel{cmd.String("log-level")},
-		SetSystemProxy:    cmd.Bool("system-proxy"),
-		Silent:            cmd.Bool("silent"),
-		Timeout:           Uint16Number{uint16(cmd.Int("timeout"))},
-	}
-
-	return cfg, nil
 }

@@ -36,7 +36,7 @@ theme:
   features:
     - toc.follow
     - navigation.expand
-    # - navigation.indexes
+    - navigation.indexes
     # - navigation.sections
     - navigation.tabs
     - navigation.top
@@ -54,37 +54,21 @@ nav:
     - 'Install': getting-started/install.md
     - 'Quick Start': getting-started/quick-start.md
   - 'User Guide':
-    - 'Configuration': user-guide/configuration.md
-    - 'CLI Reference':
-      - 'Network':
-        - 'listen-addr': user-guide/cli-reference/listen-addr.md
-        - 'default-ttl': user-guide/cli-reference/default-ttl.md
-        - 'system-proxy': user-guide/cli-reference/system-proxy.md
-        - 'timeout': user-guide/cli-reference/timeout.md
-      - 'DNS':
-        - 'dns-addr': user-guide/cli-reference/dns-addr.md
-        - 'dns-default': user-guide/cli-reference/dns-default.md
-        - 'dns-qtype': user-guide/cli-reference/dns-qtype.md
-        - 'doh-url': user-guide/cli-reference/doh-url.md
-      - 'DPI Bypass':
-        - 'policy': user-guide/cli-reference/policy.md
-        - 'auto-policy': user-guide/cli-reference/auto-policy.md
-        - 'https-split-default': user-guide/cli-reference/https-split-default.md
-        - 'https-chunk-size': user-guide/cli-reference/https-chunk-size.md
-        - 'https-disorder': user-guide/cli-reference/https-disorder.md
-        - 'https-fake-count': user-guide/cli-reference/https-fake-count.md
-      - 'General':
-        - 'cache-shards': user-guide/cli-reference/cache-shards.md
-        - 'config': user-guide/cli-reference/config.md
-        - 'clean': user-guide/cli-reference/clean.md
-        - 'log-level': user-guide/cli-reference/log-level.md
-        - 'silent': user-guide/cli-reference/silent.md
-        - 'version': user-guide/cli-reference/version.md
-    - 'Configuration Recipes': 
-      - 'South Korea': user-guide/configuration-recipes/south-korea.md
+    - 'Overview': user-guide/overview.md
+    - 'Options':
+      - 'General': user-guide/general.md
+      - 'Server': user-guide/server.md
+      - 'DNS': user-guide/dns.md
+      - 'HTTPS': user-guide/https.md
+      - 'Policy': user-guide/policy.md
+    - 'Configuration Examples': user-guide/examples.md
+    # - 'Geographical Recipes': 
+    #   - 'South Korea': user-guide/configuration-recipes/south-korea.md
   - 'Developer Guide':
-    - 'Convention': developer-guide/convention.md
+    - 'Commit Messages': developer-guide/commit-messages.md
+    - 'Code Quality': developer-guide/code-quality.md
     - 'Build and Run': developer-guide/build-and-run.md
+    - 'Testing': developer-guide/testing.md
     - 'Documentation': developer-guide/documentation.md
 
 # Extensions

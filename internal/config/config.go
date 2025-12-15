@@ -1,69 +1,157 @@
 package config
 
 import (
-	"reflect"
-	"strings"
+	"fmt"
+	"net"
+	"time"
 
-	"github.com/miekg/dns"
+	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
-type Config struct {
-	AutoPolicy        bool           `toml:"auto-policy"`
-	CacheShards       Uint8Number    `toml:"cache-shards"`
-	DefaultTTL        Uint8Number    `toml:"default-ttl"`
-	DNSAddr           HostPort       `toml:"dns-addr"`
-	DNSDefault        DNSMode        `toml:"dns-default"`
-	DNSQueryType      DNSQueryType   `toml:"dns-qtype"`
-	DOHURL            HTTPSEndpoint  `toml:"doh-url"`
-	HTTPSDisorder     bool           `toml:"https-disorder"`
-	HTTPSFakeCount    Uint8Number    `toml:"https-fake-count"`
-	HTTPSSplitDefault HTTPSSplitMode `toml:"https-split-default"`
-	HTTPSChunkSize    Uint8Number    `toml:"https-chunk-size"`
-	ListenAddr        HostPort       `toml:"listen-addr"`
-	LogLevel          LogLevel       `toml:"log-level"`
-	DomainPolicySlice []DomainPolicy `toml:"policy"`
-	SetSystemProxy    bool           `toml:"system-proxy"`
-	Silent            bool           `toml:"silent"`
-	Timeout           Uint16Number   `toml:"timeout"`
+type merger[T any] interface {
+	Clone() T
+	Merge(T) T
 }
 
-func (c *Config) GenerateDnsQueryTypes() []uint16 {
-	switch c.DNSQueryType.Value {
-	case "ipv4":
-		return []uint16{dns.TypeA}
-	case "ipv6":
-		return []uint16{dns.TypeAAAA}
-	case "all":
-		return []uint16{dns.TypeA, dns.TypeAAAA}
-	default:
-		return []uint16{}
+type cloner[T any] interface {
+	Clone() T
+}
+
+var _ merger[*Config] = (*Config)(nil)
+
+type Config struct {
+	General *GeneralOptions `toml:"general"`
+	Server  *ServerOptions  `toml:"server"`
+	DNS     *DNSOptions     `toml:"dns"`
+	HTTPS   *HTTPSOptions   `toml:"https"`
+	Policy  *PolicyOptions  `toml:"policy"`
+}
+
+func (c *Config) UnmarshalTOML(data any) (err error) {
+	m, ok := data.(map[string]any)
+	if !ok {
+		return fmt.Errorf("non-table type config file")
+	}
+
+	c.General = findStructFrom[GeneralOptions](m, "general", &err)
+	c.Server = findStructFrom[ServerOptions](m, "server", &err)
+	c.DNS = findStructFrom[DNSOptions](m, "dns", &err)
+	c.HTTPS = findStructFrom[HTTPSOptions](m, "https", &err)
+	c.Policy = findStructFrom[PolicyOptions](m, "policy", &err)
+
+	return
+}
+
+func NewConfig() *Config {
+	return &Config{
+		General: &GeneralOptions{},
+		Server:  &ServerOptions{},
+		DNS:     &DNSOptions{},
+		HTTPS:   &HTTPSOptions{},
+		Policy:  &PolicyOptions{},
 	}
 }
 
-func mergeConfig(argsCfg *Config, tomlCfg *Config, args []string) *Config {
-	final := tomlCfg
+func (c *Config) Clone() *Config {
+	if c == nil {
+		return nil
+	}
 
-	finalVal := reflect.ValueOf(final).Elem()
-	argsVal := reflect.ValueOf(argsCfg).Elem()
-	structType := finalVal.Type()
+	return &Config{
+		General: c.General.Clone(),
+		Server:  c.Server.Clone(),
+		DNS:     c.DNS.Clone(),
+		HTTPS:   c.HTTPS.Clone(),
+		Policy:  c.Policy.Clone(),
+	}
+}
 
-	for i := 0; i < finalVal.NumField(); i++ {
-		tag := structType.Field(i).Tag.Get("toml")
+func (origin *Config) Merge(overrides *Config) *Config {
+	if overrides == nil {
+		return origin.Clone()
+	}
 
-		finalField := finalVal.Field(i)
-		argsField := argsVal.Field(i)
+	if origin == nil {
+		return overrides.Clone()
+	}
 
-		if finalField.CanSet() && finalField.IsZero() {
-			finalField.Set(argsField)
+	return &Config{
+		General: origin.General.Merge(overrides.General),
+		Server:  origin.Server.Merge(overrides.Server),
+		DNS:     origin.DNS.Merge(overrides.DNS),
+		HTTPS:   origin.HTTPS.Merge(overrides.HTTPS),
+		Policy:  origin.Policy.Merge(overrides.Policy),
+	}
+}
+
+func (c *Config) ShouldEnablePcap() bool {
+	if *c.HTTPS.FakeCount > 0 {
+		return true
+	}
+
+	if c.Policy == nil {
+		return false
+	}
+
+	if c.Policy.Template != nil {
+		template := c.Policy.Template
+		if template.HTTPS != nil && ptr.FromPtr(template.HTTPS.FakeCount) > 0 {
+			return true
 		}
+	}
 
-		for i := range args {
-			if strings.Contains(args[i], tag) {
-				finalField.Set(argsField)
-				break
+	if c.Policy.Overrides != nil {
+		rules := c.Policy.Overrides
+		for _, r := range rules {
+			if r.HTTPS == nil {
+				continue
+			}
+
+			if r.HTTPS.FakeCount == nil {
+				continue
+			}
+
+			if *r.HTTPS.FakeCount > 0 {
+				return true
 			}
 		}
 	}
 
-	return final
+	return false
+}
+
+func getDefault() *Config { //exhaustruct:enforce
+	return &Config{
+		General: &GeneralOptions{
+			LogLevel:       ptr.FromValue(zerolog.InfoLevel),
+			Silent:         ptr.FromValue(false),
+			SetSystemProxy: ptr.FromValue(false),
+		},
+		Server: &ServerOptions{
+			DefaultTTL: ptr.FromValue(uint8(64)),
+			ListenAddr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8080, Zone: ""},
+			Timeout:    ptr.FromValue(time.Duration(0)),
+		},
+		DNS: &DNSOptions{
+			Mode:     ptr.FromValue(DNSModeUDP),
+			Addr:     &net.TCPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53, Zone: ""},
+			HTTPSURL: ptr.FromValue("https://dns.google/dns-query"),
+			QType:    ptr.FromValue(DNSQueryIPv4),
+			Cache:    ptr.FromValue(false),
+		},
+		HTTPS: &HTTPSOptions{
+			Disorder:   ptr.FromValue(false),
+			FakeCount:  ptr.FromValue(uint8(0)),
+			FakePacket: []byte(FakeClientHello),
+			SplitMode:  ptr.FromValue(HTTPSSplitModeSNI),
+			ChunkSize:  ptr.FromValue(uint8(0)),
+			Skip:       ptr.FromValue(false),
+		},
+		Policy: &PolicyOptions{
+			Auto:      ptr.FromValue(false),
+			Template:  &Rule{},
+			Overrides: []Rule{},
+		},
+	}
 }

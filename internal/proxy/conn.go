@@ -67,7 +67,10 @@ func dialFirstSuccessful(
 				defer func() { <-sem }() // Return semaphore
 
 				targetAddr := net.JoinHostPort(ip.String(), strconv.Itoa(port))
-				dialer := &net.Dialer{Timeout: timeout}
+				dialer := &net.Dialer{}
+				if timeout > 0 {
+					dialer.Deadline = time.Now().Add(timeout)
+				}
 
 				conn, err := dialer.DialContext(ctx, "tcp", targetAddr)
 
@@ -115,7 +118,7 @@ func tunnelConns(
 	src net.Conn, // Source connection (io.Reader)
 ) {
 	var n int64
-	logger = logging.WithLocalScope(logger, ctx, "tunnel")
+	logger = logging.WithLocalScope(ctx, logger, "tunnel")
 
 	var once sync.Once
 	closeOnce := func() {

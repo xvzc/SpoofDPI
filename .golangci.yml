@@ -3,9 +3,9 @@ version: "2"
 linters:
   default: none
   disable:
-    # - exhaustivestruct
     - depguard
   enable:
+    - exhaustruct
     - errcheck
     - govet
     - staticcheck
@@ -13,6 +13,11 @@ linters:
     - asciicheck
     - goconst
     # - revive
+  settings:
+    exhaustruct:
+      allow-empty: true
+      exclude: 
+       - '.*'
 
 formatters:
   enable:

@@ -5,6 +5,8 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/internal/config"
+	"github.com/xvzc/SpoofDPI/internal/logging"
 )
 
 var _ Resolver = (*UDPResolver)(nil)
@@ -12,44 +14,62 @@ var _ Resolver = (*UDPResolver)(nil)
 type UDPResolver struct {
 	logger zerolog.Logger
 
-	client   *dns.Client
-	upstream string
+	client      *dns.Client
+	defaultOpts *config.DNSOptions
 }
 
 func NewUDPResolver(
 	logger zerolog.Logger,
-	upstream string,
+	defaultOpts *config.DNSOptions,
 ) *UDPResolver {
 	return &UDPResolver{
-		client:   &dns.Client{},
-		upstream: upstream,
-		logger:   logger,
+		client:      &dns.Client{},
+		defaultOpts: defaultOpts,
+		logger:      logger,
 	}
 }
 
-func (pr *UDPResolver) Info() []ResolverInfo {
+func (ur *UDPResolver) Info() []ResolverInfo {
 	return []ResolverInfo{
 		{
-			Name:   "udp",
-			Dst:    pr.upstream,
-			Cached: CachedStatus{false},
+			Name: "udp",
+			Dst:  ur.defaultOpts.Addr.String(),
 		},
 	}
 }
 
-func (pr *UDPResolver) Resolve(
+func (ur *UDPResolver) Resolve(
 	ctx context.Context,
 	domain string,
-	qTypes []uint16,
+	fallback Resolver,
+	rule *config.Rule,
 ) (*RecordSet, error) {
-	resCh := lookupAllTypes(ctx, domain, qTypes, pr.exchange)
+	opts := ur.defaultOpts
+	if rule != nil {
+		opts = opts.Merge(rule.DNS)
+	}
+
+	resCh := lookupAllTypes(
+		ctx,
+		domain,
+		opts.Addr.String(),
+		parseQueryTypes(*opts.QType),
+		ur.exchange,
+	)
 	return processMessages(ctx, resCh)
 }
 
-func (pr *UDPResolver) exchange(
+func (ur *UDPResolver) exchange(
 	ctx context.Context,
 	msg *dns.Msg,
+	upstream string,
 ) (*dns.Msg, error) {
-	resp, _, err := pr.client.ExchangeContext(ctx, msg, pr.upstream)
+	logger := logging.WithLocalScope(ctx, ur.logger, "udp_exchange")
+
+	resp, _, err := ur.client.ExchangeContext(ctx, msg, upstream)
+	if err != nil {
+		logger.Trace().Err(err).Msgf("client returned error")
+	}
+
 	return resp, err
 }
