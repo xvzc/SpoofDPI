@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/dns"
+	"github.com/xvzc/SpoofDPI/internal/handler"
 	"github.com/xvzc/SpoofDPI/internal/logging"
 	"github.com/xvzc/SpoofDPI/internal/matcher"
 	"github.com/xvzc/SpoofDPI/internal/netutil"
@@ -20,27 +21,27 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/session"
 )
 
-type Proxy struct {
+type HTTPProxy struct {
 	logger zerolog.Logger
 
 	resolver     dns.Resolver
-	httpHandler  Handler
-	httpsHandler Handler
+	httpHandler  handler.RequestHandler
+	httpsHandler handler.RequestHandler
 	ruleMatcher  matcher.RuleMatcher
 	serverOpts   *config.ServerOptions
 	policyOpts   *config.PolicyOptions
 }
 
-func NewProxy(
+func NewHTTPProxy(
 	logger zerolog.Logger,
 	resolver dns.Resolver,
-	httpHandler Handler,
-	httpsHandler Handler,
+	httpHandler handler.RequestHandler,
+	httpsHandler handler.RequestHandler,
 	ruleMatcher matcher.RuleMatcher,
 	serverOpts *config.ServerOptions,
 	policyOpts *config.PolicyOptions,
-) *Proxy {
-	return &Proxy{
+) Proxy {
+	return &HTTPProxy{
 		logger:       logger,
 		resolver:     resolver,
 		httpHandler:  httpHandler,
@@ -51,7 +52,7 @@ func NewProxy(
 	}
 }
 
-func (p *Proxy) ListenAndServe(ctx context.Context, wait chan struct{}) {
+func (p *HTTPProxy) ListenAndServe(ctx context.Context, wait chan struct{}) {
 	<-wait
 
 	logger := p.logger.With().Ctx(ctx).Logger()
@@ -80,7 +81,7 @@ func (p *Proxy) ListenAndServe(ctx context.Context, wait chan struct{}) {
 	}
 }
 
-func (p *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
+func (p *HTTPProxy) handleConnection(ctx context.Context, conn net.Conn) {
 	logger := logging.WithLocalScope(ctx, p.logger, "conn")
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -172,21 +173,21 @@ func (p *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 		return
 	}
 
-	dst := &Destination{
+	var h handler.RequestHandler
+	if req.IsConnectMethod() {
+		h = p.httpsHandler
+	} else {
+		h = p.httpHandler
+	}
+
+	dst := &handler.Destination{
 		Domain:  domain,
 		Addrs:   rSet.Addrs,
 		Port:    dstPort,
 		Timeout: *p.serverOpts.Timeout,
 	}
 
-	var handler Handler
-	if req.IsConnectMethod() {
-		handler = p.httpsHandler
-	} else {
-		handler = p.httpHandler
-	}
-
-	handleErr := handler.HandleRequest(ctx, conn, req, dst, bestMatch)
+	handleErr := h.HandleRequest(ctx, conn, req, dst, bestMatch)
 	if handleErr == nil { // Early exit if no error found
 		return
 	}
@@ -228,7 +229,7 @@ func (p *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 	}
 }
 
-func (p *Proxy) isRecursiveDst(
+func (p *HTTPProxy) isRecursiveDst(
 	ctx context.Context,
 	dstAddrs []net.IPAddr,
 	dstPort int,

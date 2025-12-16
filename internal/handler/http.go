@@ -1,4 +1,4 @@
-package proxy
+package handler
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/proto"
 )
 
-var _ Handler = (*HTTPHandler)(nil)
+var _ RequestHandler = (*HTTPHandler)(nil)
 
 type HTTPHandler struct {
 	logger zerolog.Logger

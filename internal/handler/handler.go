@@ -1,4 +1,4 @@
-package proxy
+package handler
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/proto"
 )
 
-type Handler interface {
+type RequestHandler interface {
 	HandleRequest(
 		ctx context.Context,
 		lConn net.Conn,

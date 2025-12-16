@@ -14,6 +14,7 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/desync"
 	"github.com/xvzc/SpoofDPI/internal/dns"
+	"github.com/xvzc/SpoofDPI/internal/handler"
 	"github.com/xvzc/SpoofDPI/internal/logging"
 	"github.com/xvzc/SpoofDPI/internal/matcher"
 	"github.com/xvzc/SpoofDPI/internal/packet"
@@ -247,7 +248,7 @@ func createProxy(
 	logger zerolog.Logger,
 	cfg *config.Config,
 	resolver dns.Resolver,
-) (*proxy.Proxy, error) {
+) (proxy.Proxy, error) {
 	ruleMatcher := matcher.NewRuleMatcher(
 		matcher.NewAddrMatcher(),
 		matcher.NewDomainMatcher(),
@@ -261,7 +262,7 @@ func createProxy(
 	}
 
 	// create an HTTP handler.
-	httpHandler := proxy.NewHTTPHandler(logging.WithScope(logger, "hnd"))
+	httpHandler := handler.NewHTTPHandler(logging.WithScope(logger, "hnd"))
 
 	var hopTracker *packet.HopTracker
 	var packetInjector *packet.Injector
@@ -273,7 +274,7 @@ func createProxy(
 		}
 	}
 
-	httpsHandler := proxy.NewHTTPSHandler(
+	httpsHandler := handler.NewHTTPSHandler(
 		logging.WithScope(logger, "hnd"),
 		desync.NewTLSDesyncer(
 			packetInjector,
@@ -284,7 +285,7 @@ func createProxy(
 		cfg.HTTPS.Clone(),
 	)
 
-	return proxy.NewProxy(
+	return proxy.NewHTTPProxy(
 		logging.WithScope(logger, "pxy"),
 		resolver,
 		httpHandler,
