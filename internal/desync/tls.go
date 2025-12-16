@@ -8,9 +8,9 @@ import (
 	"net"
 
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/logging"
+	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/packet"
 	"github.com/xvzc/SpoofDPI/internal/proto"
 	"github.com/xvzc/SpoofDPI/internal/ptr"
@@ -295,8 +295,6 @@ func (d *TLSDesyncer) sendFakePackets(
 }
 
 // --- Helper Functions (Low-level Syscall) ---
-
-
 
 // genPatternMask generates a pseudo-random 64-bit mask used for determining
 // split points or disorder indices in the packet fragmentation process.
