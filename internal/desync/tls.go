@@ -2,14 +2,13 @@ package desync
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/bits"
 	"math/rand/v2"
 	"net"
-	"syscall"
 
 	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/logging"
 	"github.com/xvzc/SpoofDPI/internal/packet"
@@ -109,7 +108,7 @@ func (d *TLSDesyncer) sendSegmentsDisorder(
 
 	var ttlErrored bool
 	setTTLWrap := func(ttl uint8) {
-		if err := setTTL(conn, isIPv4, ttl); err != nil {
+		if err := netutil.SetTTL(conn, isIPv4, ttl); err != nil {
 			logger.Warn().Err(err).Msg("failed to set TTL, continuing without modifying ttl")
 			ttlErrored = true
 		}
@@ -297,39 +296,7 @@ func (d *TLSDesyncer) sendFakePackets(
 
 // --- Helper Functions (Low-level Syscall) ---
 
-// setTTL configures the TTL or Hop Limit depending on the IP version.
-func setTTL(conn net.Conn, isIPv4 bool, ttl uint8) error {
-	tcpConn, ok := conn.(*net.TCPConn)
-	if !ok {
-		return errors.New("failed to cast to TCPConn")
-	}
 
-	rawConn, err := tcpConn.SyscallConn()
-	if err != nil {
-		return err
-	}
-
-	var level, opt int
-	if isIPv4 {
-		level = syscall.IPPROTO_IP
-		opt = syscall.IP_TTL
-	} else {
-		level = syscall.IPPROTO_IPV6
-		opt = syscall.IPV6_UNICAST_HOPS
-	}
-
-	var sysErr error
-
-	// Invoke Control to manipulate file descriptor directly
-	err = rawConn.Control(func(fd uintptr) {
-		sysErr = syscall.SetsockoptInt(int(fd), level, opt, int(ttl))
-	})
-	if err != nil {
-		return err
-	}
-
-	return sysErr
-}
 
 // genPatternMask generates a pseudo-random 64-bit mask used for determining
 // split points or disorder indices in the packet fragmentation process.

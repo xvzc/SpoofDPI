@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/logging"
+	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/proto"
 )
 
@@ -34,13 +35,13 @@ func (h *HTTPHandler) HandleRequest(
 ) error {
 	logger := logging.WithLocalScope(ctx, h.logger, "http")
 
-	rConn, err := dialFirstSuccessful(ctx, dst.Addrs, dst.Port, dst.Timeout)
+	rConn, err := netutil.DialFirstSuccessful(ctx, dst.Addrs, dst.Port, dst.Timeout)
 	if err != nil {
 		return err
 	}
 
 	// Ensure the remote connection is also closed on exit.
-	defer closeConns(rConn)
+	defer netutil.CloseConns(rConn)
 
 	logger.Debug().Msgf("new remote conn -> %s", rConn.RemoteAddr())
 
@@ -56,8 +57,8 @@ func (h *HTTPHandler) HandleRequest(
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	go tunnelConns(ctx, logger, errCh, rConn, lConn)
-	go tunnelConns(ctx, logger, errCh, lConn, rConn)
+	go netutil.TunnelConns(ctx, logger, errCh, rConn, lConn)
+	go netutil.TunnelConns(ctx, logger, errCh, lConn, rConn)
 
 	for range 2 {
 		e := <-errCh

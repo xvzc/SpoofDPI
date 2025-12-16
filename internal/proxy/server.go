@@ -14,6 +14,7 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/dns"
 	"github.com/xvzc/SpoofDPI/internal/logging"
 	"github.com/xvzc/SpoofDPI/internal/matcher"
+	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/proto"
 	"github.com/xvzc/SpoofDPI/internal/ptr"
 	"github.com/xvzc/SpoofDPI/internal/session"
@@ -84,7 +85,7 @@ func (p *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	defer closeConns(conn)
+	defer netutil.CloseConns(conn)
 
 	req, err := proto.ReadHttpRequest(conn)
 	if err != nil {
@@ -191,7 +192,7 @@ func (p *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 	}
 
 	logger.Warn().Err(handleErr).Msg("error handling request")
-	if !errors.Is(handleErr, errBlocked) { // Early exit if not blocked
+	if !errors.Is(handleErr, netutil.ErrBlocked) { // Early exit if not blocked
 		return
 	}
 
