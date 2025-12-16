@@ -11,6 +11,7 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/desync"
 	"github.com/xvzc/SpoofDPI/internal/logging"
+	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/packet"
 	"github.com/xvzc/SpoofDPI/internal/proto"
 	"github.com/xvzc/SpoofDPI/internal/ptr"
@@ -60,17 +61,17 @@ func (h *HTTPSHandler) HandleRequest(
 
 	logger := logging.WithLocalScope(ctx, h.logger, "https")
 
-	rConn, err := dialFirstSuccessful(ctx, dst.Addrs, dst.Port, dst.Timeout)
+	rConn, err := netutil.DialFirstSuccessful(ctx, dst.Addrs, dst.Port, dst.Timeout)
 	if err != nil {
 		return err
 	}
-	defer closeConns(rConn)
+	defer netutil.CloseConns(rConn)
 
 	logger.Debug().Msgf("new remote conn -> %s", rConn.RemoteAddr())
 
 	tlsMsg, err := h.handleProxyHandshake(ctx, lConn, req)
 	if err != nil {
-		if !isConnectionResetByPeer(err) && !errors.Is(err, io.EOF) {
+		if !netutil.IsConnectionResetByPeer(err) && !errors.Is(err, io.EOF) {
 			logger.Trace().Err(err).Msgf("proxy handshake error")
 			return fmt.Errorf("failed to handle proxy handshake: %w", err)
 		}
@@ -97,8 +98,8 @@ func (h *HTTPSHandler) HandleRequest(
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	go tunnelConns(ctx, logger, errCh, rConn, lConn)
-	go tunnelConns(ctx, logger, errCh, lConn, rConn)
+	go netutil.TunnelConns(ctx, logger, errCh, rConn, lConn)
+	go netutil.TunnelConns(ctx, logger, errCh, lConn, rConn)
 
 	for range 2 {
 		e := <-errCh
@@ -106,8 +107,8 @@ func (h *HTTPSHandler) HandleRequest(
 			continue
 		}
 
-		if isConnectionResetByPeer(e) {
-			return errBlocked
+		if netutil.IsConnectionResetByPeer(e) {
+			return netutil.ErrBlocked
 		} else {
 			return fmt.Errorf(
 				"unsuccessful tunnel %s -> %s: %w",
