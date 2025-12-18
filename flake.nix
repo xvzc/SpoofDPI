@@ -18,7 +18,12 @@
         subPackages = [ "cmd/spoofdpi" ];
         buildInputs = pkgs.lib.optionals pkgs.stdenv.isDarwin [ pkgs.libpcap ];
         env.CGO_ENABLED = if pkgs.stdenv.isLinux then "0" else "1";
-        ldflags = [ "-s" "-w" "-X main.build=flake" "-X main.commit=dirty" ];
+        ldflags = [
+          "-s"
+          "-w"
+          "-X main.build=flake"
+          "-X main.commit=${self.shortRev or "dirty"}"
+        ];
         meta = {
           description = "Simple and fast anti-censorship tool written in Go";
           homepage = "https://github.com/xvzc/SpoofDPI";
