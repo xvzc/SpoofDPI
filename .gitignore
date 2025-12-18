@@ -4,6 +4,7 @@ spoofdpi.*
 !cmd/spoofdpi/
 !_assets/*
 out/**
+result
 
 .DS_Store
 .idea/
