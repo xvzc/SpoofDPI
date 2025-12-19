@@ -37,7 +37,7 @@ func TestCreateCommand_Flags(t *testing.T) {
 				assert.False(t, *cfg.DNS.Cache)
 				assert.Equal(t, uint8(0), *cfg.HTTPS.FakeCount)
 				assert.False(t, *cfg.HTTPS.Disorder)
-				assert.Equal(t, HTTPSSplitModeSNI, *cfg.HTTPS.SplitMode)
+				assert.Equal(t, HTTPSSplitModeNone, *cfg.HTTPS.SplitMode)
 				assert.Equal(t, uint8(0), *cfg.HTTPS.ChunkSize)
 				assert.False(t, *cfg.HTTPS.Skip)
 				assert.False(t, *cfg.Policy.Auto)
@@ -87,7 +87,7 @@ func TestCreateCommand_Flags(t *testing.T) {
 
 				// HTTPS
 				assert.Equal(t, uint8(10), *cfg.HTTPS.FakeCount)
-				assert.Equal(t, []byte{0x16, 0x03}, cfg.HTTPS.FakePacket)
+				assert.Equal(t, []byte{0x16, 0x03}, cfg.HTTPS.FakePacket.Raw())
 				assert.True(t, *cfg.HTTPS.Disorder)
 				assert.Equal(t, HTTPSSplitModeChunk, *cfg.HTTPS.SplitMode)
 				assert.Equal(t, uint8(50), *cfg.HTTPS.ChunkSize)
@@ -266,7 +266,7 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 	// HTTPS
 	assert.False(t, *capturedCfg.HTTPS.Disorder)
 	assert.Equal(t, uint8(10), *capturedCfg.HTTPS.FakeCount)
-	assert.Equal(t, []byte{0xff, 0xff}, capturedCfg.HTTPS.FakePacket)
+	assert.Equal(t, []byte{0xff, 0xff}, capturedCfg.HTTPS.FakePacket.Raw())
 	assert.Equal(t, HTTPSSplitModeSNI, *capturedCfg.HTTPS.SplitMode)
 	assert.Equal(t, uint8(10), *capturedCfg.HTTPS.ChunkSize)
 	assert.False(t, *capturedCfg.HTTPS.Skip)

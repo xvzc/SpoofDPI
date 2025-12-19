@@ -24,7 +24,7 @@ func TestSplit(t *testing.T) {
 		{
 			name: "none",
 			opts: &config.HTTPSOptions{SplitMode: ptr.FromValue(config.HTTPSSplitModeNone)},
-			msg:  &proto.TLSMessage{Raw: []byte("12345")},
+			msg:  proto.NewFakeTLSMessage([]byte("12345")),
 			assert: func(t *testing.T, chunks [][]byte) {
 				assert.Len(t, chunks, 1)
 				assert.Equal(t, []byte("12345"), chunks[0])
@@ -32,7 +32,7 @@ func TestSplit(t *testing.T) {
 		},
 		{
 			name: "chunk size 3",
-			msg:  &proto.TLSMessage{Raw: []byte("1234567890")},
+			msg:  proto.NewFakeTLSMessage([]byte("1234567890")),
 			opts: &config.HTTPSOptions{
 				SplitMode: ptr.FromValue(config.HTTPSSplitModeChunk),
 				ChunkSize: ptr.FromValue(uint8(3)),
@@ -45,7 +45,7 @@ func TestSplit(t *testing.T) {
 		},
 		{
 			name: "chunk size 0 (fallback)",
-			msg:  &proto.TLSMessage{Raw: []byte("1234567890")},
+			msg:  proto.NewFakeTLSMessage([]byte("1234567890")),
 			opts: &config.HTTPSOptions{
 				SplitMode: ptr.FromValue(config.HTTPSSplitModeChunk),
 				ChunkSize: ptr.FromValue(uint8(0)),
@@ -57,7 +57,7 @@ func TestSplit(t *testing.T) {
 		},
 		{
 			name: "first-byte",
-			msg:  &proto.TLSMessage{Raw: []byte("1234567890")},
+			msg:  proto.NewFakeTLSMessage([]byte("1234567890")),
 			opts: &config.HTTPSOptions{
 				SplitMode: ptr.FromValue(config.HTTPSSplitModeFirstByte),
 			},
@@ -69,7 +69,7 @@ func TestSplit(t *testing.T) {
 		},
 		{
 			name: "first-byte (fallback)",
-			msg:  &proto.TLSMessage{Raw: []byte("1")},
+			msg:  proto.NewFakeTLSMessage([]byte("1")),
 			opts: &config.HTTPSOptions{
 				SplitMode: ptr.FromValue(config.HTTPSSplitModeFirstByte),
 			},
@@ -80,7 +80,7 @@ func TestSplit(t *testing.T) {
 		},
 		{
 			name: "valid sni",
-			msg:  &proto.TLSMessage{Raw: []byte(config.FakeClientHello)},
+			msg:  proto.NewFakeTLSMessage([]byte(config.FakeClientHello)),
 			opts: &config.HTTPSOptions{SplitMode: ptr.FromValue(config.HTTPSSplitModeSNI)},
 			assert: func(t *testing.T, chunks [][]byte) {
 				assert.GreaterOrEqual(t, len(chunks), 1)
@@ -89,7 +89,7 @@ func TestSplit(t *testing.T) {
 		},
 		{
 			name: "sni (fallback)",
-			msg:  &proto.TLSMessage{Raw: []byte("1234567890")},
+			msg:  proto.NewFakeTLSMessage([]byte("1234567890")),
 			opts: &config.HTTPSOptions{SplitMode: ptr.FromValue(config.HTTPSSplitModeSNI)},
 			assert: func(t *testing.T, chunks [][]byte) {
 				// Fallback to no split on error
@@ -99,7 +99,7 @@ func TestSplit(t *testing.T) {
 		},
 		{
 			name: "random",
-			msg:  &proto.TLSMessage{Raw: []byte(config.FakeClientHello)},
+			msg:  proto.NewFakeTLSMessage([]byte(config.FakeClientHello)),
 			opts: &config.HTTPSOptions{
 				SplitMode: ptr.FromValue(config.HTTPSSplitModeRandom),
 			},

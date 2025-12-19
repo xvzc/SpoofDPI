@@ -7,6 +7,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
+	"github.com/xvzc/SpoofDPI/internal/proto"
 	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
@@ -435,7 +436,7 @@ func TestHTTPSOptions_UnmarshalTOML(t *testing.T) {
 			assert: func(t *testing.T, o HTTPSOptions) {
 				assert.True(t, *o.Disorder)
 				assert.Equal(t, uint8(5), *o.FakeCount)
-				assert.Equal(t, []byte{0x01, 0x02}, o.FakePacket)
+				assert.Equal(t, []byte{0x01, 0x02}, o.FakePacket.Raw())
 				assert.Equal(t, HTTPSSplitModeChunk, *o.SplitMode)
 				assert.Equal(t, uint8(20), *o.ChunkSize)
 				assert.True(t, *o.Skip)
@@ -479,13 +480,13 @@ func TestHTTPSOptions_Clone(t *testing.T) {
 		},
 		{
 			name:  "non-nil receiver",
-			input: &HTTPSOptions{Disorder: ptr.FromValue(true), FakePacket: []byte{0x01}},
+			input: &HTTPSOptions{Disorder: ptr.FromValue(true), FakePacket: proto.NewFakeTLSMessage([]byte{0x01})},
 			assert: func(t *testing.T, input *HTTPSOptions, output *HTTPSOptions) {
 				assert.NotNil(t, output)
 				assert.True(t, *output.Disorder)
 				assert.NotSame(t, input, output)
-				if len(output.FakePacket) > 0 {
-					assert.Equal(t, input.FakePacket, output.FakePacket)
+				if output.FakePacket != nil {
+					assert.Equal(t, input.FakePacket.Raw(), output.FakePacket.Raw())
 					// assert.NotSame(t, &input.FakePacket[0], &output.FakePacket[0]) // Cannot easily check slice backing array address safely
 				}
 			},
@@ -528,16 +529,16 @@ func TestHTTPSOptions_Merge(t *testing.T) {
 			base: &HTTPSOptions{
 				Disorder:   ptr.FromValue(false),
 				ChunkSize:  ptr.FromValue(uint8(10)),
-				FakePacket: []byte{0x01},
+				FakePacket: proto.NewFakeTLSMessage([]byte{0x01}),
 			},
 			override: &HTTPSOptions{
 				Disorder:   ptr.FromValue(true),
-				FakePacket: []byte{0x02},
+				FakePacket: proto.NewFakeTLSMessage([]byte{0x02}),
 			},
 			assert: func(t *testing.T, output *HTTPSOptions) {
 				assert.True(t, *output.Disorder)
 				assert.Equal(t, uint8(10), *output.ChunkSize)
-				assert.Equal(t, []byte{0x02}, output.FakePacket)
+				assert.Equal(t, []byte{0x02}, output.FakePacket.Raw())
 			},
 		},
 	}
