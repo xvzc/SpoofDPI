@@ -11,7 +11,7 @@ type (
 	traceIDCtxKey        struct{}
 	policyIncludedCtxKey struct{}
 	shouldExploitCtxKey  struct{}
-	remoteInfoCtxKey     struct{}
+	hostInfoCtxKey       struct{}
 )
 
 // WithNewTraceID ensures a trace ID is present in the context.
@@ -37,14 +37,14 @@ func TraceIDFrom(ctx context.Context) (string, bool) {
 	return "", false
 }
 
-// WithRemoteInfo returns a new context carrying the given domain name string.
-func WithRemoteInfo(ctx context.Context, domain string) context.Context {
-	return context.WithValue(ctx, remoteInfoCtxKey{}, domain)
+// WithHostInfo returns a new context carrying the given domain name string.
+func WithHostInfo(ctx context.Context, domain string) context.Context {
+	return context.WithValue(ctx, hostInfoCtxKey{}, domain)
 }
 
-// RemoteInfoFrom extracts a domain name string from the context, if one exists.
-func RemoteInfoFrom(ctx context.Context) (string, bool) {
-	domain, ok := ctx.Value(remoteInfoCtxKey{}).(string)
+// HostInfoFrom extracts a domain name string from the context, if one exists.
+func HostInfoFrom(ctx context.Context) (string, bool) {
+	domain, ok := ctx.Value(hostInfoCtxKey{}).(string)
 	return domain, ok
 }
 

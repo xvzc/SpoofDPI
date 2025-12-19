@@ -23,40 +23,40 @@ type TLSDesyncerAttrs struct {
 // TLSDesyncer splits the data into chunks and optionally
 // disorders packets by manipulating TTL.
 type TLSDesyncer struct {
-	injector   *packet.Injector
-	hopTracker *packet.HopTracker
-	attrs      *TLSDesyncerAttrs
+	writer  packet.Writer
+	sniffer packet.Sniffer
+	attrs   *TLSDesyncerAttrs
 }
 
 func NewTLSDesyncer(
-	injector *packet.Injector,
-	hopTracker *packet.HopTracker,
+	writer packet.Writer,
+	sniffer packet.Sniffer,
 	attrs *TLSDesyncerAttrs,
 ) *TLSDesyncer {
 	return &TLSDesyncer{
-		injector:   injector,
-		hopTracker: hopTracker,
-		attrs:      attrs,
+		writer:  writer,
+		sniffer: sniffer,
+		attrs:   attrs,
 	}
 }
 
 func (d *TLSDesyncer) Send(
 	ctx context.Context,
 	logger zerolog.Logger,
-	msg *proto.TLSMessage,
 	conn net.Conn,
+	msg *proto.TLSMessage,
 	httpsOpts *config.HTTPSOptions,
 ) (int, error) {
 	logger = logging.WithLocalScope(ctx, logger, "tls_desync")
 
 	if ptr.FromPtr(httpsOpts.Skip) {
 		logger.Trace().Msg("skip desync for this request")
-		return d.sendSegments(conn, [][]byte{msg.Raw})
+		return d.sendSegments(conn, [][]byte{msg.Raw()})
 	}
 
-	if d.hopTracker != nil && d.injector != nil && ptr.FromPtr(httpsOpts.FakeCount) > 0 {
-		oTTL := d.hopTracker.GetOptimalTTL(conn.RemoteAddr().String())
-		n, err := d.sendFakePackets(ctx, conn, oTTL, httpsOpts)
+	if d.sniffer != nil && d.writer != nil && ptr.FromPtr(httpsOpts.FakeCount) > 0 {
+		oTTL := d.sniffer.GetOptimalTTL(conn.RemoteAddr().String())
+		n, err := d.sendFakePackets(ctx, logger, conn, oTTL, httpsOpts)
 		if err != nil {
 			logger.Warn().Err(err).Msg("failed to send fake packets")
 		} else {
@@ -65,10 +65,6 @@ func (d *TLSDesyncer) Send(
 	}
 
 	segments := split(logger, httpsOpts, msg)
-	logger.Debug().
-		Int("len", len(segments)).
-		Str("mode", httpsOpts.SplitMode.String()).
-		Msg("segments ready")
 
 	if ptr.FromPtr(httpsOpts.Disorder) {
 		return d.sendSegmentsDisorder(conn, logger, segments, httpsOpts)
@@ -149,6 +145,7 @@ func split(
 	msg *proto.TLSMessage,
 ) [][]byte {
 	mode := *attrs.SplitMode
+	raw := msg.Raw()
 	var chunks [][]byte
 	var err error
 	switch mode {
@@ -158,26 +155,32 @@ func split(
 		if err != nil {
 			break
 		}
-		chunks, err = splitSNI(msg.Raw, start, end)
-		logger.Trace().Msgf("extracted SNI is '%s'", msg.Raw[start:end])
+		chunks, err = splitSNI(raw, start, end)
+		logger.Trace().Msgf("extracted SNI is '%s'", raw[start:end])
 	case config.HTTPSSplitModeRandom:
 		mask := genPatternMask()
-		chunks, err = splitMask(msg.Raw, mask)
+		chunks, err = splitMask(raw, mask)
 	case config.HTTPSSplitModeChunk:
-		chunks, err = splitChunks(msg.Raw, int(*attrs.ChunkSize))
+		chunks, err = splitChunks(raw, int(*attrs.ChunkSize))
 	case config.HTTPSSplitModeFirstByte:
-		chunks, err = splitFirstByte(msg.Raw)
+		chunks, err = splitFirstByte(raw)
 	case config.HTTPSSplitModeNone:
-		return [][]byte{msg.Raw}
+		chunks = [][]byte{raw}
 	default:
 		logger.Debug().Msgf("unsupprted split mode '%s'. proceed without split", mode)
-		chunks = [][]byte{msg.Raw}
+		chunks = [][]byte{raw}
 	}
+
+	logger.Debug().
+		Int("len", len(chunks)).
+		Str("mode", mode.String()).
+		Str("kind", msg.Kind()).
+		Msg("segments ready")
 
 	if err != nil {
 		logger.Debug().Err(err).
 			Msgf("error processing split mode '%s', fallback to 'none'", mode)
-		chunks = [][]byte{msg.Raw}
+		chunks = [][]byte{raw}
 	}
 
 	return chunks
@@ -274,21 +277,29 @@ func (d *TLSDesyncer) String() string {
 
 func (d *TLSDesyncer) sendFakePackets(
 	ctx context.Context,
+	logger zerolog.Logger,
 	conn net.Conn,
 	oTTL uint8,
 	opts *config.HTTPSOptions,
 ) (int, error) {
-	src := conn.LocalAddr().(*net.TCPAddr)
-	dst := conn.RemoteAddr().(*net.TCPAddr)
-
 	var totalSent int
-	for range *(opts.FakeCount) {
-		n, err := d.injector.WriteCraftedPacket(ctx, src, dst, oTTL, opts.FakePacket)
-		if err != nil {
-			return totalSent, err
-		}
+	segments := split(logger, opts, opts.FakePacket)
 
-		totalSent += n
+	for range *(opts.FakeCount) {
+		for _, v := range segments {
+			n, err := d.writer.WriteCraftedPacket(
+				ctx,
+				conn.LocalAddr(),
+				conn.RemoteAddr(),
+				oTTL,
+				v,
+			)
+			if err != nil {
+				return totalSent, err
+			}
+
+			totalSent += n
+		}
 	}
 
 	return totalSent, nil
@@ -313,7 +324,7 @@ func genPatternMask() uint64 {
 	// Block 0 [0-7 bits]:
 	// Ensure LSB is always 1 to guarantee at least one operation at the start.
 	// The second bit is placed randomly within the remaining 7 bits.
-	ret |= uint64(0b01010101)
+	ret |= uint64(0b10101001)
 
 	// Block 1 [8-15 bits]:
 	// Place 2 bits randomly within this byte using the mutated seed.

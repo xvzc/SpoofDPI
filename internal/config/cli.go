@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/urfave/cli/v3"
+	"github.com/xvzc/SpoofDPI/internal/proto"
 	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
@@ -166,7 +167,7 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkHexBytesStr,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.HTTPS.FakePacket = MustParseBytes(v)
+					argsCfg.HTTPS.FakePacket = proto.NewFakeTLSMessage(MustParseBytes(v))
 					return nil
 				},
 			},

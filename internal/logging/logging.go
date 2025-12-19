@@ -17,7 +17,7 @@ const (
 	scopeFieldName      = "scope"
 	localScopeFieldName = "local_scope"
 	traceIDFieldName    = "trace_id"
-	remoteInfoFieldName = "remote_info"
+	hostInfoFieldName   = "host_info"
 )
 
 // SetGlobalLogger creates and configures the global zerolog.Logger instance
@@ -55,11 +55,11 @@ func SetGlobalLogger(ctx context.Context, l zerolog.Level) {
 				m[localScopeFieldName] = ""
 			}
 
-			if v, ok := m[remoteInfoFieldName].(string); ok && v != "" {
-				m[remoteInfoFieldName] = fmt.Sprintf("%s;", v)
+			if v, ok := m[hostInfoFieldName].(string); ok && v != "" {
+				m[hostInfoFieldName] = fmt.Sprintf("%s;", v)
 			} else {
 				// Do the same for scope for consistency.
-				m[remoteInfoFieldName] = ""
+				m[hostInfoFieldName] = ""
 			}
 
 			if v, ok := m["message"].(string); ok && v != "" {
@@ -76,7 +76,7 @@ func SetGlobalLogger(ctx context.Context, l zerolog.Level) {
 		FieldsExclude: []string{
 			traceIDFieldName,
 			scopeFieldName,
-			remoteInfoFieldName,
+			hostInfoFieldName,
 			localScopeFieldName,
 		},
 		PartsOrder: []string{
@@ -84,7 +84,7 @@ func SetGlobalLogger(ctx context.Context, l zerolog.Level) {
 			zerolog.TimestampFieldName,
 			traceIDFieldName, // Custom fields are placed before the message.
 			scopeFieldName,
-			remoteInfoFieldName,
+			hostInfoFieldName,
 			localScopeFieldName,
 			zerolog.MessageFieldName,
 		},
@@ -131,8 +131,8 @@ func (h ctxHook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 		e.Str(traceIDFieldName, traceID)
 	}
 
-	if domain, ok := session.RemoteInfoFrom(ctx); ok {
-		e.Str(remoteInfoFieldName, domain)
+	if domain, ok := session.HostInfoFrom(ctx); ok {
+		e.Str(hostInfoFieldName, domain)
 	}
 }
 

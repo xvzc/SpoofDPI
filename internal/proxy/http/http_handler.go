@@ -1,4 +1,4 @@
-package handler
+package http
 
 import (
 	"context"
@@ -11,8 +11,6 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/proto"
 )
-
-var _ RequestHandler = (*HTTPHandler)(nil)
 
 type HTTPHandler struct {
 	logger zerolog.Logger

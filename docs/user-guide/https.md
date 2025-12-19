@@ -8,7 +8,7 @@ Settings for manipulating HTTPS/TLS packets to bypass DPI.
 
 ### Description
 
-Specifies the default packet fragmentation strategy to use for the Client Hello packet. `(default: "chunk")`
+Specifies the default packet fragmentation strategy to use for the Client Hello packet. `(default: "none")`
 
 ### Allowed Values
 

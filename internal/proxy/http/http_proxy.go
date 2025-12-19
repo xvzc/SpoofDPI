@@ -1,4 +1,4 @@
-package proxy
+package http
 
 import (
 	"context"
@@ -12,21 +12,28 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/dns"
-	"github.com/xvzc/SpoofDPI/internal/handler"
 	"github.com/xvzc/SpoofDPI/internal/logging"
 	"github.com/xvzc/SpoofDPI/internal/matcher"
 	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/proto"
+	"github.com/xvzc/SpoofDPI/internal/proxy"
 	"github.com/xvzc/SpoofDPI/internal/ptr"
 	"github.com/xvzc/SpoofDPI/internal/session"
 )
+
+type Destination struct {
+	Domain  string
+	Addrs   []net.IPAddr
+	Port    int
+	Timeout time.Duration
+}
 
 type HTTPProxy struct {
 	logger zerolog.Logger
 
 	resolver     dns.Resolver
-	httpHandler  handler.RequestHandler
-	httpsHandler handler.RequestHandler
+	httpHandler  *HTTPHandler
+	httpsHandler *HTTPSHandler
 	ruleMatcher  matcher.RuleMatcher
 	serverOpts   *config.ServerOptions
 	policyOpts   *config.PolicyOptions
@@ -35,12 +42,12 @@ type HTTPProxy struct {
 func NewHTTPProxy(
 	logger zerolog.Logger,
 	resolver dns.Resolver,
-	httpHandler handler.RequestHandler,
-	httpsHandler handler.RequestHandler,
+	httpHandler *HTTPHandler,
+	httpsHandler *HTTPSHandler,
 	ruleMatcher matcher.RuleMatcher,
 	serverOpts *config.ServerOptions,
 	policyOpts *config.PolicyOptions,
-) Proxy {
+) proxy.ProxyServer {
 	return &HTTPProxy{
 		logger:       logger,
 		resolver:     resolver,
@@ -77,11 +84,11 @@ func (p *HTTPProxy) ListenAndServe(ctx context.Context, wait chan struct{}) {
 			continue
 		}
 
-		go p.handleConnection(session.WithNewTraceID(context.Background()), conn)
+		go p.handleNewConnection(session.WithNewTraceID(context.Background()), conn)
 	}
 }
 
-func (p *HTTPProxy) handleConnection(ctx context.Context, conn net.Conn) {
+func (p *HTTPProxy) handleNewConnection(ctx context.Context, conn net.Conn) {
 	logger := logging.WithLocalScope(ctx, p.logger, "conn")
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -99,6 +106,7 @@ func (p *HTTPProxy) handleConnection(ctx context.Context, conn net.Conn) {
 
 	if !req.IsValidMethod() {
 		logger.Warn().Str("method", req.Method).Msg("unsupported method. abort")
+		_ = proto.HTTPNotImplementedResponse().Write(conn)
 
 		return
 	}
@@ -107,11 +115,12 @@ func (p *HTTPProxy) handleConnection(ctx context.Context, conn net.Conn) {
 	dstPort, err := req.ExtractPort()
 	if err != nil {
 		logger.Warn().Str("host", req.Host).Msg("failed to extract port")
+		_ = proto.HTTPBadRequestResponse().Write(conn)
 
 		return
 	}
 
-	ctx = session.WithRemoteInfo(ctx, domain)
+	ctx = session.WithHostInfo(ctx, domain)
 	logger = logger.With().Ctx(ctx).Logger()
 
 	logger.Debug().
@@ -131,7 +140,7 @@ func (p *HTTPProxy) handleConnection(ctx context.Context, conn net.Conn) {
 	rSet, err := p.resolver.Resolve(ctx, domain, nil, nameMatch)
 	dt := time.Since(t1).Milliseconds()
 	if err != nil {
-		_, _ = conn.Write(req.BadGatewayResponse())
+		_ = proto.HTTPBadGatewayResponse().Write(conn)
 		logging.ErrorUnwrapped(&logger, "dns lookup failed", err)
 
 		return
@@ -143,8 +152,12 @@ func (p *HTTPProxy) handleConnection(ctx context.Context, conn net.Conn) {
 		Msgf("dns lookup ok")
 
 	// Avoid recursively querying self.
-	if p.isRecursiveDst(ctx, rSet.Addrs, dstPort) {
-		return
+	ok, err := netutil.ValidateDestination(rSet.Addrs, dstPort, p.serverOpts.ListenAddr)
+	if err != nil {
+		logger.Debug().Err(err).Msg("error validating dst addrs")
+		if !ok {
+			_ = proto.HTTPForbiddenResponse().Write(conn)
+		}
 	}
 
 	var selectors []*matcher.Selector
@@ -173,21 +186,20 @@ func (p *HTTPProxy) handleConnection(ctx context.Context, conn net.Conn) {
 		return
 	}
 
-	var h handler.RequestHandler
-	if req.IsConnectMethod() {
-		h = p.httpsHandler
-	} else {
-		h = p.httpHandler
-	}
-
-	dst := &handler.Destination{
+	dst := &Destination{
 		Domain:  domain,
 		Addrs:   rSet.Addrs,
 		Port:    dstPort,
 		Timeout: *p.serverOpts.Timeout,
 	}
 
-	handleErr := h.HandleRequest(ctx, conn, req, dst, bestMatch)
+	var handleErr error
+	if req.IsConnectMethod() {
+		handleErr = p.httpsHandler.HandleRequest(ctx, conn, dst, bestMatch)
+	} else {
+		handleErr = p.httpHandler.HandleRequest(ctx, conn, req, dst, bestMatch)
+	}
+
 	if handleErr == nil { // Early exit if no error found
 		return
 	}
@@ -227,49 +239,4 @@ func (p *HTTPProxy) handleConnection(ctx context.Context, conn net.Conn) {
 			logger.Info().Msg("automatically added to config")
 		}
 	}
-}
-
-func (p *HTTPProxy) isRecursiveDst(
-	ctx context.Context,
-	dstAddrs []net.IPAddr,
-	dstPort int,
-) bool {
-	logger := logging.WithLocalScope(ctx, p.logger, "is_recursive")
-
-	if dstPort != int(p.serverOpts.ListenAddr.Port) {
-		return false
-	}
-
-	for _, dstAddr := range dstAddrs {
-		ip := dstAddr.IP
-		if ip.IsLoopback() {
-			logger.Trace().
-				Str("addr", fmt.Sprintf("%s:%d", ip.String(), dstPort)).
-				Msg("found a loopback destination")
-
-			return true
-		}
-
-		// Get a list of available addresses.
-		// See `ip -4 ifAddrs show`
-		ifAddrs, err := net.InterfaceAddrs() // Needs AF_NETLINK on Linux.
-		if err != nil {
-			logger.Warn().Err(err).Msg("failed to retrieve interface addrs")
-			return false
-		}
-
-		for _, addr := range ifAddrs {
-			if ipnet, ok := addr.(*net.IPNet); ok {
-				if ipnet.IP.Equal(ip) {
-					logger.Debug().
-						Str("addr", fmt.Sprintf("%s:%d", ip.String(), dstPort)).
-						Msg("found a recursive destination")
-
-					return true
-				}
-			}
-		}
-	}
-
-	return false
 }
