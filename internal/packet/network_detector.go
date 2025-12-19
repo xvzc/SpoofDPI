@@ -1,0 +1,272 @@
+package packet
+
+import (
+	"context"
+	"fmt"
+	"net"
+	"sync"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"github.com/rs/zerolog"
+)
+
+type NetworkDetector struct {
+	logger zerolog.Logger
+	handle Handle
+	iface  *net.Interface
+
+	clientIP   net.IP
+	gatewayMAC net.HardwareAddr
+	mu         sync.RWMutex
+	found      chan struct{}
+}
+
+func NewNetworkDetector(
+	logger zerolog.Logger,
+) *NetworkDetector {
+	return &NetworkDetector{
+		logger: logger,
+		found:  make(chan struct{}),
+	}
+}
+
+func (nd *NetworkDetector) Start(ctx context.Context) error {
+	iface, err := findDefaultInterface()
+	if err != nil {
+		return err
+	}
+	nd.iface = iface
+
+	handle, err := NewHandle(iface)
+	if err != nil {
+		return err
+	}
+	nd.handle = handle
+
+	go func() {
+		defer nd.handle.Close()
+
+		packetSource := gopacket.NewPacketSource(nd.handle, nd.handle.LinkType())
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case p := <-packetSource.Packets():
+				nd.processPacket(p)
+			}
+		}
+	}()
+	return nil
+}
+
+func (nd *NetworkDetector) processPacket(p gopacket.Packet) {
+	nd.mu.RLock()
+	found := nd.gatewayMAC != nil && nd.clientIP != nil
+	nd.mu.RUnlock()
+	if found {
+		return
+	}
+
+	var srcIP net.IP
+	var dstIP net.IP
+
+	if ipLayer := p.Layer(layers.LayerTypeIPv4); ipLayer != nil {
+		ip := ipLayer.(*layers.IPv4)
+		srcIP = ip.SrcIP
+		dstIP = ip.DstIP
+	} else if ipLayer := p.Layer(layers.LayerTypeIPv6); ipLayer != nil {
+		ip := ipLayer.(*layers.IPv6)
+		srcIP = ip.SrcIP
+		dstIP = ip.DstIP
+	}
+
+	ethLayer := p.Layer(layers.LayerTypeEthernet)
+	if ethLayer == nil {
+		return
+	}
+	eth := ethLayer.(*layers.Ethernet)
+
+	// Case 1: Outbound Packet (From Me)
+	if eth.SrcMAC.String() == nd.iface.HardwareAddr.String() {
+		// Identify Client IP (Me)
+		if srcIP != nil {
+			nd.setClientIP(srcIP)
+		}
+
+		// Identify Gateway MAC (To Internet)
+		// Assuming traffic to non-local IP goes to Gateway.
+		if dstIP != nil && !nd.isPrivateIP(dstIP) {
+			nd.setGatewayMAC(eth.DstMAC)
+		}
+		return
+	}
+
+	// Case 2: Inbound Packet (To Me)
+	if eth.DstMAC.String() == nd.iface.HardwareAddr.String() {
+		// Identify Client IP (Me)
+		if dstIP != nil {
+			nd.setClientIP(dstIP)
+		}
+
+		// Identify Gateway MAC (From Internet)
+		// Assuming traffic from non-local IP comes from Gateway.
+		if srcIP != nil && !nd.isPrivateIP(srcIP) {
+			nd.setGatewayMAC(eth.SrcMAC)
+		}
+		return
+	}
+}
+
+func (nd *NetworkDetector) isPrivateIP(ip net.IP) bool {
+	if ip.IsLoopback() || ip.IsLinkLocalMulticast() || ip.IsLinkLocalUnicast() {
+		return true
+	}
+
+	if ip4 := ip.To4(); ip4 != nil {
+		switch ip4[0] {
+		case 10:
+			return true
+		case 172:
+			return ip4[1] >= 16 && ip4[1] <= 31
+		case 192:
+			return ip4[1] == 168
+		}
+		return false
+	}
+	return false // IPv6 public check is more complex, assuming public for now if not link-local
+}
+
+func (nd *NetworkDetector) setClientIP(ip net.IP) {
+	nd.mu.Lock()
+	defer nd.mu.Unlock()
+
+	if nd.clientIP == nil {
+		nd.clientIP = make(net.IP, len(ip))
+		copy(nd.clientIP, ip)
+		nd.checkFound()
+	}
+}
+
+func (nd *NetworkDetector) setGatewayMAC(mac net.HardwareAddr) {
+	nd.mu.Lock()
+	defer nd.mu.Unlock()
+
+	if nd.gatewayMAC == nil {
+		nd.gatewayMAC = make(net.HardwareAddr, len(mac))
+		copy(nd.gatewayMAC, mac)
+		nd.checkFound()
+	}
+}
+
+func (nd *NetworkDetector) checkFound() {
+	if nd.gatewayMAC != nil && nd.clientIP != nil {
+		select {
+		case <-nd.found:
+		default:
+			close(nd.found)
+		}
+	}
+}
+
+func (nd *NetworkDetector) IsFound() bool {
+	nd.mu.RLock()
+	defer nd.mu.RUnlock()
+	return nd.gatewayMAC != nil && nd.clientIP != nil
+}
+
+func (nd *NetworkDetector) GetGatewayMAC() net.HardwareAddr {
+	nd.mu.RLock()
+	defer nd.mu.RUnlock()
+	return nd.gatewayMAC
+}
+
+func (nd *NetworkDetector) WaitForGatewayMAC(
+	ctx context.Context,
+) (net.HardwareAddr, error) {
+	if nd.IsFound() {
+		return nd.GetGatewayMAC(), nil
+	}
+
+	select {
+	case <-nd.found:
+		return nd.GetGatewayMAC(), nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (nd *NetworkDetector) GetInterface() *net.Interface {
+	return nd.iface
+}
+
+func findDefaultInterface() (*net.Interface, error) {
+	// List of public DNS servers
+	dnsServers := []string{
+		"8.8.8.8:53",
+		"8.8.4.4:53",
+		"1.1.1.1:53",
+		"1.0.0.1:53",
+		"9.9.9.9:53",
+	}
+
+	var conn net.Conn
+	var err error
+
+	// Try UDP Dial one by one until successful
+	for _, server := range dnsServers {
+		conn, err = net.Dial("udp", server)
+		if err == nil {
+			// Success
+			break
+		}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf(
+			"could not dial any public DNS to determine default interface: %w",
+			err,
+		)
+	}
+	defer func() { _ = conn.Close() }()
+
+	// Check the local IP address used for the connection
+	localAddr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok {
+		return nil, fmt.Errorf(
+			"could not determine local address from UDP connection",
+		)
+	}
+
+	// Search for the network interface (iface) that has this local IP
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil, fmt.Errorf(
+			"could not get network interfaces: %w",
+			err,
+		)
+	}
+
+	for _, iface := range ifaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue // Skip interfaces whose addresses cannot be retrieved
+		}
+		for _, addr := range addrs {
+			// Check if it is of type net.IPNet
+			if ipnet, ok := addr.(*net.IPNet); ok {
+				// Check if the IP used for Dial matches the interface's IP
+				if ipnet.IP.Equal(localAddr.IP) {
+					// Return &iface (*net.Interface) instead of iface.Name (string)
+					return &iface, nil // Found the default interface
+				}
+			}
+		}
+	}
+
+	return nil, fmt.Errorf(
+		"failed to find default interface for local IP: %s",
+		localAddr.IP,
+	)
+}

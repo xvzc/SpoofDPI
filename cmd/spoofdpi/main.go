@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,11 +15,11 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/desync"
 	"github.com/xvzc/SpoofDPI/internal/dns"
-	"github.com/xvzc/SpoofDPI/internal/handler"
 	"github.com/xvzc/SpoofDPI/internal/logging"
 	"github.com/xvzc/SpoofDPI/internal/matcher"
 	"github.com/xvzc/SpoofDPI/internal/packet"
 	"github.com/xvzc/SpoofDPI/internal/proxy"
+	"github.com/xvzc/SpoofDPI/internal/proxy/http"
 	"github.com/xvzc/SpoofDPI/internal/session"
 	"github.com/xvzc/SpoofDPI/internal/system"
 )
@@ -169,18 +170,35 @@ func createResolver(logger zerolog.Logger, cfg *config.Config) dns.Resolver {
 func createPacketObjects(
 	logger zerolog.Logger,
 	cfg *config.Config,
-) (*packet.HopTracker, *packet.Injector, error) {
-	// find the default network interface.
-	iface, err := system.FindDefaultInterface()
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not find default interface: %w", err)
+) (packet.Sniffer, packet.Writer, error) {
+	// create a network detector for passive discovery
+	networkDetector := packet.NewNetworkDetector(
+		logging.WithScope(logger, "pkt"),
+	)
+
+	if err := networkDetector.Start(context.Background()); err != nil {
+		return nil, nil, fmt.Errorf("error starting network detector: %w", err)
 	}
 
-	// get the IPv4 address for the default network interface.
-	ifaceIP, err := system.GetInterfaceIPv4(iface)
+	// Trigger passive discovery by sending a dummy UDP packet
+	go func() {
+		conn, err := net.Dial("udp", "8.8.8.8:53")
+		if err == nil {
+			defer conn.Close()
+			_, _ = conn.Write([]byte("spoofdpi-detection"))
+		}
+	}()
+
+	// Wait for gateway MAC with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	gatewayMAC, err := networkDetector.WaitForGatewayMAC(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not find IP address of NIC: %w", err)
+		return nil, nil, fmt.Errorf("failed to detect gateway (timeout): %w", err)
 	}
+
+	iface := networkDetector.GetInterface()
 
 	// create a pcap handle for packet capturing.
 	handle, err := packet.NewHandle(iface)
@@ -192,63 +210,38 @@ func createPacketObjects(
 		)
 	}
 
-	gatewayIP, err := system.FindGatewayIPAddr()
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not find IP address of gateway: %w", err)
-	}
-
-	// resolve the MAC address of the gateway.
-	gatewayMAC, err := system.ResolveGatewayMACAddr(
-		logger,
-		handle,
-		gatewayIP,
-		iface,
-		ifaceIP,
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not find MAC address of gateway: %w", err)
-	}
-
 	logger.Info().Msg("network info")
 	logger.Info().Str("name", iface.Name).
 		Str("mac", iface.HardwareAddr.String()).
-		Str("ip", ifaceIP.String()).
 		Msg(" interface")
 	logger.Info().
 		Str("mac", gatewayMAC.String()).
-		Str("ip", gatewayIP.String()).
-		Msgf(" gateway")
+		Msg(" gateway (passive detection)")
 
 	hopCache := cache.NewLRUCache(4096)
-	hopTracker := packet.NewHopTracker(
+	sniffer := packet.NewTCPSniffer(
 		logging.WithScope(logger, "pkt"),
 		hopCache,
 		handle,
-		packet.HopTrackerAttrs{
-			DefaultTTL: uint8(*cfg.Server.DefaultTTL),
-		},
+		uint8(*cfg.Server.DefaultTTL),
 	)
-	hopTracker.StartCapturing()
+	sniffer.StartCapturing()
 
-	// create a packet injector instance.
-	packetInjector, err := packet.NewPacketInjector(
+	writer := packet.NewTCPWriter(
 		logging.WithScope(logger, "pkt"),
 		handle,
 		iface,
 		gatewayMAC,
 	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error creating packet injector: %w", err)
-	}
 
-	return hopTracker, packetInjector, nil
+	return sniffer, writer, nil
 }
 
 func createProxy(
 	logger zerolog.Logger,
 	cfg *config.Config,
 	resolver dns.Resolver,
-) (proxy.Proxy, error) {
+) (proxy.ProxyServer, error) {
 	ruleMatcher := matcher.NewRuleMatcher(
 		matcher.NewAddrMatcher(),
 		matcher.NewDomainMatcher(),
@@ -262,30 +255,42 @@ func createProxy(
 	}
 
 	// create an HTTP handler.
-	httpHandler := handler.NewHTTPHandler(logging.WithScope(logger, "hnd"))
+	httpHandler := http.NewHTTPHandler(logging.WithScope(logger, "hnd"))
 
-	var hopTracker *packet.HopTracker
-	var packetInjector *packet.Injector
+	var sniffer packet.Sniffer
+	var writer packet.Writer
+
 	if cfg.ShouldEnablePcap() {
 		var err error
-		hopTracker, packetInjector, err = createPacketObjects(logger, cfg)
+		sniffer, writer, err = createPacketObjects(logger, cfg)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	httpsHandler := handler.NewHTTPSHandler(
+	httpsHandler := http.NewHTTPSHandler(
 		logging.WithScope(logger, "hnd"),
 		desync.NewTLSDesyncer(
-			packetInjector,
-			hopTracker,
+			writer,
+			sniffer,
 			&desync.TLSDesyncerAttrs{DefaultTTL: *cfg.Server.DefaultTTL},
 		),
-		hopTracker,
+		sniffer,
 		cfg.HTTPS.Clone(),
 	)
 
-	return proxy.NewHTTPProxy(
+	// if cfg.Server.EnableSocks5 != nil && *cfg.Server.EnableSocks5 {
+	// 	return socks5.NewSocks5Proxy(
+	// 		logging.WithScope(logger, "pxy"),
+	// 		resolver,
+	// 		httpsHandler,
+	// 		ruleMatcher,
+	// 		cfg.Server.Clone(),
+	// 		cfg.Policy.Clone(),
+	// 	), nil
+	// }
+
+	return http.NewHTTPProxy(
 		logging.WithScope(logger, "pxy"),
 		resolver,
 		httpHandler,
