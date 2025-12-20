@@ -33,7 +33,7 @@ func (h *HTTPHandler) HandleRequest(
 ) error {
 	logger := logging.WithLocalScope(ctx, h.logger, "http")
 
-	rConn, err := netutil.DialFirstSuccessful(ctx, dst.Addrs, dst.Port, dst.Timeout)
+	rConn, err := netutil.DialFastest(ctx, "tcp", dst.Addrs, dst.Port, dst.Timeout)
 	if err != nil {
 		return err
 	}
@@ -74,3 +74,4 @@ func (h *HTTPHandler) HandleRequest(
 
 	return nil
 }
+

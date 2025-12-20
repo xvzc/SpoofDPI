@@ -344,6 +344,7 @@ func (o *HTTPSOptions) Clone() *HTTPSOptions {
 	if o == nil {
 		return nil
 	}
+
 	var fakePacket *proto.TLSMessage
 	if o.FakePacket != nil {
 		fakePacket = proto.NewFakeTLSMessage(o.FakePacket.Raw())

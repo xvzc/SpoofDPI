@@ -212,19 +212,8 @@ func (p *HTTPProxy) handleNewConnection(ctx context.Context, conn net.Conn) {
 	// ┌─────────────┐
 	// │ AUTO config │
 	// └─────────────┘
-	if nameMatch != nil {
-		logger.Info().
-			Str("match", *nameMatch.Match.Domain).
-			Str("name", *nameMatch.Name).
-			Msg("skipping auto-config (duplicate policy)")
-		return
-	}
-
-	if addrMatch != nil {
-		logger.Info().
-			Str("match", addrMatch.Match.CIDR.String()).
-			Str("name", *addrMatch.Name).
-			Msg("skipping auto-config (duplicate policy)")
+	if bestMatch != nil && logger.GetLevel() == zerolog.TraceLevel {
+		logger.Info().Msg("skipping auto-config (duplicate policy)")
 		return
 	}
 

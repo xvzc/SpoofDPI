@@ -14,18 +14,18 @@ var _ Resolver = (*UDPResolver)(nil)
 type UDPResolver struct {
 	logger zerolog.Logger
 
-	client      *dns.Client
-	defaultOpts *config.DNSOptions
+	client  *dns.Client
+	dnsOpts *config.DNSOptions
 }
 
 func NewUDPResolver(
 	logger zerolog.Logger,
-	defaultOpts *config.DNSOptions,
+	dnsOpts *config.DNSOptions,
 ) *UDPResolver {
 	return &UDPResolver{
-		client:      &dns.Client{},
-		defaultOpts: defaultOpts,
-		logger:      logger,
+		client:  &dns.Client{},
+		dnsOpts: dnsOpts,
+		logger:  logger,
 	}
 }
 
@@ -33,7 +33,7 @@ func (ur *UDPResolver) Info() []ResolverInfo {
 	return []ResolverInfo{
 		{
 			Name: "udp",
-			Dst:  ur.defaultOpts.Addr.String(),
+			Dst:  ur.dnsOpts.Addr.String(),
 		},
 	}
 }
@@ -44,7 +44,7 @@ func (ur *UDPResolver) Resolve(
 	fallback Resolver,
 	rule *config.Rule,
 ) (*RecordSet, error) {
-	opts := ur.defaultOpts
+	opts := ur.dnsOpts.Clone()
 	if rule != nil {
 		opts = opts.Merge(rule.DNS)
 	}
@@ -56,6 +56,7 @@ func (ur *UDPResolver) Resolve(
 		parseQueryTypes(*opts.QType),
 		ur.exchange,
 	)
+
 	return processMessages(ctx, resCh)
 }
 

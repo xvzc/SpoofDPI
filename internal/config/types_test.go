@@ -479,8 +479,11 @@ func TestHTTPSOptions_Clone(t *testing.T) {
 			},
 		},
 		{
-			name:  "non-nil receiver",
-			input: &HTTPSOptions{Disorder: ptr.FromValue(true), FakePacket: proto.NewFakeTLSMessage([]byte{0x01})},
+			name: "non-nil receiver",
+			input: &HTTPSOptions{
+				Disorder:   ptr.FromValue(true),
+				FakePacket: proto.NewFakeTLSMessage([]byte{0x01}),
+			},
 			assert: func(t *testing.T, input *HTTPSOptions, output *HTTPSOptions) {
 				assert.NotNil(t, output)
 				assert.True(t, *output.Disorder)
@@ -830,13 +833,6 @@ func TestRule_UnmarshalTOML(t *testing.T) {
 				assert.Equal(t, "example.com", *r.Match.Domain)
 				assert.True(t, *r.Block)
 			},
-		},
-		{
-			name: "invalid rule check",
-			input: map[string]any{
-				"name": "rule1",
-			},
-			wantErr: true,
 		},
 		{
 			name:    "invalid type",

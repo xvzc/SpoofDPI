@@ -58,7 +58,7 @@ func (h *HTTPSHandler) HandleRequest(
 
 	logger := logging.WithLocalScope(ctx, h.logger, "https")
 
-	rConn, err := netutil.DialFirstSuccessful(ctx, dst.Addrs, dst.Port, dst.Timeout)
+	rConn, err := netutil.DialFastest(ctx, "tcp", dst.Addrs, dst.Port, dst.Timeout)
 	if err != nil {
 		return err
 	}
@@ -106,14 +106,14 @@ func (h *HTTPSHandler) HandleRequest(
 
 		if netutil.IsConnectionResetByPeer(e) {
 			return netutil.ErrBlocked
-		} else {
-			return fmt.Errorf(
-				"unsuccessful tunnel %s -> %s: %w",
-				lConn.RemoteAddr(),
-				rConn.RemoteAddr(),
-				e,
-			)
 		}
+
+		return fmt.Errorf(
+			"unsuccessful tunnel %s -> %s: %w",
+			lConn.RemoteAddr(),
+			rConn.RemoteAddr(),
+			e,
+		)
 	}
 
 	return nil
@@ -154,4 +154,3 @@ func (h *HTTPSHandler) sendClientHello(
 	logger := logging.WithLocalScope(ctx, h.logger, "client_hello")
 	return h.desyncer.Send(ctx, logger, conn, msg, httpsOpts)
 }
-

@@ -21,13 +21,13 @@ var _ Resolver = (*HTTPSResolver)(nil)
 type HTTPSResolver struct {
 	logger zerolog.Logger
 
-	client       *http.Client
-	defaultAttrs *config.DNSOptions
+	client  *http.Client
+	dnsOpts *config.DNSOptions
 }
 
 func NewHTTPSResolver(
 	logger zerolog.Logger,
-	defaultAttrs *config.DNSOptions,
+	dnsOpts *config.DNSOptions,
 ) *HTTPSResolver {
 	return &HTTPSResolver{
 		logger: logger,
@@ -43,7 +43,7 @@ func NewHTTPSResolver(
 				MaxIdleConns:        100,
 			},
 		},
-		defaultAttrs: defaultAttrs,
+		dnsOpts: dnsOpts,
 	}
 }
 
@@ -51,7 +51,7 @@ func (dr *HTTPSResolver) Info() []ResolverInfo {
 	return []ResolverInfo{
 		{
 			Name: "https",
-			Dst:  *dr.defaultAttrs.HTTPSURL,
+			Dst:  *dr.dnsOpts.HTTPSURL,
 		},
 	}
 }
@@ -62,12 +62,12 @@ func (dr *HTTPSResolver) Resolve(
 	fallback Resolver,
 	rule *config.Rule,
 ) (*RecordSet, error) {
-	attrs := dr.defaultAttrs
+	opts := dr.dnsOpts.Clone()
 	if rule != nil {
-		attrs = attrs.Merge(rule.DNS)
+		opts = opts.Merge(rule.DNS)
 	}
 
-	upstream := *attrs.HTTPSURL
+	upstream := *opts.HTTPSURL
 	if !strings.HasPrefix(upstream, "https://") {
 		upstream = "https://" + upstream + "/dns-query"
 	}
@@ -76,7 +76,7 @@ func (dr *HTTPSResolver) Resolve(
 		ctx,
 		domain,
 		upstream,
-		parseQueryTypes(*attrs.QType),
+		parseQueryTypes(*opts.QType),
 		dr.exchange,
 	)
 	return processMessages(ctx, resCh)
