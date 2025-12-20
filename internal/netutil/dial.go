@@ -13,11 +13,12 @@ type dialResult struct {
 	err  error
 }
 
-// DialFirstSuccessful attempts robust connections to the server
+// DialFastest attempts robust connections to the server
 // and returns the first successful conn. All the other connections will be
 // automatically canceled by calling `cancel()`
-func DialFirstSuccessful(
+func DialFastest(
 	ctx context.Context,
+	network string,
 	addrs []net.IPAddr,
 	port int,
 	timeout time.Duration,
@@ -52,7 +53,7 @@ func DialFirstSuccessful(
 					dialer.Deadline = time.Now().Add(timeout)
 				}
 
-				conn, err := dialer.DialContext(ctx, "tcp", targetAddr)
+				conn, err := dialer.DialContext(ctx, network, targetAddr)
 
 				select {
 				case results <- dialResult{conn: conn, err: err}:

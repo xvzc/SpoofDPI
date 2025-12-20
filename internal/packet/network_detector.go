@@ -5,11 +5,21 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/internal/netutil"
 )
+
+var dnsServers = []net.IPAddr{
+	{IP: net.ParseIP("8.8.8.8")},
+	{IP: net.ParseIP("8.8.4.4")},
+	{IP: net.ParseIP("1.1.1.1")},
+	{IP: net.ParseIP("1.0.0.1")},
+	{IP: net.ParseIP("9.9.9.9")},
+}
 
 type NetworkDetector struct {
 	logger zerolog.Logger
@@ -32,7 +42,7 @@ func NewNetworkDetector(
 }
 
 func (nd *NetworkDetector) Start(ctx context.Context) error {
-	iface, err := findDefaultInterface()
+	iface, err := findDefaultInterface(ctx)
 	if err != nil {
 		return err
 	}
@@ -58,6 +68,13 @@ func (nd *NetworkDetector) Start(ctx context.Context) error {
 			}
 		}
 	}()
+
+	conn, err := netutil.DialFastest(ctx, "udp", dnsServers, 53, time.Duration(0))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close() }()
+
 	return nil
 }
 
@@ -201,28 +218,8 @@ func (nd *NetworkDetector) GetInterface() *net.Interface {
 	return nd.iface
 }
 
-func findDefaultInterface() (*net.Interface, error) {
-	// List of public DNS servers
-	dnsServers := []string{
-		"8.8.8.8:53",
-		"8.8.4.4:53",
-		"1.1.1.1:53",
-		"1.0.0.1:53",
-		"9.9.9.9:53",
-	}
-
-	var conn net.Conn
-	var err error
-
-	// Try UDP Dial one by one until successful
-	for _, server := range dnsServers {
-		conn, err = net.Dial("udp", server)
-		if err == nil {
-			// Success
-			break
-		}
-	}
-
+func findDefaultInterface(ctx context.Context) (*net.Interface, error) {
+	conn, err := netutil.DialFastest(ctx, "udp", dnsServers, 53, time.Duration(0))
 	if err != nil {
 		return nil, fmt.Errorf(
 			"could not dial any public DNS to determine default interface: %w",

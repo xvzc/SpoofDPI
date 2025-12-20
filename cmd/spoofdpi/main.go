@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -95,7 +94,7 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 
 	logger.Info().Msg("https info")
 	logger.Info().
-		Str("default", cfg.HTTPS.SplitMode.String()).
+		Str("split-mode", cfg.HTTPS.SplitMode.String()).
 		Uint8("chunk-size", uint8(*cfg.HTTPS.ChunkSize)).
 		Bool("disorder", *cfg.HTTPS.Disorder).
 		Msg(" split")
@@ -180,17 +179,8 @@ func createPacketObjects(
 		return nil, nil, fmt.Errorf("error starting network detector: %w", err)
 	}
 
-	// Trigger passive discovery by sending a dummy UDP packet
-	go func() {
-		conn, err := net.Dial("udp", "8.8.8.8:53")
-		if err == nil {
-			defer conn.Close()
-			_, _ = conn.Write([]byte("spoofdpi-detection"))
-		}
-	}()
-
 	// Wait for gateway MAC with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	gatewayMAC, err := networkDetector.WaitForGatewayMAC(ctx)
