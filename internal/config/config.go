@@ -145,7 +145,7 @@ func getDefault() *Config { //exhaustruct:enforce
 			Disorder:   ptr.FromValue(false),
 			FakeCount:  ptr.FromValue(uint8(0)),
 			FakePacket: proto.NewFakeTLSMessage([]byte(FakeClientHello)),
-			SplitMode:  ptr.FromValue(HTTPSSplitModeNone),
+			SplitMode:  ptr.FromValue(HTTPSSplitModeSNI),
 			ChunkSize:  ptr.FromValue(uint8(0)),
 			Skip:       ptr.FromValue(false),
 		},
