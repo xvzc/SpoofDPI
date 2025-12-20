@@ -6,7 +6,9 @@ SpoofDPI is a simple proxy tool, mainly designed to neutralize the *Deep Packet 
 
 For more detailed information, please refer to the [Official Documentation](https://spoofdpi.xvzc.dev).
 
-[Join our discord channel](https://spoofdpi.xvzc.dev) (If you can 😅)
+[Join our Discord channel](https://spoofdpi.xvzc.dev) (If you can 😅)
+
+If you have any questions or suggestions, [Join our Discord channel](https://spoofdpi.xvzc.dev) (If you can 😅).
 
 ## 📦 Packaging Status
 
