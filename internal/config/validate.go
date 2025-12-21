@@ -194,16 +194,13 @@ func checkRule(r Rule) error {
 }
 
 func checkMatchAttrs(m MatchAttrs) error {
-	if m.CIDR == nil && m.Domain == nil && m.PortFrom == nil && m.PortTo == nil {
-		return fmt.Errorf("no match specified for rule")
-	}
-
-	if m.CIDR != nil && m.PortFrom == nil && m.PortTo == nil {
-		return fmt.Errorf("'cidr' must be given with 'port'")
-	}
-
-	if m.PortFrom != nil && m.PortTo != nil && m.CIDR == nil {
-		return fmt.Errorf("'port' must be given with 'cidr'")
+	for _, addr := range m.Addrs {
+		if addr.CIDR == nil {
+			return fmt.Errorf("addr rule must have cidr attribute")
+		}
+		if addr.PortFrom == nil || addr.PortTo == nil {
+			return fmt.Errorf("addr rule must have port attribute")
+		}
 	}
 
 	return nil

@@ -16,9 +16,13 @@ func TestAddrMatcher(t *testing.T) {
 		Name:     ptr.FromValue("rule1"),
 		Priority: ptr.FromValue(uint16(10)),
 		Match: &config.MatchAttrs{
-			CIDR:     ptr.FromValue(config.MustParseCIDR("192.168.1.0/24")),
-			PortFrom: ptr.FromValue(uint16(80)),
-			PortTo:   ptr.FromValue(uint16(80)),
+			Addrs: []config.AddrMatch{
+				{
+					CIDR:     ptr.FromValue(config.MustParseCIDR("192.168.1.0/24")),
+					PortFrom: ptr.FromValue(uint16(80)),
+					PortTo:   ptr.FromValue(uint16(80)),
+				},
+			},
 		},
 	}
 
@@ -26,9 +30,13 @@ func TestAddrMatcher(t *testing.T) {
 		Name:     ptr.FromValue("rule2"),
 		Priority: ptr.FromValue(uint16(20)),
 		Match: &config.MatchAttrs{
-			CIDR:     ptr.FromValue(config.MustParseCIDR("10.0.0.0/8")),
-			PortFrom: ptr.FromValue(uint16(0)),
-			PortTo:   ptr.FromValue(uint16(65535)),
+			Addrs: []config.AddrMatch{
+				{
+					CIDR:     ptr.FromValue(config.MustParseCIDR("10.0.0.0/8")),
+					PortFrom: ptr.FromValue(uint16(0)),
+					PortTo:   ptr.FromValue(uint16(65535)),
+				},
+			},
 		},
 	}
 
@@ -37,9 +45,13 @@ func TestAddrMatcher(t *testing.T) {
 		Name:     ptr.FromValue("rule3"),
 		Priority: ptr.FromValue(uint16(5)),
 		Match: &config.MatchAttrs{
-			CIDR:     ptr.FromValue(config.MustParseCIDR("172.16.0.0/16")),
-			PortFrom: ptr.FromValue(uint16(0)),
-			PortTo:   ptr.FromValue(uint16(65535)),
+			Addrs: []config.AddrMatch{
+				{
+					CIDR:     ptr.FromValue(config.MustParseCIDR("172.16.0.0/16")),
+					PortFrom: ptr.FromValue(uint16(0)),
+					PortTo:   ptr.FromValue(uint16(65535)),
+				},
+			},
 		},
 	}
 
@@ -48,9 +60,13 @@ func TestAddrMatcher(t *testing.T) {
 		Name:     ptr.FromValue("rule4"),
 		Priority: ptr.FromValue(uint16(4)),
 		Match: &config.MatchAttrs{
-			CIDR:     ptr.FromValue(config.MustParseCIDR("172.16.0.0/16")),
-			PortFrom: ptr.FromValue(uint16(443)),
-			PortTo:   ptr.FromValue(uint16(443)),
+			Addrs: []config.AddrMatch{
+				{
+					CIDR:     ptr.FromValue(config.MustParseCIDR("172.16.0.0/16")),
+					PortFrom: ptr.FromValue(uint16(443)),
+					PortTo:   ptr.FromValue(uint16(443)),
+				},
+			},
 		},
 	}
 

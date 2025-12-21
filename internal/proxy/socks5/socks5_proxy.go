@@ -233,7 +233,7 @@ func (p *SOCKS5Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 	// 8. Auto Config (Duplicate logic from HTTPProxy)
 	if nameMatch != nil {
 		logger.Info().
-			Str("match", *nameMatch.Match.Domain).
+			Interface("match", nameMatch.Match.Domains).
 			Str("name", *nameMatch.Name).
 			Msg("skipping auto-config (duplicate policy)")
 		return
@@ -241,7 +241,7 @@ func (p *SOCKS5Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 
 	if addrMatch != nil {
 		logger.Info().
-			Str("match", addrMatch.Match.CIDR.String()).
+			Interface("match", addrMatch.Match.Addrs).
 			Str("name", *addrMatch.Name).
 			Msg("skipping auto-config (duplicate policy)")
 		return
@@ -256,7 +256,7 @@ func (p *SOCKS5Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 			targetDomain = addrs[0].IP.String()
 		}
 
-		newRule.Match = &config.MatchAttrs{Domain: ptr.FromValue(targetDomain)}
+		newRule.Match = &config.MatchAttrs{Domains: []string{targetDomain}}
 
 		if err := p.ruleMatcher.Add(newRule); err != nil {
 			logger.Info().Err(err).Msg("failed to add config automatically")

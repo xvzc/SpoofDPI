@@ -33,13 +33,6 @@ type RuleMatcher interface {
 // Structs
 // -----------------------------------------------------------------------------
 
-type MatchAttrs struct {
-	Domain   *string `json:"do,omitempty"`
-	CIDR     *string `json:"ci,omitempty"`
-	PortFrom *int    `json:"pf,omitempty"`
-	PortTo   *int    `json:"pt,omitempty"`
-}
-
 type Selector struct {
 	Kind   MatchKind
 	Domain *string
@@ -71,11 +64,11 @@ func (rs *CompositeMatcher) Add(r *config.Rule) error {
 		return fmt.Errorf("rule match attributes cannot be nil")
 	}
 
-	hasDomain := r.Match.Domain != nil
-	hasCIDR := r.Match.CIDR != nil
+	hasDomain := len(r.Match.Domains) > 0
+	hasAddr := len(r.Match.Addrs) > 0
 
-	if !hasDomain && !hasCIDR {
-		return fmt.Errorf("invalid rule: match must contain 'domain' or 'cidr'")
+	if !hasDomain && !hasAddr {
+		return fmt.Errorf("invalid rule: match must contain 'domain' or 'addr'")
 	}
 
 	// A rule can be added to both matchers if it has both fields (rare but possible)
@@ -91,7 +84,7 @@ func (rs *CompositeMatcher) Add(r *config.Rule) error {
 	}
 
 	// 2. Add to Addr Matcher
-	if hasCIDR {
+	if hasAddr {
 		if rs.addrMatcher == nil {
 			return fmt.Errorf("addr matcher not initialized")
 		}

@@ -29,7 +29,7 @@ func TestConfig_UnmarshalTOML(t *testing.T) {
 						{
 							"name": "test",
 							"match": map[string]any{
-								"domain": "example.com",
+								"domain": []any{"example.com"},
 							},
 							"dns": map[string]any{
 								"route": "doh",

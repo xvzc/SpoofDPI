@@ -94,7 +94,7 @@ func TestCreateProxy_WithPolicy(t *testing.T) {
 			{
 				Name: ptr.FromValue("test-rule"),
 				Match: &config.MatchAttrs{
-					Domain: ptr.FromValue("example.com"),
+					Domains: []string{"example.com"},
 				},
 				DNS: &config.DNSOptions{
 					Mode: ptr.FromValue(config.DNSModeSystem),
