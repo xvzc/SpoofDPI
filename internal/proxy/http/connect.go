@@ -1,4 +1,4 @@
-package handler
+package http
 
 import (
 	"context"
@@ -12,16 +12,17 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/logging"
 	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/proto"
+	"github.com/xvzc/SpoofDPI/internal/proxy/tlsutil"
 )
 
 type HTTPSHandler struct {
 	logger zerolog.Logger
-	bridge *Bridge
+	bridge *tlsutil.TLSBridge
 }
 
 func NewHTTPSHandler(
 	logger zerolog.Logger,
-	bridge *Bridge,
+	bridge *tlsutil.TLSBridge,
 ) *HTTPSHandler {
 	return &HTTPSHandler{
 		logger: logger,
@@ -50,3 +51,4 @@ func (h *HTTPSHandler) HandleRequest(
 	// 2. Delegate to Bridge
 	return h.bridge.Tunnel(ctx, lConn, dst, rule)
 }
+

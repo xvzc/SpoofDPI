@@ -1,4 +1,4 @@
-package handler
+package tlsutil
 
 import (
 	"context"
@@ -15,20 +15,20 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
-type Bridge struct {
+type TLSBridge struct {
 	logger    zerolog.Logger
 	desyncer  *desync.TLSDesyncer
 	sniffer   packet.Sniffer
 	httpsOpts *config.HTTPSOptions
 }
 
-func NewBridge(
+func NewTLSBridge(
 	logger zerolog.Logger,
 	desyncer *desync.TLSDesyncer,
 	sniffer packet.Sniffer,
 	httpsOpts *config.HTTPSOptions,
-) *Bridge {
-	return &Bridge{
+) *TLSBridge {
+	return &TLSBridge{
 		logger:    logger,
 		desyncer:  desyncer,
 		sniffer:   sniffer,
@@ -38,7 +38,7 @@ func NewBridge(
 
 // Tunnel creates a bi-directional tunnel between lConn and dst.
 // It detects the first packet from lConn. If it's a ClientHello, it applies the desync strategy.
-func (b *Bridge) Tunnel(
+func (b *TLSBridge) Tunnel(
 	ctx context.Context,
 	lConn net.Conn,
 	dst *netutil.Destination,
@@ -119,7 +119,7 @@ func (b *Bridge) Tunnel(
 	return nil
 }
 
-func (b *Bridge) sendClientHello(
+func (b *TLSBridge) sendClientHello(
 	ctx context.Context,
 	conn net.Conn,
 	msg *proto.TLSMessage,
