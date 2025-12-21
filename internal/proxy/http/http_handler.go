@@ -74,4 +74,3 @@ func (h *HTTPHandler) HandleRequest(
 
 	return nil
 }
-
