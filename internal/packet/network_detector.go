@@ -226,6 +226,7 @@ func findDefaultInterface(ctx context.Context) (*net.Interface, error) {
 		53,
 		time.Duration(10)*time.Second,
 	)
+
 	if err != nil {
 		return nil, fmt.Errorf(
 			"could not dial any public DNS to determine default interface: %w",

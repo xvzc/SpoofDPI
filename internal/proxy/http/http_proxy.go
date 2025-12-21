@@ -222,6 +222,7 @@ func (p *HTTPProxy) handleNewConnection(ctx context.Context, conn net.Conn) {
 		newRule := p.policyOpts.Template.Clone()
 		newRule.Match = &config.MatchAttrs{Domains: []string{domain}}
 
+
 		if err := p.ruleMatcher.Add(newRule); err != nil {
 			logger.Info().Err(err).Msg("failed to add config automatically")
 		} else {
