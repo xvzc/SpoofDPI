@@ -326,9 +326,9 @@ func (o *HTTPSOptions) UnmarshalTOML(data any) (err error) {
 	o.Disorder = findFrom(m, "disorder", parseBoolFn(), &err)
 	o.FakeCount = findFrom(m, "fake-count", parseIntFn[uint8](checkUint8), &err)
 
-	
-  if p := findSliceFrom(m, "fake-packet", parseByteFn(nil), &err); isOk(p, err) {
-		o.FakePacket = proto.NewFakeTLSMessage(*p)
+	fakePacket := findSliceFrom(m, "fake-packet", parseByteFn(nil), &err)
+	if fakePacket != nil {
+		o.FakePacket = proto.NewFakeTLSMessage(fakePacket)
 	}
 
 	splitModeParser := parseStringFn(checkHTTPSSplitMode)
