@@ -3,7 +3,15 @@ package netutil
 import (
 	"fmt"
 	"net"
+	"time"
 )
+
+type Destination struct {
+	Domain  string
+	Addrs   []net.IPAddr
+	Port    int
+	Timeout time.Duration
+}
 
 func ValidateDestination(
 	dstAddrs []net.IPAddr,

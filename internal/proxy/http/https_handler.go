@@ -44,7 +44,7 @@ func NewHTTPSHandler(
 func (h *HTTPSHandler) HandleRequest(
 	ctx context.Context,
 	lConn net.Conn,
-	dst *Destination,
+	dst *netutil.Destination,
 	rule *config.Rule,
 ) error {
 	httpsOpts := h.httpsOpts

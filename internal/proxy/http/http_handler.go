@@ -16,9 +16,7 @@ type HTTPHandler struct {
 	logger zerolog.Logger
 }
 
-func NewHTTPHandler(
-	logger zerolog.Logger,
-) *HTTPHandler {
+func NewHTTPHandler(logger zerolog.Logger) *HTTPHandler {
 	return &HTTPHandler{
 		logger: logger,
 	}
@@ -28,13 +26,14 @@ func (h *HTTPHandler) HandleRequest(
 	ctx context.Context,
 	lConn net.Conn, // Use the net.Conn interface, not a concrete *net.TCPConn.
 	req *proto.HTTPRequest, // Assumes HttpRequest is a custom type for request parsing.
-	dst *Destination,
+	dst *netutil.Destination,
 	rule *config.Rule,
 ) error {
 	logger := logging.WithLocalScope(ctx, h.logger, "http")
 
 	rConn, err := netutil.DialFastest(ctx, "tcp", dst.Addrs, dst.Port, dst.Timeout)
 	if err != nil {
+		_ = proto.HTTPBadGatewayResponse().Write(lConn)
 		return err
 	}
 
@@ -62,6 +61,10 @@ func (h *HTTPHandler) HandleRequest(
 		e := <-errCh
 		if e == nil {
 			continue
+		}
+
+		if netutil.IsConnectionResetByPeer(e) {
+			return netutil.ErrBlocked
 		}
 
 		return fmt.Errorf(

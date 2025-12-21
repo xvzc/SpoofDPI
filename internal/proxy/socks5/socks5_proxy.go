@@ -29,8 +29,8 @@ type SOCKS5Proxy struct {
 	serverOpts  *config.ServerOptions
 	policyOpts  *config.PolicyOptions
 
-	tcpHandler Handler
-	udpHandler Handler
+	tcpHandler *TCPHandler
+	udpHandler *UDPHandler
 }
 
 func NewSOCKS5Proxy(
@@ -120,14 +120,16 @@ func (p *SOCKS5Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 		if err != nil {
 			return // resolveAndMatch logs error and writes failure response if needed
 		}
-		if err := p.tcpHandler.Handle(ctx, conn, req, rule, addrs); err != nil {
+		dst := &netutil.Destination{
+			Domain:  req.Domain,
+			Addrs:   addrs,
+			Port:    req.Port,
+			Timeout: *p.serverOpts.Timeout,
+		}
+		if err := p.tcpHandler.Handle(ctx, conn, req, dst, rule); err != nil {
 			return // Handler logs error
 		}
 
-		// Auto Config Check (Duplicate logic moved here or kept in handler?
-		// User said: "Handler just takes the rule".
-		// Auto config logic updates the policy. It feels like "Proxy" responsibility or "Matcher" responsibility.
-		// If I keep it here, it's cleaner for handler.
 		p.handleAutoConfig(ctx, req, addrs, rule)
 
 	case proto.CmdUDPAssociate:
@@ -168,23 +170,6 @@ func (p *SOCKS5Proxy) resolveAndMatch(
 		// Resolve Domain
 		rSet, err := p.resolver.Resolve(ctx, req.Domain, nil, nameMatch)
 		if err != nil {
-			// We can't write to conn here easily as it's not passed,
-			// but we can return error and let caller handle or just fail.
-			// Ideally we should write failure.
-			// Let's rely on caller or pass conn?
-			// The caller `handleConnection` has `conn`.
-			// I'll make this function just return error, and caller handles the UI part?
-			// But wait, `SOCKS5FailureResponse` needs to be written.
-			// I'll pass conn to this function? No, keep it pure logic if possible.
-			// But standard practice: Write failure on error.
-			// I will return error and let `handleConnection` assume failure was not written?
-			// Or just handle it here?
-			// I'll handle writing failure in `handleConnection` if this returns error?
-			// But I need to differentiate errors.
-			// Let's just return error, and the caller (handleConnection) will catch it.
-			// Wait, caller `handleConnection` has `conn`.
-			// But `resolveAndMatch` doesn't have `conn`.
-			// I'll just log here. The caller should write failure.
 			logging.ErrorUnwrapped(logger, "dns lookup failed", err)
 			return nil, nil, err
 		}

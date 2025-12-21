@@ -9,6 +9,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/config"
+	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/proto"
 )
 
@@ -26,8 +27,8 @@ func (h *UDPHandler) Handle(
 	ctx context.Context,
 	conn net.Conn,
 	req *proto.SOCKS5Request,
+	dst *netutil.Destination,
 	rule *config.Rule,
-	addrs []net.IPAddr,
 ) error {
 	logger := h.logger.With().Ctx(ctx).Logger()
 

@@ -21,13 +21,6 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/session"
 )
 
-type Destination struct {
-	Domain  string
-	Addrs   []net.IPAddr
-	Port    int
-	Timeout time.Duration
-}
-
 type HTTPProxy struct {
 	logger zerolog.Logger
 
@@ -186,7 +179,7 @@ func (p *HTTPProxy) handleNewConnection(ctx context.Context, conn net.Conn) {
 		return
 	}
 
-	dst := &Destination{
+	dst := &netutil.Destination{
 		Domain:  domain,
 		Addrs:   rSet.Addrs,
 		Port:    dstPort,

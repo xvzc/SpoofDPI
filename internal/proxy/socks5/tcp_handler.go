@@ -34,13 +34,13 @@ func (h *TCPHandler) Handle(
 	ctx context.Context,
 	conn net.Conn,
 	req *proto.SOCKS5Request,
+	dst *netutil.Destination,
 	rule *config.Rule,
-	addrs []net.IPAddr,
 ) error {
 	logger := h.logger.With().Ctx(ctx).Logger()
 
 	// 1. Validate Destination (Avoid Recursive Loop)
-	ok, err := validateDestination(addrs, req.Port, h.serverOpts.ListenAddr)
+	ok, err := netutil.ValidateDestination(dst.Addrs, dst.Port, h.serverOpts.ListenAddr)
 	if err != nil {
 		logger.Debug().Err(err).Msg("error determining if valid destination")
 		if !ok {
@@ -62,13 +62,6 @@ func (h *TCPHandler) Handle(
 		return err
 	}
 
-	dst := &http.Destination{
-		Domain:  req.Domain,
-		Addrs:   addrs,
-		Port:    req.Port,
-		Timeout: *h.serverOpts.Timeout,
-	}
-
 	// 4. Handover to HTTPSHandler
 	handleErr := h.httpsHandler.HandleRequest(ctx, conn, dst, rule)
 	if handleErr == nil {
@@ -81,36 +74,4 @@ func (h *TCPHandler) Handle(
 	}
 
 	return nil
-}
-
-// validateDestination checks if we are recursively querying ourselves.
-func validateDestination(
-	dstAddrs []net.IPAddr,
-	dstPort int,
-	listenAddr *net.TCPAddr,
-) (bool, error) {
-	if dstPort != int(listenAddr.Port) {
-		return true, nil
-	}
-
-	for _, dstAddr := range dstAddrs {
-		ip := dstAddr.IP
-		if ip.IsLoopback() {
-			return false, nil
-		}
-
-		ifAddrs, err := net.InterfaceAddrs()
-		if err != nil {
-			return false, err
-		}
-
-		for _, addr := range ifAddrs {
-			if ipnet, ok := addr.(*net.IPNet); ok {
-				if ipnet.IP.Equal(ip) {
-					return false, nil
-				}
-			}
-		}
-	}
-	return true, nil
 }
