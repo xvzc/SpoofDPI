@@ -1,4 +1,4 @@
-package socks5
+package handler
 
 import (
 	"context"
@@ -9,18 +9,17 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/proto"
-	"github.com/xvzc/SpoofDPI/internal/proxy/handler"
 )
 
 type TCPHandler struct {
 	logger     zerolog.Logger
-	bridge     *handler.Bridge
+	bridge     *Bridge
 	serverOpts *config.ServerOptions
 }
 
 func NewTCPHandler(
 	logger zerolog.Logger,
-	bridge *handler.Bridge,
+	bridge *Bridge,
 	serverOpts *config.ServerOptions,
 ) *TCPHandler {
 	return &TCPHandler{

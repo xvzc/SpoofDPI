@@ -1,4 +1,4 @@
-package http
+package handler
 
 import (
 	"context"
@@ -12,17 +12,16 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/logging"
 	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/proto"
-	"github.com/xvzc/SpoofDPI/internal/proxy/handler"
 )
 
 type HTTPSHandler struct {
 	logger zerolog.Logger
-	bridge *handler.Bridge
+	bridge *Bridge
 }
 
 func NewHTTPSHandler(
 	logger zerolog.Logger,
-	bridge *handler.Bridge,
+	bridge *Bridge,
 ) *HTTPSHandler {
 	return &HTTPSHandler{
 		logger: logger,

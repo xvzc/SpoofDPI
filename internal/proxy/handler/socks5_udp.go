@@ -1,4 +1,4 @@
-package socks5
+package handler
 
 import (
 	"context"
@@ -39,7 +39,7 @@ func (h *UDPHandler) Handle(
 		_ = proto.SOCKS5FailureResponse().Write(conn)
 		return err
 	}
-	defer udpConn.Close()
+	netutil.CloseConns(udpConn)
 
 	lAddr := udpConn.LocalAddr().(*net.UDPAddr)
 
@@ -63,7 +63,7 @@ func (h *UDPHandler) Handle(
 
 	go func() {
 		<-done
-		udpConn.Close()
+		netutil.CloseConns(udpConn)
 	}()
 
 	buf := make([]byte, 65535)
@@ -99,7 +99,10 @@ func (h *UDPHandler) Handle(
 			// The Target will reply to this socket.
 			resolvedAddr, err := net.ResolveUDPAddr("udp", targetAddr)
 			if err != nil {
-				logger.Warn().Err(err).Str("addr", targetAddr).Msg("failed to resolve udp target")
+				logger.Warn().
+					Err(err).
+					Str("addr", targetAddr).
+					Msg("failed to resolve udp target")
 				continue
 			}
 

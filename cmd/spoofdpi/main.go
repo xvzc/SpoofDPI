@@ -19,7 +19,6 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/packet"
 	"github.com/xvzc/SpoofDPI/internal/proxy"
 	"github.com/xvzc/SpoofDPI/internal/proxy/handler"
-	"github.com/xvzc/SpoofDPI/internal/proxy/http"
 	"github.com/xvzc/SpoofDPI/internal/session"
 	"github.com/xvzc/SpoofDPI/internal/system"
 )
@@ -246,7 +245,7 @@ func createProxy(
 	}
 
 	// create an HTTP handler.
-	httpHandler := http.NewHTTPHandler(logging.WithScope(logger, "hnd"))
+	httpHandler := handler.NewHTTPHandler(logging.WithScope(logger, "hnd"))
 
 	var sniffer packet.Sniffer
 	var writer packet.Writer
@@ -270,7 +269,7 @@ func createProxy(
 		cfg.HTTPS.Clone(),
 	)
 
-	httpsHandler := http.NewHTTPSHandler(
+	httpsHandler := handler.NewHTTPSHandler(
 		logging.WithScope(logger, "hnd"),
 		bridge,
 	)
@@ -286,7 +285,7 @@ func createProxy(
 	// 	), nil
 	// }
 
-	return http.NewHTTPProxy(
+	return proxy.NewHTTPProxy(
 		logging.WithScope(logger, "pxy"),
 		resolver,
 		httpHandler,

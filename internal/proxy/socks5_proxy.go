@@ -1,4 +1,4 @@
-package socks5
+package proxy
 
 import (
 	"context"
@@ -15,7 +15,6 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/matcher"
 	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/proto"
-	"github.com/xvzc/SpoofDPI/internal/proxy"
 	"github.com/xvzc/SpoofDPI/internal/proxy/handler"
 	"github.com/xvzc/SpoofDPI/internal/ptr"
 	"github.com/xvzc/SpoofDPI/internal/session"
@@ -29,8 +28,8 @@ type SOCKS5Proxy struct {
 	serverOpts  *config.ServerOptions
 	policyOpts  *config.PolicyOptions
 
-	tcpHandler *TCPHandler
-	udpHandler *UDPHandler
+	tcpHandler *handler.TCPHandler
+	udpHandler *handler.UDPHandler
 }
 
 func NewSOCKS5Proxy(
@@ -40,19 +39,19 @@ func NewSOCKS5Proxy(
 	ruleMatcher matcher.RuleMatcher,
 	serverOpts *config.ServerOptions,
 	policyOpts *config.PolicyOptions,
-) proxy.ProxyServer {
+) ProxyServer {
 	return &SOCKS5Proxy{
 		logger:      logger,
 		resolver:    resolver,
 		ruleMatcher: ruleMatcher,
 		serverOpts:  serverOpts,
 		policyOpts:  policyOpts,
-		tcpHandler: NewTCPHandler(
+		tcpHandler: handler.NewTCPHandler(
 			logger,
 			bridge,
 			serverOpts,
 		),
-		udpHandler: NewUDPHandler(logger),
+		udpHandler: handler.NewUDPHandler(logger),
 	}
 }
 

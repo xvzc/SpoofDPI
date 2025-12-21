@@ -1,4 +1,4 @@
-package http
+package proxy
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/matcher"
 	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/proto"
-	"github.com/xvzc/SpoofDPI/internal/proxy"
+	"github.com/xvzc/SpoofDPI/internal/proxy/handler"
 	"github.com/xvzc/SpoofDPI/internal/ptr"
 	"github.com/xvzc/SpoofDPI/internal/session"
 )
@@ -25,8 +25,8 @@ type HTTPProxy struct {
 	logger zerolog.Logger
 
 	resolver     dns.Resolver
-	httpHandler  *HTTPHandler
-	httpsHandler *HTTPSHandler
+	httpHandler  *handler.HTTPHandler
+	httpsHandler *handler.HTTPSHandler
 	ruleMatcher  matcher.RuleMatcher
 	serverOpts   *config.ServerOptions
 	policyOpts   *config.PolicyOptions
@@ -35,12 +35,12 @@ type HTTPProxy struct {
 func NewHTTPProxy(
 	logger zerolog.Logger,
 	resolver dns.Resolver,
-	httpHandler *HTTPHandler,
-	httpsHandler *HTTPSHandler,
+	httpHandler *handler.HTTPHandler,
+	httpsHandler *handler.HTTPSHandler,
 	ruleMatcher matcher.RuleMatcher,
 	serverOpts *config.ServerOptions,
 	policyOpts *config.PolicyOptions,
-) proxy.ProxyServer {
+) ProxyServer {
 	return &HTTPProxy{
 		logger:       logger,
 		resolver:     resolver,
