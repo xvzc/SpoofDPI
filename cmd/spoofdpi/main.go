@@ -180,7 +180,7 @@ func createPacketObjects(
 	}
 
 	// Wait for gateway MAC with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	gatewayMAC, err := networkDetector.WaitForGatewayMAC(ctx)
