@@ -359,11 +359,7 @@ func CreateCommand(
 				}
 			}
 
-			// defaultCfg := getDefault()
-			// // argsCfg := fromFlags(cmd)
-			//
-			finalCfg := getDefault().Merge(tomlCfg.Merge(argsCfg))
-			// finalCfg = finalCfg.Merge(argsCfg)
+			finalCfg := defaultCfg.Merge(tomlCfg.Merge(argsCfg))
 
 			runFunc(ctx, strings.Replace(configDir, os.Getenv("HOME"), "~", 1), finalCfg)
 			return nil
