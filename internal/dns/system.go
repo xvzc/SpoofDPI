@@ -15,17 +15,17 @@ type SysResolver struct {
 	logger zerolog.Logger
 
 	*net.Resolver
-	defaultOpts *config.DNSOptions
+	dnsOpts *config.DNSOptions
 }
 
 func NewSystemResolver(
 	logger zerolog.Logger,
-	defaultOpts *config.DNSOptions,
+	dnsOps *config.DNSOptions,
 ) *SysResolver {
 	return &SysResolver{
-		logger:      logger,
-		Resolver:    &net.Resolver{PreferGo: true},
-		defaultOpts: defaultOpts,
+		logger:   logger,
+		Resolver: &net.Resolver{PreferGo: true},
+		dnsOpts:  dnsOps,
 	}
 }
 
@@ -36,6 +36,28 @@ func (sr *SysResolver) Info() []ResolverInfo {
 			Dst:  "builtin",
 		},
 	}
+}
+
+func (sr *SysResolver) Resolve(
+	ctx context.Context,
+	domain string,
+	fallback Resolver,
+	rule *config.Rule,
+) (*RecordSet, error) {
+	opts := sr.dnsOpts.Clone()
+	if rule != nil {
+		opts = opts.Merge(rule.DNS)
+	}
+
+	addrs, err := sr.LookupIPAddr(ctx, domain)
+	if err != nil {
+		return nil, err
+	}
+
+	return &RecordSet{
+		Addrs: filtterAddrs(addrs, parseQueryTypes(*opts.QType)),
+		TTL:   0,
+	}, nil
 }
 
 func filtterAddrs(addrs []net.IPAddr, qTypes []uint16) []net.IPAddr {
@@ -82,26 +104,4 @@ func filtterAddrs(addrs []net.IPAddr, qTypes []uint16) []net.IPAddr {
 	}
 
 	return filtered
-}
-
-func (sr *SysResolver) Resolve(
-	ctx context.Context,
-	domain string,
-	fallback Resolver,
-	rule *config.Rule,
-) (*RecordSet, error) {
-	opts := sr.defaultOpts
-	if rule != nil {
-		opts = opts.Merge(rule.DNS)
-	}
-
-	addrs, err := sr.LookupIPAddr(ctx, domain)
-	if err != nil {
-		return nil, err
-	}
-
-	return &RecordSet{
-		Addrs: filtterAddrs(addrs, parseQueryTypes(*opts.QType)),
-		TTL:   0,
-	}, nil
 }

@@ -14,68 +14,64 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/session"
 )
 
-// HopTracker monitors a pcap handle to find SYN/ACK packets and
-// stores their estimated hop count into a TTLCache.
-type HopTrackerAttrs struct {
-	DefaultTTL uint8
+var _ Sniffer = (*TCPSniffer)(nil)
+
+type TCPSniffer struct {
+	logger zerolog.Logger
+
+	nhopCache  cache.Cache
+	defaultTTL uint8
+
+	handle Handle
 }
 
-type HopTracker struct {
-	logger    zerolog.Logger
-	nhopCache cache.Cache // The cache stores hop counts (uint8)
-	handle    Handle
-	attrs     HopTrackerAttrs
-}
-
-func (ht *HopTracker) Cache() cache.Cache {
-	return ht.nhopCache
-}
-
-// NewHopTracker creates a new HopTracker.
-func NewHopTracker(
+func NewTCPSniffer(
 	logger zerolog.Logger,
 	cache cache.Cache,
 	handle Handle,
-	attrs HopTrackerAttrs,
-) *HopTracker {
-	// Error checking for nil handle and cache has been removed
-	// as per the request.
-
-	return &HopTracker{
-		logger:    logger,
-		nhopCache: cache,
-		handle:    handle,
-		attrs:     attrs,
+	defaultTTL uint8,
+) *TCPSniffer {
+	return &TCPSniffer{
+		logger:     logger,
+		nhopCache:  cache,
+		handle:     handle,
+		defaultTTL: defaultTTL,
 	}
 }
 
+// --- HopTracker Methods ---
+
+func (ts *TCPSniffer) Cache() cache.Cache {
+	return ts.nhopCache
+}
+
 // StartCapturing begins monitoring for SYN/ACK packets in a background goroutine.
-func (ht *HopTracker) StartCapturing() {
+func (ts *TCPSniffer) StartCapturing() {
 	// Create a new packet source from the handle.
-	packetSource := gopacket.NewPacketSource(ht.handle, ht.handle.LinkType())
+	packetSource := gopacket.NewPacketSource(ts.handle, ts.handle.LinkType())
 	packets := packetSource.Packets()
 	// _ = ht.handle.SetBPFRawInstructionFilter(generateSynAckFilter())
-	_ = ht.handle.ClearBPF()
-	_ = ht.handle.SetBPFRawInstructionFilter(generateSynAckFilter())
+	_ = ts.handle.ClearBPF()
+	_ = ts.handle.SetBPFRawInstructionFilter(generateSynAckFilter())
 
 	// Start a dedicated goroutine to process incoming packets.
 	go func() {
 		// Create a base context for this goroutine.
 		ctx := session.WithNewTraceID(context.Background())
 		for packet := range packets {
-			ht.processPacket(ctx, packet)
+			ts.processPacket(ctx, packet)
 		}
 	}()
 }
 
 // RegisterUntracked registers new IP addresses for tracking.
 // Addresses that are already being tracked are ignored.
-func (ht *HopTracker) RegisterUntracked(addrs []net.IPAddr, port int) {
+func (ts *TCPSniffer) RegisterUntracked(addrs []net.IPAddr, port int) {
 	portStr := strconv.Itoa(port)
 	for _, v := range addrs {
-		ht.nhopCache.Set(
+		ts.nhopCache.Set(
 			v.String()+":"+portStr,
-			uint8(ht.attrs.DefaultTTL),
+			ts.defaultTTL,
 			cache.Options().WithSkipExisting(true),
 		)
 	}
@@ -83,17 +79,18 @@ func (ht *HopTracker) RegisterUntracked(addrs []net.IPAddr, port int) {
 
 // GetOptimalTTL retrieves the estimated hop count for a given key from the cache.
 // It returns the hop count and true if found, or 0 and false if not found.
-func (ht *HopTracker) GetOptimalTTL(key string) uint8 {
-	if oTTL, ok := ht.nhopCache.Get(key); ok {
-		return max(oTTL.(uint8), 2) - 1
+func (ts *TCPSniffer) GetOptimalTTL(key string) uint8 {
+	hopCount := uint8(255)
+	if oTTL, ok := ts.nhopCache.Get(key); ok {
+		hopCount = oTTL.(uint8)
 	}
 
-	return uint8(ht.attrs.DefaultTTL)
+	return max(hopCount, 2) - 1
 }
 
 // processPacket analyzes a single packet to find SYN/ACKs and store hop counts.
-func (ht *HopTracker) processPacket(ctx context.Context, p gopacket.Packet) {
-	logger := logging.WithLocalScope(ctx, ht.logger, "track")
+func (ts *TCPSniffer) processPacket(ctx context.Context, p gopacket.Packet) {
+	logger := logging.WithLocalScope(ctx, ts.logger, "sniff")
 
 	tcpLayer := p.Layer(layers.LayerTypeTCP)
 	if tcpLayer == nil {
@@ -109,18 +106,18 @@ func (ht *HopTracker) processPacket(ctx context.Context, p gopacket.Packet) {
 
 	// Check for a TCP layer
 	var srcIP string
-	var ttl uint8
+	var ttlLeft uint8
 
 	// Handle IPv4
 	if ipLayer := p.Layer(layers.LayerTypeIPv4); ipLayer != nil {
 		ip, _ := ipLayer.(*layers.IPv4)
 		srcIP = ip.SrcIP.String()
-		ttl = ip.TTL
+		ttlLeft = ip.TTL
 	} else if ipLayer := p.Layer(layers.LayerTypeIPv6); ipLayer != nil {
 		// Handle IPv6
 		ip, _ := ipLayer.(*layers.IPv6)
 		srcIP = ip.SrcIP.String()
-		ttl = ip.HopLimit
+		ttlLeft = ip.HopLimit
 	} else {
 		return // No IP layer found
 	}
@@ -129,30 +126,33 @@ func (ht *HopTracker) processPacket(ctx context.Context, p gopacket.Packet) {
 	// (The source of the SYN/ACK is the server)
 	key := fmt.Sprintf("%s:%d", srcIP, tcp.SrcPort)
 	// Calculate hop count from the TTL
-	nhops := calculateHops(ttl)
-	ok := ht.nhopCache.Set(key, nhops, nil)
+	nhops := estimateHops(ttlLeft)
+	ok := ts.nhopCache.Set(key, nhops, nil)
 	if ok {
 		logger.Trace().
-			Str("remote_info", key).
+			Str("host_info", key).
 			Uint8("nhops", nhops).
-			Uint8("ttlLeft", ttl).
+			Uint8("ttlLeft", ttlLeft).
 			Msgf("received syn+ack")
 	}
 }
 
-// calculateHops estimates the number of hops based on TTL.
+// estimateHops estimates the number of hops based on TTL.
 // This logic is based on the hop counting mechanism from GoodbyeDPI.
 // It returns 0 if the TTL is not recognizable.
-func calculateHops(ttl uint8) uint8 {
-	if ttl > 98 && ttl < 128 {
-		// Likely Windows (Initial TTL 128)
-		return 128 - ttl
-	} else if ttl > 34 && ttl < 64 {
-		// Likely Linux/macOS (Initial TTL 64)
-		return 64 - ttl
-	}
+func estimateHops(ttlLeft uint8) uint8 {
 	// Unrecognizable initial TTL
-	return 0
+	estimatedInitialHops := uint8(255)
+	switch {
+	case ttlLeft <= 64:
+		estimatedInitialHops = 64
+	case ttlLeft <= 128:
+		estimatedInitialHops = 128
+	default:
+		estimatedInitialHops = 255
+	}
+
+	return estimatedInitialHops - ttlLeft
 }
 
 // GenerateSynAckFilter creates a BPF program for "ip and tcp and (tcp[13] & 18 == 18)".

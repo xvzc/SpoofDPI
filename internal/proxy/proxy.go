@@ -4,6 +4,6 @@ import (
 	"context"
 )
 
-type Proxy interface {
+type ProxyServer interface {
 	ListenAndServe(ctx context.Context, wait chan struct{})
 }

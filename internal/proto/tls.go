@@ -1,6 +1,7 @@
 package proto
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -21,10 +22,11 @@ const (
 )
 
 type TLSMessage struct {
-	Header     TLSHeader
-	Raw        []byte // Header + Payload
-	RawHeader  []byte
-	RawPayload []byte
+	kind       string
+	header     TLSHeader
+	raw        []byte // Header + Payload
+	rawHeader  []byte
+	rawPayload []byte
 }
 
 type TLSHeader struct {
@@ -46,23 +48,35 @@ func (h *TLSHeader) Bytes() []byte {
 	return buf
 }
 
+func (m *TLSMessage) Kind() string {
+	return m.kind
+}
+
+func (m *TLSMessage) Len() int {
+	return len(m.raw)
+}
+
+func (m *TLSMessage) Raw() []byte {
+	return bytes.Clone(m.raw)
+}
+
 func (m *TLSMessage) IsClientHello() bool {
 	// According to RFC 8446 section 4,
-	// the first byte (Raw[5]) of a handshake message should be 0x1 for a Client Hello.
-	return len(m.Raw) > TLSHeaderLen &&
-		m.Header.Type == TLSHandshake &&
-		m.Raw[5] == 0x01
+	// the first byte (raw[5]) of a handshake message should be 0x1 for a Client Hello.
+	return len(m.raw) > TLSHeaderLen &&
+		m.header.Type == TLSHandshake &&
+		m.raw[5] == 0x01
 }
 
 // ExtractSNIOffset parses the Client Hello and returns the indices of the SNI field.
-// The returned `start` and `end` values are absolute offsets into `m.Raw []bytes`.
+// The returned `start` and `end` values are absolute offsets into `m.raw []bytes`.
 // [start:end] covers only the SNI hostname value (i.e., the actual server name string),
 // and does NOT include the SNI extension header, type, or length fields.
 // If SNI is not found or the packet is invalid, returns (0, 0, error).
 //
 // Example:
 //
-//	  Suppose m.Raw contains the following (hex, simplified):
+//	  Suppose m.raw contains the following (hex, simplified):
 //		   ... [TLS headers] ... [Extensions] ...
 //		   00 00    // SNI extension type (0x00 0x00)
 //		   00 0e    // SNI extension length (0x00 0x0e)
@@ -75,10 +89,10 @@ func (m *TLSMessage) IsClientHello() bool {
 //		ExtractSNIOffset will return start=position of '65', end=position after '6d',
 //		covering only "example.com".
 //
-// This allows callers to extract the SNI hostname directly via m.Raw[start:end].
+// This allows callers to extract the SNI hostname directly via m.raw[start:end].
 func (m *TLSMessage) ExtractSNIOffset() (start int, end int, err error) {
 	// 1. Basic Length Check
-	if len(m.Raw) < 43 { // Minimal headers size
+	if len(m.raw) < 43 { // Minimal headers size
 		return 0, 0, errors.New("packet too short")
 	}
 
@@ -93,60 +107,60 @@ func (m *TLSMessage) ExtractSNIOffset() (start int, end int, err error) {
 	curr := 0
 
 	// Check Content Type (Must be Handshake 0x16)
-	if m.Raw[curr] != 0x16 {
+	if m.raw[curr] != 0x16 {
 		return 0, 0, errors.New("not a handshake packet")
 	}
 	curr += 5 // Skip Record Header
 
 	// Check Handshake Type (Must be Client Hello 0x01)
-	if m.Raw[curr] != 0x01 {
+	if m.raw[curr] != 0x01 {
 		return 0, 0, errors.New("not a client hello")
 	}
 	curr += 4 // Skip Handshake Header
 
 	// Skip Protocol Version (2) + Random (32)
 	curr += 34
-	if curr >= len(m.Raw) {
+	if curr >= len(m.raw) {
 		return 0, 0, errors.New("packet too short after random")
 	}
 
 	// 3. Skip Session ID
-	sessionIDLen := int(m.Raw[curr])
+	sessionIDLen := int(m.raw[curr])
 	curr += 1 + sessionIDLen
-	if curr >= len(m.Raw) {
+	if curr >= len(m.raw) {
 		return 0, 0, errors.New("packet too short after session id")
 	}
 
 	// 4. Skip Cipher Suites
-	if curr+2 > len(m.Raw) {
+	if curr+2 > len(m.raw) {
 		return 0, 0, errors.New("packet too short for cipher suites len")
 	}
-	cipherSuitesLen := int(binary.BigEndian.Uint16(m.Raw[curr : curr+2]))
+	cipherSuitesLen := int(binary.BigEndian.Uint16(m.raw[curr : curr+2]))
 	curr += 2 + cipherSuitesLen
-	if curr >= len(m.Raw) {
+	if curr >= len(m.raw) {
 		return 0, 0, errors.New("packet too short after cipher suites")
 	}
 
 	// 5. Skip Compression Methods
-	if curr+1 > len(m.Raw) {
+	if curr+1 > len(m.raw) {
 		return 0, 0, errors.New("packet too short for compression len")
 	}
-	compressionMethodsLen := int(m.Raw[curr])
+	compressionMethodsLen := int(m.raw[curr])
 	curr += 1 + compressionMethodsLen
-	if curr >= len(m.Raw) {
+	if curr >= len(m.raw) {
 		return 0, 0, errors.New("packet too short after compression")
 	}
 
 	// 6. Parse Extensions
-	if curr+2 > len(m.Raw) {
+	if curr+2 > len(m.raw) {
 		// No extensions present
 		return 0, 0, errors.New("no extensions")
 	}
-	extensionsLen := int(binary.BigEndian.Uint16(m.Raw[curr : curr+2]))
+	extensionsLen := int(binary.BigEndian.Uint16(m.raw[curr : curr+2]))
 	curr += 2
 
 	extensionsEnd := curr + extensionsLen
-	if extensionsEnd > len(m.Raw) {
+	if extensionsEnd > len(m.raw) {
 		return 0, 0, errors.New("extensions length overflow")
 	}
 
@@ -156,8 +170,8 @@ func (m *TLSMessage) ExtractSNIOffset() (start int, end int, err error) {
 			break
 		}
 
-		extType := binary.BigEndian.Uint16(m.Raw[curr : curr+2])
-		extLen := int(binary.BigEndian.Uint16(m.Raw[curr+2 : curr+4]))
+		extType := binary.BigEndian.Uint16(m.raw[curr : curr+2])
+		extLen := int(binary.BigEndian.Uint16(m.raw[curr+2 : curr+4]))
 		curr += 4
 
 		if curr+extLen > extensionsEnd {
@@ -181,7 +195,7 @@ func (m *TLSMessage) ExtractSNIOffset() (start int, end int, err error) {
 			// List Length (2 bytes) skip
 			// Name Type (1 byte) skip
 			// Name Length (2 bytes) read
-			nameLen := int(binary.BigEndian.Uint16(m.Raw[sniDataStart+3 : sniDataStart+5]))
+			nameLen := int(binary.BigEndian.Uint16(m.raw[sniDataStart+3 : sniDataStart+5]))
 
 			realStart := sniDataStart + 5
 			realEnd := realStart + nameLen
@@ -197,6 +211,10 @@ func (m *TLSMessage) ExtractSNIOffset() (start int, end int, err error) {
 	}
 
 	return 0, 0, errors.New("sni not found")
+}
+
+func NewFakeTLSMessage(raw []byte) *TLSMessage {
+	return &TLSMessage{kind: "fake", raw: raw}
 }
 
 func ReadTLSMessage(r io.Reader) (*TLSMessage, error) {
@@ -228,10 +246,11 @@ func ReadTLSMessage(r io.Reader) (*TLSMessage, error) {
 	}
 
 	hello := &TLSMessage{
-		Header:     header,
-		Raw:        raw,
-		RawHeader:  raw[:TLSHeaderLen],
-		RawPayload: raw[TLSHeaderLen:],
+		kind:       "real",
+		header:     header,
+		raw:        raw,
+		rawHeader:  raw[:TLSHeaderLen],
+		rawPayload: raw[TLSHeaderLen:],
 	}
 	return hello, nil
 }

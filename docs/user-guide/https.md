@@ -8,7 +8,7 @@ Settings for manipulating HTTPS/TLS packets to bypass DPI.
 
 ### Description
 
-Specifies the default packet fragmentation strategy to use for the Client Hello packet. `(default: "chunk")`
+Specifies the default packet fragmentation strategy to use for the Client Hello packet. `(default: "sni")`
 
 ### Allowed Values
 
@@ -70,7 +70,7 @@ Specifies whether to disorder fragmented Client Hello packets. `(default: false)
 When enabled, this option varies the TTL of fragmented Client Hello packets, potentially causing them to arrive out of order. This complicates the packet reassembly process for DPI systems.
 
 !!! note
-    If `https-chunk-size` is `0` and split mode is `none`, disordering does not occur.
+    If split mode is `none`, disordering does not occur.
 
 ### Usage
 

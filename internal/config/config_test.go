@@ -61,19 +61,6 @@ func TestConfig_UnmarshalTOML(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		{
-			name: "nested validation error (rule)",
-			input: map[string]any{
-				"policy": map[string]any{
-					"overrides": []map[string]any{
-						{
-							"name": "invalid rule",
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
 	}
 
 	for _, tc := range tcs {

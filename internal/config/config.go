@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/internal/proto"
 	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
@@ -143,7 +144,7 @@ func getDefault() *Config { //exhaustruct:enforce
 		HTTPS: &HTTPSOptions{
 			Disorder:   ptr.FromValue(false),
 			FakeCount:  ptr.FromValue(uint8(0)),
-			FakePacket: []byte(FakeClientHello),
+			FakePacket: proto.NewFakeTLSMessage([]byte(FakeClientHello)),
 			SplitMode:  ptr.FromValue(HTTPSSplitModeSNI),
 			ChunkSize:  ptr.FromValue(uint8(0)),
 			Skip:       ptr.FromValue(false),

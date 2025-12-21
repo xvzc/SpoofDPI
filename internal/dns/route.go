@@ -14,12 +14,12 @@ import (
 )
 
 type RouteResolver struct {
-	logger      zerolog.Logger
-	https       Resolver
-	udp         Resolver
-	system      Resolver
-	cache       Resolver
-	defaultOpts *config.DNSOptions
+	logger  zerolog.Logger
+	https   Resolver
+	udp     Resolver
+	system  Resolver
+	cache   Resolver
+	dnsOpts *config.DNSOptions
 }
 
 func NewRouteResolver(
@@ -28,15 +28,15 @@ func NewRouteResolver(
 	udp Resolver,
 	sys Resolver,
 	cache Resolver,
-	defaultOpts *config.DNSOptions,
+	dnsOpts *config.DNSOptions,
 ) *RouteResolver {
 	return &RouteResolver{
-		logger:      logger,
-		https:       doh,
-		udp:         udp,
-		system:      sys,
-		cache:       cache,
-		defaultOpts: defaultOpts,
+		logger:  logger,
+		https:   doh,
+		udp:     udp,
+		system:  sys,
+		cache:   cache,
+		dnsOpts: dnsOpts,
 	}
 }
 
@@ -55,9 +55,9 @@ func (rr *RouteResolver) Resolve(
 	fallback Resolver,
 	rule *config.Rule,
 ) (*RecordSet, error) {
-	attrs := rr.defaultOpts
+	opts := rr.dnsOpts.Clone()
 	if rule != nil {
-		attrs = attrs.Merge(rule.DNS)
+		opts = opts.Merge(rule.DNS)
 	}
 
 	logger := logging.WithLocalScope(ctx, rr.logger, "route")
@@ -71,7 +71,7 @@ func (rr *RouteResolver) Resolve(
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	resolver := rr.route(attrs)
+	resolver := rr.route(opts)
 	if resolver == nil {
 		return nil, fmt.Errorf("no resolver available for spec")
 	}
@@ -79,12 +79,12 @@ func (rr *RouteResolver) Resolve(
 	resolverInfo := resolver.Info()[0]
 	logger.Trace().
 		Str("name", resolverInfo.Name).
-		Bool("cache", ptr.FromPtr(attrs.Cache)).
+		Bool("cache", ptr.FromPtr(opts.Cache)).
 		Msgf("ready to resolve")
 
 	var rSet *RecordSet
 	var err error
-	if *attrs.Mode != config.DNSModeSystem && *attrs.Cache {
+	if *opts.Mode != config.DNSModeSystem && *opts.Cache {
 		rSet, err = rr.cache.Resolve(ctx, domain, resolver, rule)
 	} else {
 		rSet, err = resolver.Resolve(ctx, domain, nil, rule)

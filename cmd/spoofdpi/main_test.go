@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xvzc/SpoofDPI/internal/config"
+	"github.com/xvzc/SpoofDPI/internal/proto"
 	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
@@ -43,7 +44,7 @@ func TestCreateProxy_NoPcap(t *testing.T) {
 	cfg.HTTPS = &config.HTTPSOptions{
 		Disorder:   ptr.FromValue(false),
 		FakeCount:  ptr.FromValue(uint8(0)),
-		FakePacket: []byte{},
+		FakePacket: proto.NewFakeTLSMessage([]byte{}),
 		SplitMode:  ptr.FromValue(config.HTTPSSplitModeChunk),
 		ChunkSize:  ptr.FromValue(uint8(10)),
 		Skip:       ptr.FromValue(false),

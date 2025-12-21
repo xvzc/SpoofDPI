@@ -495,7 +495,7 @@ func TestFromTomlFile(t *testing.T) {
 		assert.True(t, *cfg.Policy.Auto)
 		assert.True(t, *cfg.HTTPS.Disorder)
 		assert.Equal(t, uint8(5), *cfg.HTTPS.FakeCount)
-		assert.Equal(t, []byte{0x01, 0x02, 0x03}, cfg.HTTPS.FakePacket)
+		assert.Equal(t, []byte{0x01, 0x02, 0x03}, cfg.HTTPS.FakePacket.Raw())
 		assert.Equal(t, HTTPSSplitModeChunk, *cfg.HTTPS.SplitMode)
 		assert.Equal(t, uint8(20), *cfg.HTTPS.ChunkSize)
 		assert.True(t, *cfg.HTTPS.Skip)
@@ -521,7 +521,7 @@ func TestFromTomlFile(t *testing.T) {
 
 		assert.False(t, *override.HTTPS.Disorder)
 		assert.Equal(t, uint8(2), *override.HTTPS.FakeCount)
-		assert.Equal(t, []byte{0xAA, 0xBB}, override.HTTPS.FakePacket)
+		assert.Equal(t, []byte{0xAA, 0xBB}, override.HTTPS.FakePacket.Raw())
 		assert.Equal(t, HTTPSSplitModeSNI, *override.HTTPS.SplitMode)
 		assert.Equal(t, uint8(10), *override.HTTPS.ChunkSize)
 		assert.True(t, *override.HTTPS.Skip)

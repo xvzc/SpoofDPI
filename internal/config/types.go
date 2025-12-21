@@ -3,11 +3,11 @@ package config
 import (
 	"fmt"
 	"net"
-	"slices"
 	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/xvzc/SpoofDPI/internal/proto"
 	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
@@ -311,7 +311,7 @@ func (k HTTPSSplitModeType) String() string {
 type HTTPSOptions struct {
 	Disorder   *bool               `toml:"disorder"    json:"ds,omitempty"`
 	FakeCount  *uint8              `toml:"fake-count"  json:"fc,omitempty"`
-	FakePacket []byte              `toml:"fake-packet" json:"fp,omitempty"`
+	FakePacket *proto.TLSMessage   `toml:"fake-packet" json:"fp,omitempty"`
 	SplitMode  *HTTPSSplitModeType `toml:"split-mode"  json:"sm,omitempty"`
 	ChunkSize  *uint8              `toml:"chunk-size"  json:"cs,omitempty"`
 	Skip       *bool               `toml:"skip"        json:"sk,omitempty"`
@@ -325,7 +325,9 @@ func (o *HTTPSOptions) UnmarshalTOML(data any) (err error) {
 
 	o.Disorder = findFrom(m, "disorder", parseBoolFn(), &err)
 	o.FakeCount = findFrom(m, "fake-count", parseIntFn[uint8](checkUint8), &err)
-	o.FakePacket = findSliceFrom(m, "fake-packet", parseByteFn(nil), &err)
+	o.FakePacket = proto.NewFakeTLSMessage(
+		findSliceFrom(m, "fake-packet", parseByteFn(nil), &err),
+	)
 
 	splitModeParser := parseStringFn(checkHTTPSSplitMode)
 	if p := findFrom(m, "split-mode", splitModeParser, &err); isOk(p, err) {
@@ -343,10 +345,15 @@ func (o *HTTPSOptions) Clone() *HTTPSOptions {
 		return nil
 	}
 
+	var fakePacket *proto.TLSMessage
+	if o.FakePacket != nil {
+		fakePacket = proto.NewFakeTLSMessage(o.FakePacket.Raw())
+	}
+
 	return &HTTPSOptions{
 		Disorder:   ptr.Clone(o.Disorder),
 		FakeCount:  ptr.Clone(o.FakeCount),
-		FakePacket: slices.Clone(o.FakePacket),
+		FakePacket: fakePacket,
 		SplitMode:  ptr.Clone(o.SplitMode),
 		ChunkSize:  ptr.Clone(o.ChunkSize),
 		Skip:       ptr.Clone(o.Skip),
@@ -365,7 +372,7 @@ func (origin *HTTPSOptions) Merge(overrides *HTTPSOptions) *HTTPSOptions {
 	return &HTTPSOptions{
 		Disorder:   ptr.CloneOr(overrides.Disorder, origin.Disorder),
 		FakeCount:  ptr.CloneOr(overrides.FakeCount, origin.FakeCount),
-		FakePacket: ptr.CloneSliceOr(overrides.FakePacket, origin.FakePacket),
+		FakePacket: ptr.CloneOr(overrides.FakePacket, origin.FakePacket),
 		SplitMode:  ptr.CloneOr(overrides.SplitMode, origin.SplitMode),
 		ChunkSize:  ptr.CloneOr(overrides.ChunkSize, origin.ChunkSize),
 		Skip:       ptr.CloneOr(overrides.Skip, origin.Skip),

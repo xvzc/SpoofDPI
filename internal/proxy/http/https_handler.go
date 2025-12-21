@@ -1,4 +1,4 @@
-package handler
+package http
 
 import (
 	"context"
@@ -17,26 +17,24 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
-var _ RequestHandler = (*HTTPSHandler)(nil)
-
 type HTTPSHandler struct {
-	logger     zerolog.Logger
-	desyncer   *desync.TLSDesyncer
-	hopTracker *packet.HopTracker
-	httpsOpts  *config.HTTPSOptions
+	logger    zerolog.Logger
+	desyncer  *desync.TLSDesyncer
+	sniffer   packet.Sniffer
+	httpsOpts *config.HTTPSOptions
 }
 
 func NewHTTPSHandler(
 	logger zerolog.Logger,
 	desyncer *desync.TLSDesyncer,
-	hopTracker *packet.HopTracker,
+	sniffer packet.Sniffer,
 	httpsOpts *config.HTTPSOptions,
 ) *HTTPSHandler {
 	return &HTTPSHandler{
-		logger:     logger,
-		desyncer:   desyncer,
-		hopTracker: hopTracker,
-		httpsOpts:  httpsOpts,
+		logger:    logger,
+		desyncer:  desyncer,
+		sniffer:   sniffer,
+		httpsOpts: httpsOpts,
 	}
 }
 
@@ -46,7 +44,6 @@ func NewHTTPSHandler(
 func (h *HTTPSHandler) HandleRequest(
 	ctx context.Context,
 	lConn net.Conn,
-	req *proto.HTTPRequest,
 	dst *Destination,
 	rule *config.Rule,
 ) error {
@@ -55,13 +52,13 @@ func (h *HTTPSHandler) HandleRequest(
 		httpsOpts = httpsOpts.Merge(rule.HTTPS)
 	}
 
-	if h.hopTracker != nil && ptr.FromPtr(httpsOpts.FakeCount) > 0 {
-		h.hopTracker.RegisterUntracked(dst.Addrs, dst.Port)
+	if h.sniffer != nil && ptr.FromPtr(httpsOpts.FakeCount) > 0 {
+		h.sniffer.RegisterUntracked(dst.Addrs, dst.Port)
 	}
 
 	logger := logging.WithLocalScope(ctx, h.logger, "https")
 
-	rConn, err := netutil.DialFirstSuccessful(ctx, dst.Addrs, dst.Port, dst.Timeout)
+	rConn, err := netutil.DialFastest(ctx, "tcp", dst.Addrs, dst.Port, dst.Timeout)
 	if err != nil {
 		return err
 	}
@@ -69,7 +66,7 @@ func (h *HTTPSHandler) HandleRequest(
 
 	logger.Debug().Msgf("new remote conn -> %s", rConn.RemoteAddr())
 
-	tlsMsg, err := h.handleProxyHandshake(ctx, lConn, req)
+	tlsMsg, err := h.handleProxyHandshake(ctx, lConn)
 	if err != nil {
 		if !netutil.IsConnectionResetByPeer(err) && !errors.Is(err, io.EOF) {
 			logger.Trace().Err(err).Msgf("proxy handshake error")
@@ -80,7 +77,7 @@ func (h *HTTPSHandler) HandleRequest(
 	}
 
 	if !tlsMsg.IsClientHello() {
-		logger.Trace().Int("len", len(tlsMsg.Raw)).Msg("not a client hello. aborting")
+		logger.Trace().Int("len", tlsMsg.Len()).Msg("not a client hello. aborting")
 		return nil
 	}
 
@@ -109,14 +106,14 @@ func (h *HTTPSHandler) HandleRequest(
 
 		if netutil.IsConnectionResetByPeer(e) {
 			return netutil.ErrBlocked
-		} else {
-			return fmt.Errorf(
-				"unsuccessful tunnel %s -> %s: %w",
-				lConn.RemoteAddr(),
-				rConn.RemoteAddr(),
-				e,
-			)
 		}
+
+		return fmt.Errorf(
+			"unsuccessful tunnel %s -> %s: %w",
+			lConn.RemoteAddr(),
+			rConn.RemoteAddr(),
+			e,
+		)
 	}
 
 	return nil
@@ -127,11 +124,10 @@ func (h *HTTPSHandler) HandleRequest(
 func (h *HTTPSHandler) handleProxyHandshake(
 	ctx context.Context,
 	lConn net.Conn,
-	req *proto.HTTPRequest,
 ) (*proto.TLSMessage, error) {
 	logger := logging.WithLocalScope(ctx, h.logger, "handshake")
 
-	if _, err := lConn.Write(req.ConnEstablishedResponse()); err != nil {
+	if err := proto.HTTPConnectionEstablishedResponse().Write(lConn); err != nil {
 		return nil, err
 	}
 	logger.Trace().Msgf("sent 200 connection established -> %s", lConn.RemoteAddr())
@@ -142,7 +138,7 @@ func (h *HTTPSHandler) handleProxyHandshake(
 	}
 
 	logger.Debug().
-		Int("len", len(tlsMsg.Raw)).
+		Int("len", tlsMsg.Len()).
 		Msgf("client hello received <- %s", lConn.RemoteAddr())
 
 	return tlsMsg, nil
@@ -156,5 +152,5 @@ func (h *HTTPSHandler) sendClientHello(
 	httpsOpts *config.HTTPSOptions,
 ) (int, error) {
 	logger := logging.WithLocalScope(ctx, h.logger, "client_hello")
-	return h.desyncer.Send(ctx, logger, msg, conn, httpsOpts)
+	return h.desyncer.Send(ctx, logger, conn, msg, httpsOpts)
 }

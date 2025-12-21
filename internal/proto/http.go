@@ -101,10 +101,71 @@ func (r *HTTPRequest) IsConnectMethod() bool {
 	return r.Method == http.MethodConnect
 }
 
-func (r *HTTPRequest) BadGatewayResponse() []byte {
-	return []byte(r.Proto + " 502 Bad Gateway\r\n\r\n")
+type HTTPResponse struct {
+	*http.Response
 }
 
-func (r *HTTPRequest) ConnEstablishedResponse() []byte {
-	return []byte(r.Proto + " 200 Connection Established\r\n\r\n")
+func NewHTTPResponse(proto string, code int) *HTTPResponse {
+	res := &http.Response{Proto: proto, StatusCode: code}
+	return &HTTPResponse{Response: res}
 }
+
+func HTTPBadGatewayResponse() *HTTPResponse {
+	return &HTTPResponse{
+		&http.Response{
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+			StatusCode: 502,
+			Status:     "502 Bad Gateway",
+		},
+	}
+}
+
+func HTTPConnectionEstablishedResponse() *HTTPResponse {
+	return &HTTPResponse{
+		&http.Response{
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+			StatusCode: 200,
+			Status:     "200 Connection Established",
+		},
+	}
+}
+
+func HTTPForbiddenResponse() *HTTPResponse {
+	return &HTTPResponse{
+		&http.Response{
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+			StatusCode: 403,
+			Status:     "403 Forbidden",
+		},
+	}
+}
+
+func HTTPBadRequestResponse() *HTTPResponse {
+	return &HTTPResponse{
+		&http.Response{
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+			StatusCode: 400,
+			Status:     "400 Bad Request",
+		},
+	}
+}
+
+func HTTPNotImplementedResponse() *HTTPResponse {
+	return &HTTPResponse{
+		&http.Response{
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+			StatusCode: 501,
+			Status:     "501 Not Implemented",
+		},
+	}
+}
+
+//
+// func (r *HTTPRequest) ConnEstablishedResponse() []byte {
+// 	return []byte(r.Proto + " \r\n\r\n")
+// }
