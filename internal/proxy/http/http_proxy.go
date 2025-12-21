@@ -220,7 +220,7 @@ func (p *HTTPProxy) handleNewConnection(ctx context.Context, conn net.Conn) {
 	// Perform auto config if enabled and RuleTemplate is not nil
 	if *p.policyOpts.Auto && p.policyOpts.Template != nil {
 		newRule := p.policyOpts.Template.Clone()
-		newRule.Match = &config.MatchAttrs{Domain: ptr.FromValue(domain)}
+		newRule.Match = &config.MatchAttrs{Domains: []string{domain}}
 
 		if err := p.ruleMatcher.Add(newRule); err != nil {
 			logger.Info().Err(err).Msg("failed to add config automatically")

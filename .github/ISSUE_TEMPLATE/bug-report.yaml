@@ -21,6 +21,15 @@ body:
       required: true
 
   - type: input
+    id: country 
+    attributes:
+      label: Country
+      description: |
+        The name of the country where you currently are
+    validations:
+      required: true
+
+  - type: input
     id: os-ver
     attributes:
       label: Operating System

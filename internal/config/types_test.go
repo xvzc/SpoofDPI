@@ -572,7 +572,7 @@ func TestPolicyOptions_UnmarshalTOML(t *testing.T) {
 					{
 						"name": "rule1",
 						"match": map[string]any{
-							"domain": "example.com",
+							"domain": []any{"example.com"},
 						},
 					},
 				},
@@ -627,7 +627,7 @@ func TestPolicyOptions_Clone(t *testing.T) {
 				Overrides: []Rule{
 					{
 						Name:  ptr.FromValue("rule1"),
-						Match: &MatchAttrs{Domain: ptr.FromValue("example.com")},
+						Match: &MatchAttrs{Domains: []string{"example.com"}},
 					},
 				},
 			},
@@ -713,40 +713,52 @@ func TestMatchAttrs_UnmarshalTOML(t *testing.T) {
 		{
 			name: "valid domain",
 			input: map[string]any{
-				"domain": "example.com",
+				"domain": []any{"example.com"},
 			},
 			wantErr: false,
 			assert: func(t *testing.T, m MatchAttrs) {
-				assert.Equal(t, "example.com", *m.Domain)
-				assert.Nil(t, m.CIDR)
-				assert.Nil(t, m.PortFrom)
-				assert.Nil(t, m.PortTo)
+				assert.Len(t, m.Domains, 1)
+				assert.Equal(t, "example.com", m.Domains[0])
+				assert.Empty(t, m.Addrs)
 			},
 		},
 		{
 			name: "valid cidr with port",
 			input: map[string]any{
-				"cidr": "192.168.1.0/24",
-				"port": "80",
+				"addr": []any{
+					map[string]any{
+						"cidr": "192.168.1.0/24",
+						"port": "80",
+					},
+				},
 			},
 			wantErr: false,
 			assert: func(t *testing.T, m MatchAttrs) {
-				assert.Equal(t, "192.168.1.0/24", m.CIDR.String())
-				assert.Equal(t, uint16(80), *m.PortFrom)
-				assert.Equal(t, uint16(80), *m.PortTo)
+				assert.Len(t, m.Addrs, 1)
+				assert.Equal(t, "192.168.1.0/24", m.Addrs[0].CIDR.String())
+				assert.Equal(t, uint16(80), *m.Addrs[0].PortFrom)
+				assert.Equal(t, uint16(80), *m.Addrs[0].PortTo)
 			},
 		},
 		{
 			name: "cidr requires port",
 			input: map[string]any{
-				"cidr": "192.168.1.0/24",
+				"addr": []any{
+					map[string]any{
+						"cidr": "192.168.1.0/24",
+					},
+				},
 			},
 			wantErr: true,
 		},
 		{
 			name: "port requires cidr",
 			input: map[string]any{
-				"port": "all",
+				"addr": []any{
+					map[string]any{
+						"port": "all",
+					},
+				},
 			},
 			wantErr: true,
 		},
@@ -790,11 +802,11 @@ func TestMatchAttrs_Clone(t *testing.T) {
 		{
 			name: "non-nil receiver",
 			input: &MatchAttrs{
-				Domain: ptr.FromValue("example.com"),
+				Domains: []string{"example.com"},
 			},
 			assert: func(t *testing.T, input *MatchAttrs, output *MatchAttrs) {
 				assert.NotNil(t, output)
-				assert.Equal(t, "example.com", *output.Domain)
+				assert.Equal(t, "example.com", output.Domains[0])
 				assert.NotSame(t, input, output)
 			},
 		},
@@ -823,14 +835,14 @@ func TestRule_UnmarshalTOML(t *testing.T) {
 			input: map[string]any{
 				"name": "rule1",
 				"match": map[string]any{
-					"domain": "example.com",
+					"domain": []any{"example.com"},
 				},
 				"block": true,
 			},
 			wantErr: false,
 			assert: func(t *testing.T, r Rule) {
 				assert.Equal(t, "rule1", *r.Name)
-				assert.Equal(t, "example.com", *r.Match.Domain)
+				assert.Equal(t, "example.com", r.Match.Domains[0])
 				assert.True(t, *r.Block)
 			},
 		},
@@ -874,7 +886,7 @@ func TestRule_Clone(t *testing.T) {
 			name: "non-nil receiver",
 			input: &Rule{
 				Name:  ptr.FromValue("rule1"),
-				Match: &MatchAttrs{Domain: ptr.FromValue("example.com")},
+				Match: &MatchAttrs{Domains: []string{"example.com"}},
 			},
 			assert: func(t *testing.T, input *Rule, output *Rule) {
 				assert.NotNil(t, output)

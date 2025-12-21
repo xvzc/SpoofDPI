@@ -16,7 +16,7 @@ func TestDomainMatcher(t *testing.T) {
 		Name:     ptr.FromValue("rule1"),
 		Priority: ptr.FromValue(uint16(10)),
 		Match: &config.MatchAttrs{
-			Domain: ptr.FromValue("example.com"),
+			Domains: []string{"example.com"},
 		},
 	}
 
@@ -24,7 +24,7 @@ func TestDomainMatcher(t *testing.T) {
 		Name:     ptr.FromValue("rule2"),
 		Priority: ptr.FromValue(uint16(20)),
 		Match: &config.MatchAttrs{
-			Domain: ptr.FromValue("*.google.com"),
+			Domains: []string{"*.google.com"},
 		},
 	}
 
@@ -32,7 +32,7 @@ func TestDomainMatcher(t *testing.T) {
 		Name:     ptr.FromValue("rule3"),
 		Priority: ptr.FromValue(uint16(5)),
 		Match: &config.MatchAttrs{
-			Domain: ptr.FromValue("**.youtube.com"),
+			Domains: []string{"**.youtube.com"},
 		},
 	}
 
@@ -41,7 +41,7 @@ func TestDomainMatcher(t *testing.T) {
 		Name:     ptr.FromValue("rule4"),
 		Priority: ptr.FromValue(uint16(30)),
 		Match: &config.MatchAttrs{
-			Domain: ptr.FromValue("mail.google.com"),
+			Domains: []string{"mail.google.com"},
 		},
 	}
 

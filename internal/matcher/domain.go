@@ -67,7 +67,7 @@ func (t *DomainMatcher) Add(r *config.Rule) error {
 		return fmt.Errorf("domain rule must have match attribute")
 	}
 
-	if r.Match.Domain == nil {
+	if len(r.Match.Domains) == 0 {
 		return fmt.Errorf("domain rule must have match.domain attribute")
 	}
 
@@ -82,39 +82,38 @@ func (t *DomainMatcher) Add(r *config.Rule) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	segments := splitAndReverseDomain(*r.Match.Domain)
-	n := t.root
+	for _, domain := range r.Match.Domains {
+		segments := splitAndReverseDomain(domain)
+		n := t.root
 
-	for _, segment := range segments {
-		switch segment {
-		case "*":
-			if n.wildcardChild == nil {
-				n.wildcardChild = newNode()
+		for _, segment := range segments {
+			switch segment {
+			case "*":
+				if n.wildcardChild == nil {
+					n.wildcardChild = newNode()
+				}
+				n = n.wildcardChild
+			case "**":
+				if n.globstarChild == nil {
+					n.globstarChild = newNode()
+				}
+				n = n.globstarChild
+			default:
+				if _, ok := n.children[segment]; !ok {
+					n.children[segment] = newNode()
+				}
+				n = n.children[segment]
 			}
-			n = n.wildcardChild
-		case "**":
-			if n.globstarChild == nil {
-				n.globstarChild = newNode()
-			}
-			n = n.globstarChild
-		default:
-			if _, ok := n.children[segment]; !ok {
-				n.children[segment] = newNode()
-			}
-			n = n.children[segment]
 		}
-	}
 
-	if n.rule != nil {
-		// Use %q for quoted strings. It formats "example.com" automatically.
-		return fmt.Errorf("exact same rule already exists: %q", *r.Match.Domain)
-	}
+		if n.rule != nil {
+			// Use %q for quoted strings. It formats "example.com" automatically.
+			return fmt.Errorf("exact same rule already exists: %q", domain)
+		}
 
-	// Update the rule at this node.
-	// Note: If a duplicate pattern exists, the latest one overwrites.
-	// Ideally, logic could be added to allow multiple rules per node if needed,
-	// but strictly one pattern usually maps to one rule config.
-	n.rule = r
+		// Update the rule at this node.
+		n.rule = r
+	}
 
 	return nil
 }

@@ -325,9 +325,11 @@ func (o *HTTPSOptions) UnmarshalTOML(data any) (err error) {
 
 	o.Disorder = findFrom(m, "disorder", parseBoolFn(), &err)
 	o.FakeCount = findFrom(m, "fake-count", parseIntFn[uint8](checkUint8), &err)
-	o.FakePacket = proto.NewFakeTLSMessage(
-		findSliceFrom(m, "fake-packet", parseByteFn(nil), &err),
-	)
+
+	fakePacket := findSliceFrom(m, "fake-packet", parseByteFn(nil), &err)
+	if fakePacket != nil {
+		o.FakePacket = proto.NewFakeTLSMessage(fakePacket)
+	}
 
 	splitModeParser := parseStringFn(checkHTTPSSplitMode)
 	if p := findFrom(m, "split-mode", splitModeParser, &err); isOk(p, err) {
@@ -336,6 +338,9 @@ func (o *HTTPSOptions) UnmarshalTOML(data any) (err error) {
 
 	o.ChunkSize = findFrom(m, "chunk-size", parseIntFn[uint8](checkUint8NonZero), &err)
 	o.Skip = findFrom(m, "skip", parseBoolFn(), &err)
+	if o.Skip == nil {
+		o.Skip = ptr.FromValue(false)
+	}
 
 	return nil
 }
@@ -449,20 +454,17 @@ func (origin *PolicyOptions) Merge(overrides *PolicyOptions) *PolicyOptions {
 	return merged
 }
 
-type MatchAttrs struct {
-	Domain   *string    `toml:"domain" json:"do,omitempty"`
-	CIDR     *net.IPNet `toml:"cidr"   json:"cd,omitempty"`
-	PortFrom *uint16    `toml:"port"   json:"pf,omitempty"`
-	PortTo   *uint16    `toml:"port"   json:"pt,omitempty"`
+type AddrMatch struct {
+	CIDR     *net.IPNet `toml:"cidr" json:"cd,omitempty"`
+	PortFrom *uint16    `toml:"port" json:"pf,omitempty"`
+	PortTo   *uint16    `toml:"port" json:"pt,omitempty"`
 }
 
-func (a *MatchAttrs) UnmarshalTOML(data any) (err error) {
+func (a *AddrMatch) UnmarshalTOML(data any) (err error) {
 	v, ok := data.(map[string]any)
 	if !ok {
-		return fmt.Errorf("'match' must be table type")
+		return fmt.Errorf("addr rule must be table type")
 	}
-
-	a.Domain = findFrom(v, "domain", parseStringFn(checkDomainPattern), &err)
 
 	if p := findFrom(v, "cidr", parseStringFn(checkCIDR), &err); isOk(p, err) {
 		a.CIDR = ptr.FromValue(MustParseCIDR(*p))
@@ -472,6 +474,34 @@ func (a *MatchAttrs) UnmarshalTOML(data any) (err error) {
 		portFrom, portTo := MustParsePortRange(*p)
 		a.PortFrom, a.PortTo = ptr.FromValue(portFrom), ptr.FromValue(portTo)
 	}
+
+	return err
+}
+
+func (a *AddrMatch) Clone() *AddrMatch {
+	if a == nil {
+		return nil
+	}
+	return &AddrMatch{
+		CIDR:     ptr.Clone(a.CIDR),
+		PortFrom: ptr.Clone(a.PortFrom),
+		PortTo:   ptr.Clone(a.PortTo),
+	}
+}
+
+type MatchAttrs struct {
+	Domains []string    `toml:"domain" json:"do,omitempty"`
+	Addrs   []AddrMatch `toml:"addr"   json:"ad,omitempty"`
+}
+
+func (a *MatchAttrs) UnmarshalTOML(data any) (err error) {
+	v, ok := data.(map[string]any)
+	if !ok {
+		return fmt.Errorf("'match' must be table type")
+	}
+
+	a.Domains = findSliceFrom(v, "domain", parseStringFn(checkDomainPattern), &err)
+	a.Addrs = findStructSliceFrom[AddrMatch](v, "addr", &err)
 
 	if err == nil {
 		err = checkMatchAttrs(*a)
@@ -485,11 +515,14 @@ func (a *MatchAttrs) Clone() *MatchAttrs {
 		return nil
 	}
 
+	addrs := make([]AddrMatch, 0, len(a.Addrs))
+	for _, addr := range a.Addrs {
+		addrs = append(addrs, *addr.Clone())
+	}
+
 	return &MatchAttrs{
-		Domain:   ptr.Clone(a.Domain),
-		CIDR:     ptr.Clone(a.CIDR),
-		PortFrom: ptr.Clone(a.PortFrom),
-		PortTo:   ptr.Clone(a.PortTo),
+		Domains: ptr.CloneSlice(a.Domains),
+		Addrs:   addrs,
 	}
 }
 
@@ -515,9 +548,9 @@ func (r *Rule) UnmarshalTOML(data any) (err error) {
 	r.DNS = findStructFrom[DNSOptions](m, "dns", &err)
 	r.HTTPS = findStructFrom[HTTPSOptions](m, "https", &err)
 
-	if err == nil {
-		err = checkRule(*r)
-	}
+	// if err == nil {
+	// 	err = checkRule(*r)
+	// }
 
 	return
 }

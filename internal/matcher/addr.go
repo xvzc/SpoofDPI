@@ -38,12 +38,8 @@ func (m *AddrMatcher) Add(r *config.Rule) error {
 		return fmt.Errorf("addr rule must have match attribute")
 	}
 
-	if r.Match.CIDR == nil {
-		return fmt.Errorf("addr rule must have cidr attribute")
-	}
-
-	if r.Match.PortFrom == nil || r.Match.PortTo == nil {
-		return fmt.Errorf("addr rule must have port-from, port-to attribute")
+	if len(r.Match.Addrs) == 0 {
+		return fmt.Errorf("addr rule must have addr attribute")
 	}
 
 	if r.Priority == nil {
@@ -57,17 +53,28 @@ func (m *AddrMatcher) Add(r *config.Rule) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// 4. Create internal rule
-	cr := cidrRule{
-		cidr:     r.Match.CIDR,
-		portFrom: *r.Match.PortFrom,
-		portTo:   *r.Match.PortTo,
-		rule:     r,
+	for _, addr := range r.Match.Addrs {
+		if addr.CIDR == nil {
+			return fmt.Errorf("addr rule must have cidr attribute")
+		}
+
+		if addr.PortFrom == nil || addr.PortTo == nil {
+			return fmt.Errorf("addr rule must have port-from, port-to attribute")
+		}
+
+		// 4. Create internal rule
+		cr := cidrRule{
+			cidr:     addr.CIDR,
+			portFrom: *addr.PortFrom,
+			portTo:   *addr.PortTo,
+			rule:     r,
+		}
+
+		// 5. Append
+		m.rules = append(m.rules, cr)
 	}
 
-	// 5. Append and Sort (Priority Descending)
-	m.rules = append(m.rules, cr)
-
+	// Sort (Priority Descending)
 	sort.SliceStable(m.rules, func(i, j int) bool {
 		p1 := uint16(0)
 		if m.rules[i].rule.Priority != nil {

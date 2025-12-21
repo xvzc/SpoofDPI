@@ -185,9 +185,10 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
         priority = 100
         block = true
         match = { 
-            domain = "example.com", 
-            cidr = "192.168.1.0/24", 
-            port = "80-443",
+            domain = ["example.com"], 
+            addr = [
+                {cidr = "192.168.1.0/24", port = "80-443"}
+            ]
         }
         dns = { 
             mode = "udp", 
@@ -278,5 +279,5 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 	require.Len(t, capturedCfg.Policy.Overrides, 1)
 	override := capturedCfg.Policy.Overrides[0]
 	assert.Equal(t, "test-rule", *override.Name)
-	assert.Equal(t, "example.com", *override.Match.Domain)
+	assert.Equal(t, "example.com", override.Match.Domains[0])
 }

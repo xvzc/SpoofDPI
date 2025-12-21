@@ -176,41 +176,62 @@ func TestCheckMatchAttrs(t *testing.T) {
 		{
 			name: "valid match both",
 			input: MatchAttrs{
-				Domain:   ptr.FromValue("www.google.com"),
-				CIDR:     ptr.FromValue(MustParseCIDR("192.168.0.1/24")),
-				PortFrom: ptr.FromValue(uint16(80)),
-				PortTo:   ptr.FromValue(uint16(443)),
+				Domains: []string{"www.google.com"},
+				Addrs: []AddrMatch{
+					{
+						CIDR:     ptr.FromValue(MustParseCIDR("192.168.0.1/24")),
+						PortFrom: ptr.FromValue(uint16(80)),
+						PortTo:   ptr.FromValue(uint16(443)),
+					},
+				},
 			},
 			wantErr: false,
 		},
 		{
 			name: "valid match domain",
 			input: MatchAttrs{
-				Domain: ptr.FromValue("www.youtube.com"),
+				Domains: []string{"www.youtube.com"},
 			},
 			wantErr: false,
 		},
 		{
 			name: "valid match addr",
 			input: MatchAttrs{
-				CIDR:     ptr.FromValue(MustParseCIDR("10.0.0.0/8")),
-				PortFrom: ptr.FromValue(uint16(0)),
-				PortTo:   ptr.FromValue(uint16(65535)),
+				Addrs: []AddrMatch{
+					{
+						CIDR:     ptr.FromValue(MustParseCIDR("10.0.0.0/8")),
+						PortFrom: ptr.FromValue(uint16(0)),
+						PortTo:   ptr.FromValue(uint16(65535)),
+					},
+				},
 			},
+			wantErr: false,
+		},
+		{
+			name:    "empty match",
+			input:   MatchAttrs{},
 			wantErr: false,
 		},
 		{
 			name: "missig ports wiht cidr",
 			input: MatchAttrs{
-				CIDR: ptr.FromValue(MustParseCIDR("10.0.0.0/8")),
+				Addrs: []AddrMatch{
+					{
+						CIDR: ptr.FromValue(MustParseCIDR("10.0.0.0/8")),
+					},
+				},
 			},
 			wantErr: true,
 		},
 		{
 			name: "missig cidr with ports",
 			input: MatchAttrs{
-				PortFrom: ptr.FromValue(uint16(80)),
-				PortTo:   ptr.FromValue(uint16(443)),
+				Addrs: []AddrMatch{
+					{
+						PortFrom: ptr.FromValue(uint16(80)),
+						PortTo:   ptr.FromValue(uint16(443)),
+					},
+				},
 			},
 			wantErr: true,
 		},
@@ -238,7 +259,7 @@ func TestCheckRule(t *testing.T) {
 			name: "valid domain rule",
 			rule: Rule{
 				Match: &MatchAttrs{
-					Domain: ptr.FromValue("example.com"),
+					Domains: []string{"example.com"},
 				},
 				DNS: &DNSOptions{
 					Mode: ptr.FromValue(DNSModeUDP),
@@ -250,9 +271,13 @@ func TestCheckRule(t *testing.T) {
 			name: "valid cidr rule",
 			rule: Rule{
 				Match: &MatchAttrs{
-					CIDR:     ptr.FromValue(MustParseCIDR("192.168.1.0/24")),
-					PortFrom: ptr.FromValue(uint16(80)),
-					PortTo:   ptr.FromValue(uint16(80)),
+					Addrs: []AddrMatch{
+						{
+							CIDR:     ptr.FromValue(MustParseCIDR("192.168.1.0/24")),
+							PortFrom: ptr.FromValue(uint16(80)),
+							PortTo:   ptr.FromValue(uint16(80)),
+						},
+					},
 				},
 				HTTPS: &HTTPSOptions{
 					Disorder: ptr.FromValue(true),
