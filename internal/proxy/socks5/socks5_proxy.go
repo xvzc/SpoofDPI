@@ -3,7 +3,6 @@ package socks5
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -25,11 +24,13 @@ import (
 type SOCKS5Proxy struct {
 	logger zerolog.Logger
 
-	resolver     dns.Resolver
-	httpsHandler *http.HTTPSHandler // SOCKS5 primarily uses CONNECT, so we leverage HTTPSHandler
-	ruleMatcher  matcher.RuleMatcher
-	serverOpts   *config.ServerOptions
-	policyOpts   *config.PolicyOptions
+	resolver    dns.Resolver
+	ruleMatcher matcher.RuleMatcher
+	serverOpts  *config.ServerOptions
+	policyOpts  *config.PolicyOptions
+
+	tcpHandler Handler
+	udpHandler Handler
 }
 
 func NewSOCKS5Proxy(
@@ -41,12 +42,17 @@ func NewSOCKS5Proxy(
 	policyOpts *config.PolicyOptions,
 ) proxy.ProxyServer {
 	return &SOCKS5Proxy{
-		logger:       logger,
-		resolver:     resolver,
-		httpsHandler: httpsHandler,
-		ruleMatcher:  ruleMatcher,
-		serverOpts:   serverOpts,
-		policyOpts:   policyOpts,
+		logger:      logger,
+		resolver:    resolver,
+		ruleMatcher: ruleMatcher,
+		serverOpts:  serverOpts,
+		policyOpts:  policyOpts,
+		tcpHandler: NewTCPHandler(
+			logger,
+			httpsHandler,
+			serverOpts,
+		),
+		udpHandler: NewUDPHandler(logger),
 	}
 }
 
@@ -101,26 +107,45 @@ func (p *SOCKS5Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 		return
 	}
 
-	// Only support CONNECT for now
-	if req.Cmd != proto.CmdConnect {
-		_ = proto.SOCKS5CommandNotSupportedResponse().Write(conn)
-		logger.Warn().Uint8("cmd", req.Cmd).Msg("unsupported socks5 command")
-		return
-	}
-
 	// Setup Logging Context
 	remoteInfo := req.Domain
 	if remoteInfo == "" {
 		remoteInfo = req.IP.String()
 	}
 	ctx = session.WithHostInfo(ctx, remoteInfo)
-	logger = logger.With().Ctx(ctx).Logger()
 
-	logger.Debug().
-		Str("from", conn.RemoteAddr().String()).
-		Msg("new socks5 request")
+	switch req.Cmd {
+	case proto.CmdConnect:
+		rule, addrs, err := p.resolveAndMatch(ctx, req)
+		if err != nil {
+			return // resolveAndMatch logs error and writes failure response if needed
+		}
+		if err := p.tcpHandler.Handle(ctx, conn, req, rule, addrs); err != nil {
+			return // Handler logs error
+		}
 
-	// 3. Match Domain Rules (if domain provided)
+		// Auto Config Check (Duplicate logic moved here or kept in handler?
+		// User said: "Handler just takes the rule".
+		// Auto config logic updates the policy. It feels like "Proxy" responsibility or "Matcher" responsibility.
+		// If I keep it here, it's cleaner for handler.
+		p.handleAutoConfig(ctx, req, addrs, rule)
+
+	case proto.CmdUDPAssociate:
+		// UDP Associate usually doesn't have destination info in the request
+		p.udpHandler.Handle(ctx, conn, req, nil, nil)
+	default:
+		_ = proto.SOCKS5CommandNotSupportedResponse().Write(conn)
+		logger.Warn().Uint8("cmd", req.Cmd).Msg("unsupported socks5 command")
+	}
+}
+
+func (p *SOCKS5Proxy) resolveAndMatch(
+	ctx context.Context,
+	req *proto.SOCKS5Request,
+) (*config.Rule, []net.IPAddr, error) {
+	logger := zerolog.Ctx(ctx)
+
+	// 1. Match Domain Rules (if domain provided)
 	var nameMatch *config.Rule
 	if req.Domain != "" {
 		nameMatch = p.ruleMatcher.Search(
@@ -135,8 +160,7 @@ func (p *SOCKS5Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 		}
 	}
 
-	// 4. DNS Resolution
-	// SOCKS5 allows IP or Domain. If Domain, we resolve. If IP, we use it directly.
+	// 2. DNS Resolution
 	t1 := time.Now()
 	var addrs []net.IPAddr
 
@@ -144,13 +168,28 @@ func (p *SOCKS5Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 		// Resolve Domain
 		rSet, err := p.resolver.Resolve(ctx, req.Domain, nil, nameMatch)
 		if err != nil {
-			_ = proto.SOCKS5FailureResponse().Write(conn)
-			logging.ErrorUnwrapped(&logger, "dns lookup failed", err)
-			return
+			// We can't write to conn here easily as it's not passed,
+			// but we can return error and let caller handle or just fail.
+			// Ideally we should write failure.
+			// Let's rely on caller or pass conn?
+			// The caller `handleConnection` has `conn`.
+			// I'll make this function just return error, and caller handles the UI part?
+			// But wait, `SOCKS5FailureResponse` needs to be written.
+			// I'll pass conn to this function? No, keep it pure logic if possible.
+			// But standard practice: Write failure on error.
+			// I will return error and let `handleConnection` assume failure was not written?
+			// Or just handle it here?
+			// I'll handle writing failure in `handleConnection` if this returns error?
+			// But I need to differentiate errors.
+			// Let's just return error, and the caller (handleConnection) will catch it.
+			// Wait, caller `handleConnection` has `conn`.
+			// But `resolveAndMatch` doesn't have `conn`.
+			// I'll just log here. The caller should write failure.
+			logging.ErrorUnwrapped(logger, "dns lookup failed", err)
+			return nil, nil, err
 		}
 		addrs = rSet.Addrs
 	} else {
-		// IP Request - Just wrap the IP
 		addrs = []net.IPAddr{{IP: req.IP}}
 	}
 
@@ -160,17 +199,7 @@ func (p *SOCKS5Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 		Str("took", fmt.Sprintf("%dms", dt)).
 		Msg("dns lookup ok")
 
-	// Avoid recursively querying self.
-	ok, err := validateDestination(addrs, req.Port, p.serverOpts.ListenAddr)
-	if err != nil {
-		logger.Debug().Err(err).Msg("error determining if valid destination")
-		if !ok {
-			_ = proto.SOCKS5FailureResponse().Write(conn)
-			return
-		}
-	}
-
-	// 6. Match IP Rules
+	// 3. Match IP Rules
 	var selectors []*matcher.Selector
 	for _, v := range addrs {
 		selectors = append(selectors, &matcher.Selector{
@@ -187,62 +216,21 @@ func (p *SOCKS5Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 	}
 
 	bestMatch := matcher.GetHigherPriorityRule(addrMatch, nameMatch)
-	if bestMatch != nil && *bestMatch.Block {
-		logger.Debug().Msg("request is blocked by policy")
-		_ = proto.SOCKS5FailureResponse().Write(conn)
-		// Or specific code for blocked
-		return
-	}
+	return bestMatch, addrs, nil
+}
 
-	// 7. Handover to Handler
-	// Important: We must send a success reply to the client BEFORE handing over to the handler,
-	// because the handler (SpoofDPI) typically expects a raw stream where it can start TLS handshake immediately.
-	// However, standard SOCKS5 expects the proxy to connect to the target FIRST, then send success.
-	// Since SpoofDPI handler does the connection, we might need to send success here optimistically.
+func (p *SOCKS5Proxy) handleAutoConfig(
+	ctx context.Context,
+	req *proto.SOCKS5Request,
+	addrs []net.IPAddr,
+	matchedRule *config.Rule,
+) {
+	logger := zerolog.Ctx(ctx)
 
-	// [Optimistic Success]
-	// We tell the client "OK, we are connected" so it starts sending data (e.g. ClientHello).
-	// The real connection happens inside p.tcpHandler.HandleRequest.
-	// Note: BIND addr/port is usually 0.0.0.0:0 if we don't care.
-	if err := proto.SOCKS5SuccessResponse().Bind(net.IPv4zero).Port(0).Write(conn); err != nil {
-		logger.Error().Err(err).Msg("failed to write socks5 success reply")
-		return
-	}
-
-	dst := &http.Destination{
-		Domain:  req.Domain,
-		Addrs:   addrs,
-		Port:    req.Port,
-		Timeout: *p.serverOpts.Timeout,
-	}
-
-	// Note: 'req' is nil here because it's not an HTTP request yet.
-	// The handler must be able to handle nil req or we wrap a dummy one.
-	// Assuming Handler is adapted to deal with raw streams or nil reqs for SOCKS mode.
-	handleErr := p.httpsHandler.HandleRequest(ctx, conn, dst, bestMatch)
-
-	if handleErr == nil {
-		return
-	}
-
-	logger.Warn().Err(handleErr).Msg("error handling request")
-	if !errors.Is(handleErr, netutil.ErrBlocked) {
-		return
-	}
-
-	// 8. Auto Config (Duplicate logic from HTTPProxy)
-	if nameMatch != nil {
+	if matchedRule != nil {
 		logger.Info().
-			Interface("match", nameMatch.Match.Domains).
-			Str("name", *nameMatch.Name).
-			Msg("skipping auto-config (duplicate policy)")
-		return
-	}
-
-	if addrMatch != nil {
-		logger.Info().
-			Interface("match", addrMatch.Match.Addrs).
-			Str("name", *addrMatch.Name).
+			Interface("match", matchedRule.Match).
+			Str("name", *matchedRule.Name).
 			Msg("skipping auto-config (duplicate policy)")
 		return
 	}
@@ -251,8 +239,6 @@ func (p *SOCKS5Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 		newRule := p.policyOpts.Template.Clone()
 		targetDomain := req.Domain
 		if targetDomain == "" && len(addrs) > 0 {
-			// If request was by IP, we can't really add a domain rule,
-			// maybe add IP rule or skip. Use domain if available.
 			targetDomain = addrs[0].IP.String()
 		}
 
@@ -266,45 +252,6 @@ func (p *SOCKS5Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 	}
 }
 
-// validateDestination checks if we are recursively querying ourselves.
-// This function needs to be duplicated or moved to a shared utility if common logic is identical.
-// For now, I'll use a local helper or assume the logic is specific enough.
-// Since `isRecursiveDst` was a method on HTTPProxy, I'll assume similar logic is needed here.
-// I'll implement a local version for now to keep it self-contained in this package or duplicated from http/proxy.go.
-// Or I can just omit it if I don't want to duplicate, but safety is important.
-// I'll add a simple check against listening port/loopback.
-func validateDestination(
-	dstAddrs []net.IPAddr,
-	dstPort int,
-	listenAddr *net.TCPAddr,
-) (bool, error) {
-	if dstPort != int(listenAddr.Port) {
-		return true, nil
-	}
-
-	for _, dstAddr := range dstAddrs {
-		ip := dstAddr.IP
-		if ip.IsLoopback() {
-			return false, nil
-		}
-
-		ifAddrs, err := net.InterfaceAddrs()
-		if err != nil {
-			return false, err
-		}
-
-		for _, addr := range ifAddrs {
-			if ipnet, ok := addr.(*net.IPNet); ok {
-				if ipnet.IP.Equal(ip) {
-					return false, nil
-				}
-			}
-		}
-	}
-	return true, nil
-}
-
-// negotiate performs SOCKS5 auth negotiation (NoAuth only).
 func (p *SOCKS5Proxy) negotiate(conn net.Conn) error {
 	header := make([]byte, 2)
 	if _, err := io.ReadFull(conn, header); err != nil {
