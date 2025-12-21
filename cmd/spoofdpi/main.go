@@ -18,6 +18,7 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/matcher"
 	"github.com/xvzc/SpoofDPI/internal/packet"
 	"github.com/xvzc/SpoofDPI/internal/proxy"
+	"github.com/xvzc/SpoofDPI/internal/proxy/handler"
 	"github.com/xvzc/SpoofDPI/internal/proxy/http"
 	"github.com/xvzc/SpoofDPI/internal/session"
 	"github.com/xvzc/SpoofDPI/internal/system"
@@ -258,8 +259,8 @@ func createProxy(
 		}
 	}
 
-	httpsHandler := http.NewHTTPSHandler(
-		logging.WithScope(logger, "hnd"),
+	bridge := handler.NewBridge(
+		logging.WithScope(logger, "brg"),
 		desync.NewTLSDesyncer(
 			writer,
 			sniffer,
@@ -267,6 +268,11 @@ func createProxy(
 		),
 		sniffer,
 		cfg.HTTPS.Clone(),
+	)
+
+	httpsHandler := http.NewHTTPSHandler(
+		logging.WithScope(logger, "hnd"),
+		bridge,
 	)
 
 	// if cfg.Server.EnableSocks5 != nil && *cfg.Server.EnableSocks5 {

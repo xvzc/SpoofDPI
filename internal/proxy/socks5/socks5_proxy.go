@@ -16,7 +16,7 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/proto"
 	"github.com/xvzc/SpoofDPI/internal/proxy"
-	"github.com/xvzc/SpoofDPI/internal/proxy/http"
+	"github.com/xvzc/SpoofDPI/internal/proxy/handler"
 	"github.com/xvzc/SpoofDPI/internal/ptr"
 	"github.com/xvzc/SpoofDPI/internal/session"
 )
@@ -36,7 +36,7 @@ type SOCKS5Proxy struct {
 func NewSOCKS5Proxy(
 	logger zerolog.Logger,
 	resolver dns.Resolver,
-	httpsHandler *http.HTTPSHandler,
+	bridge *handler.Bridge,
 	ruleMatcher matcher.RuleMatcher,
 	serverOpts *config.ServerOptions,
 	policyOpts *config.PolicyOptions,
@@ -49,7 +49,7 @@ func NewSOCKS5Proxy(
 		policyOpts:  policyOpts,
 		tcpHandler: NewTCPHandler(
 			logger,
-			httpsHandler,
+			bridge,
 			serverOpts,
 		),
 		udpHandler: NewUDPHandler(logger),
@@ -134,7 +134,7 @@ func (p *SOCKS5Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 
 	case proto.CmdUDPAssociate:
 		// UDP Associate usually doesn't have destination info in the request
-		p.udpHandler.Handle(ctx, conn, req, nil, nil)
+		_ = p.udpHandler.Handle(ctx, conn, req, nil, nil)
 	default:
 		_ = proto.SOCKS5CommandNotSupportedResponse().Write(conn)
 		logger.Warn().Uint8("cmd", req.Cmd).Msg("unsupported socks5 command")

@@ -9,24 +9,24 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/proto"
-	"github.com/xvzc/SpoofDPI/internal/proxy/http"
+	"github.com/xvzc/SpoofDPI/internal/proxy/handler"
 )
 
 type TCPHandler struct {
-	logger       zerolog.Logger
-	httpsHandler *http.HTTPSHandler
-	serverOpts   *config.ServerOptions
+	logger     zerolog.Logger
+	bridge     *handler.Bridge
+	serverOpts *config.ServerOptions
 }
 
 func NewTCPHandler(
 	logger zerolog.Logger,
-	httpsHandler *http.HTTPSHandler,
+	bridge *handler.Bridge,
 	serverOpts *config.ServerOptions,
 ) *TCPHandler {
 	return &TCPHandler{
-		logger:       logger,
-		httpsHandler: httpsHandler,
-		serverOpts:   serverOpts,
+		logger:     logger,
+		bridge:     bridge,
+		serverOpts: serverOpts,
 	}
 }
 
@@ -39,7 +39,7 @@ func (h *TCPHandler) Handle(
 ) error {
 	logger := h.logger.With().Ctx(ctx).Logger()
 
-	// 1. Validate Destination (Avoid Recursive Loop)
+	// 1. Validate Destination
 	ok, err := netutil.ValidateDestination(dst.Addrs, dst.Port, h.serverOpts.ListenAddr)
 	if err != nil {
 		logger.Debug().Err(err).Msg("error determining if valid destination")
@@ -56,14 +56,14 @@ func (h *TCPHandler) Handle(
 		return netutil.ErrBlocked
 	}
 
-	// 3. Send Success Response Optimistically
+	// 3. Send Success Response
 	if err := proto.SOCKS5SuccessResponse().Bind(net.IPv4zero).Port(0).Write(conn); err != nil {
 		logger.Error().Err(err).Msg("failed to write socks5 success reply")
 		return err
 	}
 
-	// 4. Handover to HTTPSHandler
-	handleErr := h.httpsHandler.HandleRequest(ctx, conn, dst, rule)
+	// 4. Delegate to Bridge
+	handleErr := h.bridge.Tunnel(ctx, conn, dst, rule)
 	if handleErr == nil {
 		return nil
 	}

@@ -9,148 +9,45 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/config"
-	"github.com/xvzc/SpoofDPI/internal/desync"
 	"github.com/xvzc/SpoofDPI/internal/logging"
 	"github.com/xvzc/SpoofDPI/internal/netutil"
-	"github.com/xvzc/SpoofDPI/internal/packet"
 	"github.com/xvzc/SpoofDPI/internal/proto"
-	"github.com/xvzc/SpoofDPI/internal/ptr"
+	"github.com/xvzc/SpoofDPI/internal/proxy/handler"
 )
 
 type HTTPSHandler struct {
-	logger    zerolog.Logger
-	desyncer  *desync.TLSDesyncer
-	sniffer   packet.Sniffer
-	httpsOpts *config.HTTPSOptions
+	logger zerolog.Logger
+	bridge *handler.Bridge
 }
 
 func NewHTTPSHandler(
 	logger zerolog.Logger,
-	desyncer *desync.TLSDesyncer,
-	sniffer packet.Sniffer,
-	httpsOpts *config.HTTPSOptions,
+	bridge *handler.Bridge,
 ) *HTTPSHandler {
 	return &HTTPSHandler{
-		logger:    logger,
-		desyncer:  desyncer,
-		sniffer:   sniffer,
-		httpsOpts: httpsOpts,
+		logger: logger,
+		bridge: bridge,
 	}
 }
 
-//	func (h *HTTPSHandler) DefaultRule() *policy.Rule {
-//		return h.defaultAttrs.Clone()
-//	}
 func (h *HTTPSHandler) HandleRequest(
 	ctx context.Context,
 	lConn net.Conn,
 	dst *netutil.Destination,
 	rule *config.Rule,
 ) error {
-	httpsOpts := h.httpsOpts
-	if rule != nil {
-		httpsOpts = httpsOpts.Merge(rule.HTTPS)
-	}
+	logger := logging.WithLocalScope(ctx, h.logger, "handshake")
 
-	if h.sniffer != nil && ptr.FromPtr(httpsOpts.FakeCount) > 0 {
-		h.sniffer.RegisterUntracked(dst.Addrs, dst.Port)
-	}
-
-	logger := logging.WithLocalScope(ctx, h.logger, "https")
-
-	rConn, err := netutil.DialFastest(ctx, "tcp", dst.Addrs, dst.Port, dst.Timeout)
-	if err != nil {
-		return err
-	}
-	defer netutil.CloseConns(rConn)
-
-	logger.Debug().Msgf("new remote conn -> %s", rConn.RemoteAddr())
-
-	tlsMsg, err := h.handleProxyHandshake(ctx, lConn)
-	if err != nil {
+	// 1. Send 200 Connection Established
+	if err := proto.HTTPConnectionEstablishedResponse().Write(lConn); err != nil {
 		if !netutil.IsConnectionResetByPeer(err) && !errors.Is(err, io.EOF) {
 			logger.Trace().Err(err).Msgf("proxy handshake error")
 			return fmt.Errorf("failed to handle proxy handshake: %w", err)
 		}
-
 		return nil
-	}
-
-	if !tlsMsg.IsClientHello() {
-		logger.Trace().Int("len", tlsMsg.Len()).Msg("not a client hello. aborting")
-		return nil
-	}
-
-	n, err := h.sendClientHello(ctx, rConn, tlsMsg, httpsOpts)
-	if err != nil {
-		return fmt.Errorf("failed to send client hello: %w", err)
-	}
-
-	logger.Debug().
-		Int("len", n).
-		Msgf("sent client hello -> %s", rConn.RemoteAddr())
-
-	errCh := make(chan error, 2)
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	go netutil.TunnelConns(ctx, logger, errCh, rConn, lConn)
-	go netutil.TunnelConns(ctx, logger, errCh, lConn, rConn)
-
-	for range 2 {
-		e := <-errCh
-		if e == nil {
-			continue
-		}
-
-		if netutil.IsConnectionResetByPeer(e) {
-			return netutil.ErrBlocked
-		}
-
-		return fmt.Errorf(
-			"unsuccessful tunnel %s -> %s: %w",
-			lConn.RemoteAddr(),
-			rConn.RemoteAddr(),
-			e,
-		)
-	}
-
-	return nil
-}
-
-// handleProxyHandshake sends "200 Connection Established"
-// and reads the subsequent Client Hello.
-func (h *HTTPSHandler) handleProxyHandshake(
-	ctx context.Context,
-	lConn net.Conn,
-) (*proto.TLSMessage, error) {
-	logger := logging.WithLocalScope(ctx, h.logger, "handshake")
-
-	if err := proto.HTTPConnectionEstablishedResponse().Write(lConn); err != nil {
-		return nil, err
 	}
 	logger.Trace().Msgf("sent 200 connection established -> %s", lConn.RemoteAddr())
 
-	tlsMsg, err := proto.ReadTLSMessage(lConn)
-	if err != nil {
-		return nil, err
-	}
-
-	logger.Debug().
-		Int("len", tlsMsg.Len()).
-		Msgf("client hello received <- %s", lConn.RemoteAddr())
-
-	return tlsMsg, nil
-}
-
-// sendClientHello decides whether to spoof and sends the Client Hello accordingly.
-func (h *HTTPSHandler) sendClientHello(
-	ctx context.Context,
-	conn net.Conn,
-	msg *proto.TLSMessage,
-	httpsOpts *config.HTTPSOptions,
-) (int, error) {
-	logger := logging.WithLocalScope(ctx, h.logger, "client_hello")
-	return h.desyncer.Send(ctx, logger, conn, msg, httpsOpts)
+	// 2. Delegate to Bridge
+	return h.bridge.Tunnel(ctx, lConn, dst, rule)
 }
