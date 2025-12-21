@@ -34,19 +34,19 @@ Route traffic differently based on the domain or IP address.
     # Block ads
     [[policy.overrides]]
         name = "block ads"
-        match = { domain = "ads.example.com" }
+        match = { domain = ["ads.example.com"] }
         block = true
 
     # Bypass DPI for specific blocked site
     [[policy.overrides]]
         name = "unblock site"
-        match = { domain = "blocked-site.com" }
+        match = { domain = ["blocked-site.com"] }
         https = { fake-count = 7, disorder = true }
 
     # Use local network directly (no processing)
     [[policy.overrides]]
         name = "local bypass"
-        match = { cidr = "192.168.0.0/16", port = "all" }
+        match = { addr = [{ cidr = "192.168.0.0/16", port = "all" }] }
         https = { skip = true }
 ```
 

@@ -72,13 +72,19 @@ The `[policy]` section contains an array of `overrides` tables. Each override ru
 
 ### Match Criteria (`match`)
 
-You must specify either a `domain` or a `cidr` (with `port`).
+You can specify a `domain` list or an `addr` list (containing `cidr` and `port`).
 
 | Field    | Type   | Description                                                                 |
 | :------- | :----- | :-------------------------------------------------------------------------- |
-| `domain` | String | Domain pattern. Supports wildcards (`*`, `**`).                             |
-| `cidr`   | String | IP range in CIDR notation (e.g., `192.168.0.0/24`). Requires `port` to be set. |
-| `port`   | String | Port or port range (e.g., `80`, `80-443`, `all`). Required if `cidr` is used. |
+| `domain` | Array  | List of domain patterns. Supports wildcards (`*`, `**`).                    |
+| `addr`   | Array  | List of address rules. Each rule requires `cidr` and `port`.                |
+
+#### Address Rule (`addr`)
+
+| Field  | Type   | Description                                                                 |
+| :----- | :----- | :-------------------------------------------------------------------------- |
+| `cidr` | String | IP range in CIDR notation (e.g., `192.168.0.0/24`).                         |
+| `port` | String | Port or port range (e.g., `80`, `80-443`, `all`).                          |
 
 ### DNS Override (`dns`)
 
@@ -113,20 +119,20 @@ Customize how HTTPS connections are established. The available fields mirror the
     [[policy.overrides]]
         name = "allow youtube"
         priority = 50
-        match = { domain = "*.youtube.com" }
+        match = { domain = ["*.youtube.com"] }
         https = { disorder = true, fake-count = 7 }
 
     # Example B: Bypass DPI for local network traffic (Standard Connection)
     [[policy.overrides]]
         name = "skip local"
         priority = 51
-        match = { cidr = "192.168.0.0/24", port = "all" }
+        match = { addr = [{ cidr = "192.168.0.0/24", port = "all" }] }
         https = { skip = true }
 
     # Example C: Block a specific domain
     [[policy.overrides]]
         name = "block ads"
         priority = 100
-        match = { domain = "ads.example.com" }
+        match = { domain = ["ads.example.com"] }
         block = true
 ```
