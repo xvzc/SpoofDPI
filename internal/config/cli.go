@@ -218,9 +218,9 @@ func CreateCommand(
 				Name: "https-chunk-size",
 				Usage: fmt.Sprintf(`
 				The chunk size (in bytes) for packet fragmentation. This value is only applied 
-				when 'https-split-default' is 'chunk'. While setting the size to '0' internally 
+				when 'https-split-mode' is 'chunk'. While setting the size to '0' internally 
 				disables fragmentation (to avoid division-by-zero errors), you should set 
-				'https-split-default' to 'none' to disable the feature cleanly.
+				'https-split-mode' to 'none' to disable the feature cleanly.
 				(default: %v, max: %v)`,
 					defaultCfg.HTTPS.ChunkSize,
 					math.MaxUint8,
