@@ -125,6 +125,7 @@ func (c *Config) ShouldEnablePcap() bool {
 func getDefault() *Config { //exhaustruct:enforce
 	return &Config{
 		General: &GeneralOptions{
+			Clean:          ptr.FromValue(false),
 			LogLevel:       ptr.FromValue(zerolog.InfoLevel),
 			Silent:         ptr.FromValue(false),
 			SetSystemProxy: ptr.FromValue(false),

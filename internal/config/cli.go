@@ -37,8 +37,10 @@ func CreateCommand(
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name: "clean",
-				Usage: `
+				Usage: fmt.Sprintf(`
 				if set, all configuration files will be ignored (default: %v)`,
+					*defaultCfg.General.Clean,
+				),
 				OnlyOnce: true,
 			},
 

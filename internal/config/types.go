@@ -19,6 +19,7 @@ var _ merger[*GeneralOptions] = (*GeneralOptions)(nil)
 var availableLogLevels = []string{"info", "warn", "trace", "error", "debug"}
 
 type GeneralOptions struct {
+	Clean          *bool          `toml:"clean"`
 	LogLevel       *zerolog.Level `toml:"log-level"`
 	Silent         *bool          `toml:"silent"`
 	SetSystemProxy *bool          `toml:"system-proxy"`
@@ -30,6 +31,7 @@ func (o *GeneralOptions) UnmarshalTOML(data any) (err error) {
 		return fmt.Errorf("non-table type general config")
 	}
 
+	o.Clean = findFrom(m, "clean", parseBoolFn(), &err)
 	o.Silent = findFrom(m, "silent", parseBoolFn(), &err)
 	o.SetSystemProxy = findFrom(m, "system-proxy", parseBoolFn(), &err)
 	if p := findFrom(m, "log-level", parseStringFn(checkLogLevel), &err); isOk(p, err) {
