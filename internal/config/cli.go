@@ -96,7 +96,7 @@ func CreateCommand(
 
 			&cli.StringFlag{
 				Name: "dns-mode",
-				Usage: fmt.Sprintf(`<"udp"|"doh"|"sys">
+				Usage: fmt.Sprintf(`<"udp"|"https"|"system">
 				Default resolution mode for domains that do not match any specific rule.
 				(default: %q)`,
 					defaultCfg.DNS.Mode.String(),
