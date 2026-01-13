@@ -84,7 +84,7 @@ func CreateCommand(
 				Name: "dns-cache",
 				Usage: fmt.Sprintf(`
 				If set, DNS records will be cached. (default: %v)`,
-					defaultCfg.DNS.Cache,
+					*defaultCfg.DNS.Cache,
 				),
 				Value:    false,
 				OnlyOnce: true,
@@ -147,7 +147,7 @@ func CreateCommand(
 				Usage: fmt.Sprintf(`
 				Number of fake packets to be sent before the Client Hello.
 				Requires 'https-chunk-size' > 0 for fragmentation. (default: %v)`,
-					defaultCfg.HTTPS.FakeCount,
+					*defaultCfg.HTTPS.FakeCount,
 				),
 				Value:     0,
 				OnlyOnce:  true,
@@ -176,7 +176,7 @@ func CreateCommand(
 				Name: "https-disorder",
 				Usage: fmt.Sprintf(`
 				If set, sends fragmented Client Hello packets out-of-order. (default: %v)`,
-					defaultCfg.HTTPS.Disorder,
+					*defaultCfg.HTTPS.Disorder,
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
@@ -205,7 +205,7 @@ func CreateCommand(
 				Usage: fmt.Sprintf(`
 				If set, HTTPS traffic will be processed without any DPI bypass techniques. 
 				(default: %v)`,
-					defaultCfg.HTTPS.Skip,
+					*defaultCfg.HTTPS.Skip,
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
@@ -222,7 +222,7 @@ func CreateCommand(
 				disables fragmentation (to avoid division-by-zero errors), you should set 
 				'https-split-mode' to 'none' to disable the feature cleanly.
 				(default: %v, max: %v)`,
-					defaultCfg.HTTPS.ChunkSize,
+					*defaultCfg.HTTPS.ChunkSize,
 					math.MaxUint8,
 				),
 				Value:     0,
@@ -278,7 +278,7 @@ func CreateCommand(
 				Name: "silent",
 				Usage: fmt.Sprintf(`
 				Do not show the banner at start up (default: %v)`,
-					defaultCfg.General.Silent,
+					*defaultCfg.General.Silent,
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
@@ -291,7 +291,7 @@ func CreateCommand(
 				Name: "system-proxy",
 				Usage: fmt.Sprintf(`
 				Automatically set system-wide proxy configuration (default: %v)`,
-					defaultCfg.General.SetSystemProxy,
+					*defaultCfg.General.SetSystemProxy,
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
