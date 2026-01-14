@@ -51,10 +51,12 @@ var (
 	checkUint8          = int64Range(0, math.MaxUint8)
 	checkUint16         = int64Range(0, math.MaxUint16)
 	checkUint8NonZero   = int64Range(1, math.MaxUint8)
-	checkDNSMode        = checkOneOf(availableDNSModes...)
-	checkDNSQueryType   = checkOneOf(availableDNSQueries...)
-	checkHTTPSSplitMode = checkOneOf(availableHTTPSModes...)
-	checkLogLevel       = checkOneOf(availableLogLevels...)
+	checkServerMode     = checkOneOf(availableServerModeValues...)
+	checkDNSMode        = checkOneOf(availableDNSModeValues...)
+	checkDNSQueryType   = checkOneOf(availableDNSQueryValues...)
+	checkHTTPSSplitMode = checkOneOf(availableHTTPSModeValues...)
+	checkLogLevel       = checkOneOf(availableLogLevelValues...)
+	checkSegmentFrom    = checkOneOf(availableSegmentFromValues...)
 )
 
 func checkDomainPattern(v string) error {

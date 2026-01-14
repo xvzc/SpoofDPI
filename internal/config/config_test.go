@@ -4,8 +4,8 @@ import (
 	"net"
 	"testing"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
 func TestConfig_UnmarshalTOML(t *testing.T) {
@@ -89,7 +89,7 @@ func TestConfig_ShouldEnablePcap(t *testing.T) {
 			name: "global fake count > 0",
 			config: Config{
 				HTTPS: &HTTPSOptions{
-					FakeCount: ptr.FromValue(uint8(1)),
+					FakeCount: lo.ToPtr(uint8(1)),
 				},
 			},
 			expect: true,
@@ -98,13 +98,13 @@ func TestConfig_ShouldEnablePcap(t *testing.T) {
 			name: "rule fake count > 0",
 			config: Config{
 				HTTPS: &HTTPSOptions{
-					FakeCount: ptr.FromValue(uint8(0)),
+					FakeCount: lo.ToPtr(uint8(0)),
 				},
 				Policy: &PolicyOptions{
 					Overrides: []Rule{
 						{
 							HTTPS: &HTTPSOptions{
-								FakeCount: ptr.FromValue(uint8(1)),
+								FakeCount: lo.ToPtr(uint8(1)),
 							},
 						},
 					},
@@ -116,13 +116,13 @@ func TestConfig_ShouldEnablePcap(t *testing.T) {
 			name: "none",
 			config: Config{
 				HTTPS: &HTTPSOptions{
-					FakeCount: ptr.FromValue(uint8(0)),
+					FakeCount: lo.ToPtr(uint8(0)),
 				},
 				Policy: &PolicyOptions{
 					Overrides: []Rule{
 						{
 							HTTPS: &HTTPSOptions{
-								FakeCount: ptr.FromValue(uint8(0)),
+								FakeCount: lo.ToPtr(uint8(0)),
 							},
 						},
 					},
@@ -160,6 +160,18 @@ func TestConfig_Merge(t *testing.T) {
 			},
 			assert: func(t *testing.T, merged *Config) {
 				assert.Equal(t, "127.0.0.1:8080", merged.Server.ListenAddr.String())
+			},
+		},
+		{
+			name:    "default udp fake packet",
+			tomlCfg: &Config{},
+			argsCfg: &Config{},
+			assert: func(t *testing.T, merged *Config) {
+				defaultCfg := getDefault()
+				assert.Equal(t, 64, len(defaultCfg.UDP.FakePacket))
+				for _, b := range defaultCfg.UDP.FakePacket {
+					assert.Equal(t, byte(0), b)
+				}
 			},
 		},
 	}

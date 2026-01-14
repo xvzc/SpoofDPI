@@ -9,9 +9,9 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/config"
 )
 
-var _ Resolver = (*SysResolver)(nil)
+var _ Resolver = (*SystemResolver)(nil)
 
-type SysResolver struct {
+type SystemResolver struct {
 	logger zerolog.Logger
 
 	*net.Resolver
@@ -21,15 +21,15 @@ type SysResolver struct {
 func NewSystemResolver(
 	logger zerolog.Logger,
 	dnsOps *config.DNSOptions,
-) *SysResolver {
-	return &SysResolver{
+) *SystemResolver {
+	return &SystemResolver{
 		logger:   logger,
 		Resolver: &net.Resolver{PreferGo: true},
 		dnsOpts:  dnsOps,
 	}
 }
 
-func (sr *SysResolver) Info() []ResolverInfo {
+func (sr *SystemResolver) Info() []ResolverInfo {
 	return []ResolverInfo{
 		{
 			Name: "system",
@@ -38,7 +38,7 @@ func (sr *SysResolver) Info() []ResolverInfo {
 	}
 }
 
-func (sr *SysResolver) Resolve(
+func (sr *SystemResolver) Resolve(
 	ctx context.Context,
 	domain string,
 	fallback Resolver,
@@ -49,18 +49,18 @@ func (sr *SysResolver) Resolve(
 		opts = opts.Merge(rule.DNS)
 	}
 
-	addrs, err := sr.LookupIPAddr(ctx, domain)
+	ips, err := sr.LookupIP(ctx, "ip", domain)
 	if err != nil {
 		return nil, err
 	}
 
 	return &RecordSet{
-		Addrs: filtterAddrs(addrs, parseQueryTypes(*opts.QType)),
+		Addrs: filtterAddrs(ips, parseQueryTypes(*opts.QType)),
 		TTL:   0,
 	}, nil
 }
 
-func filtterAddrs(addrs []net.IPAddr, qTypes []uint16) []net.IPAddr {
+func filtterAddrs(ips []net.IP, qTypes []uint16) []net.IP {
 	wantsA, wantsAAAA := false, false
 	for _, qType := range qTypes {
 		switch qType {
@@ -76,31 +76,31 @@ func filtterAddrs(addrs []net.IPAddr, qTypes []uint16) []net.IPAddr {
 	}
 
 	if !wantsA && !wantsAAAA {
-		return []net.IPAddr{}
+		return []net.IP{}
 	}
 
-	filteredMap := make(map[string]net.IPAddr)
+	filteredMap := make(map[string]net.IP)
 
-	for _, addr := range addrs {
-		addrStr := addr.IP.String()
+	for _, ip := range ips {
+		addrStr := ip.String()
 		if _, exists := filteredMap[addrStr]; exists {
 			continue
 		}
 
-		isIPv4 := addr.IP.To4() != nil
+		isIPv4 := ip.To4() != nil
 
 		if wantsA && isIPv4 {
-			filteredMap[addrStr] = addr
+			filteredMap[addrStr] = ip
 		}
 
 		if wantsAAAA && !isIPv4 {
-			filteredMap[addrStr] = addr
+			filteredMap[addrStr] = ip
 		}
 	}
 
-	filtered := make([]net.IPAddr, 0, len(filteredMap))
-	for _, addr := range filteredMap {
-		filtered = append(filtered, addr)
+	filtered := make([]net.IP, 0, len(filteredMap))
+	for _, ip := range filteredMap {
+		filtered = append(filtered, ip)
 	}
 
 	return filtered

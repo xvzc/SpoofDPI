@@ -2,6 +2,7 @@ package dns
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -52,13 +53,13 @@ type MsgChan struct {
 }
 
 type RecordSet struct {
-	Addrs []net.IPAddr
+	Addrs []net.IP
 	TTL   uint32
 }
 
 func (rs *RecordSet) Clone() *RecordSet {
 	return &RecordSet{
-		Addrs: append([]net.IPAddr(nil), rs.Addrs...),
+		Addrs: append([]net.IP(nil), rs.Addrs...),
 		TTL:   rs.TTL,
 	}
 }
@@ -149,8 +150,8 @@ func lookupAllTypes(
 	return resCh
 }
 
-func parseMsg(msg *dns.Msg) ([]net.IPAddr, uint32, bool) {
-	var addrs []net.IPAddr
+func parseMsg(msg *dns.Msg) ([]net.IP, uint32, bool) {
+	var addrs []net.IP
 	minTTL := uint32(math.MaxUint32)
 	ok := false
 
@@ -158,11 +159,11 @@ func parseMsg(msg *dns.Msg) ([]net.IPAddr, uint32, bool) {
 		switch ipRecord := record.(type) {
 		case *dns.A:
 			ok = true
-			addrs = append(addrs, net.IPAddr{IP: ipRecord.A})
+			addrs = append(addrs, ipRecord.A)
 			minTTL = min(minTTL, record.Header().Ttl)
 		case *dns.AAAA:
 			ok = true
-			addrs = append(addrs, net.IPAddr{IP: ipRecord.AAAA})
+			addrs = append(addrs, ipRecord.AAAA)
 			minTTL = min(minTTL, record.Header().Ttl)
 		}
 	}
@@ -175,7 +176,7 @@ func processMessages(
 	resCh <-chan *MsgChan,
 ) (*RecordSet, error) {
 	var errs []error
-	var addrs []net.IPAddr
+	var addrs []net.IP
 
 	minTTL := uint32(math.MaxUint32)
 	found := false
@@ -224,7 +225,7 @@ loop: // Loop until the channel is closed or context is canceled
 
 	// Only return errors if no addresses were found at all
 	if len(errs) > 0 {
-		return nil, fmt.Errorf("failed to resolve with %d errors", len(errs))
+		return nil, errors.Join(errs...)
 	}
 
 	return nil, fmt.Errorf("record not found")

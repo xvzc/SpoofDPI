@@ -124,12 +124,14 @@ func (tw *TCPWriter) createIPv4Layers(
 ) ([]gopacket.SerializableLayer, error) {
 	var packetLayers []gopacket.SerializableLayer
 
-	eth := &layers.Ethernet{
-		SrcMAC:       srcMAC,
-		DstMAC:       dstMAC,
-		EthernetType: layers.EthernetTypeIPv4,
+	if srcMAC != nil {
+		eth := &layers.Ethernet{
+			SrcMAC:       srcMAC,
+			DstMAC:       dstMAC,
+			EthernetType: layers.EthernetTypeIPv4,
+		}
+		packetLayers = append(packetLayers, eth)
 	}
-	packetLayers = append(packetLayers, eth)
 
 	// define ip layer
 	ipLayer := &layers.IPv4{

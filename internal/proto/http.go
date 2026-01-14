@@ -68,8 +68,8 @@ func ReadHttpRequest(rdr io.Reader) (*HTTPRequest, error) {
 	return NewHttpRequest(req), nil
 }
 
-// ExtractDomain returns the host without port information
-func (r *HTTPRequest) ExtractDomain() string {
+// ExtractHost returns the host without port information
+func (r *HTTPRequest) ExtractHost() string {
 	host, _, err := net.SplitHostPort(r.Host)
 	if err != nil {
 		return r.Host

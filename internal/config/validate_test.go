@@ -3,8 +3,8 @@ package config
 import (
 	"testing"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
 func TestCheckDomainPattern(t *testing.T) {
@@ -179,9 +179,9 @@ func TestCheckMatchAttrs(t *testing.T) {
 				Domains: []string{"www.google.com"},
 				Addrs: []AddrMatch{
 					{
-						CIDR:     ptr.FromValue(MustParseCIDR("192.168.0.1/24")),
-						PortFrom: ptr.FromValue(uint16(80)),
-						PortTo:   ptr.FromValue(uint16(443)),
+						CIDR:     lo.ToPtr(MustParseCIDR("192.168.0.1/24")),
+						PortFrom: lo.ToPtr(uint16(80)),
+						PortTo:   lo.ToPtr(uint16(443)),
 					},
 				},
 			},
@@ -199,9 +199,9 @@ func TestCheckMatchAttrs(t *testing.T) {
 			input: MatchAttrs{
 				Addrs: []AddrMatch{
 					{
-						CIDR:     ptr.FromValue(MustParseCIDR("10.0.0.0/8")),
-						PortFrom: ptr.FromValue(uint16(0)),
-						PortTo:   ptr.FromValue(uint16(65535)),
+						CIDR:     lo.ToPtr(MustParseCIDR("10.0.0.0/8")),
+						PortFrom: lo.ToPtr(uint16(0)),
+						PortTo:   lo.ToPtr(uint16(65535)),
 					},
 				},
 			},
@@ -217,7 +217,7 @@ func TestCheckMatchAttrs(t *testing.T) {
 			input: MatchAttrs{
 				Addrs: []AddrMatch{
 					{
-						CIDR: ptr.FromValue(MustParseCIDR("10.0.0.0/8")),
+						CIDR: lo.ToPtr(MustParseCIDR("10.0.0.0/8")),
 					},
 				},
 			},
@@ -228,8 +228,8 @@ func TestCheckMatchAttrs(t *testing.T) {
 			input: MatchAttrs{
 				Addrs: []AddrMatch{
 					{
-						PortFrom: ptr.FromValue(uint16(80)),
-						PortTo:   ptr.FromValue(uint16(443)),
+						PortFrom: lo.ToPtr(uint16(80)),
+						PortTo:   lo.ToPtr(uint16(443)),
 					},
 				},
 			},
@@ -262,7 +262,7 @@ func TestCheckRule(t *testing.T) {
 					Domains: []string{"example.com"},
 				},
 				DNS: &DNSOptions{
-					Mode: ptr.FromValue(DNSModeUDP),
+					Mode: lo.ToPtr(DNSModeUDP),
 				},
 			},
 			wantErr: false,
@@ -273,14 +273,14 @@ func TestCheckRule(t *testing.T) {
 				Match: &MatchAttrs{
 					Addrs: []AddrMatch{
 						{
-							CIDR:     ptr.FromValue(MustParseCIDR("192.168.1.0/24")),
-							PortFrom: ptr.FromValue(uint16(80)),
-							PortTo:   ptr.FromValue(uint16(80)),
+							CIDR:     lo.ToPtr(MustParseCIDR("192.168.1.0/24")),
+							PortFrom: lo.ToPtr(uint16(80)),
+							PortTo:   lo.ToPtr(uint16(80)),
 						},
 					},
 				},
 				HTTPS: &HTTPSOptions{
-					Disorder: ptr.FromValue(true),
+					Disorder: lo.ToPtr(true),
 				},
 			},
 			wantErr: false,

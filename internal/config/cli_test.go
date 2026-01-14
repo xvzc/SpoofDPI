@@ -26,7 +26,7 @@ func TestCreateCommand_Flags(t *testing.T) {
 				// Verify defaults are preserved
 				assert.Equal(t, zerolog.InfoLevel, *cfg.General.LogLevel)
 				assert.False(t, *cfg.General.Silent)
-				assert.False(t, *cfg.General.SetSystemProxy)
+				assert.False(t, *cfg.General.SetNetworkConfig)
 				assert.Equal(t, "127.0.0.1:8080", cfg.Server.ListenAddr.String())
 				assert.Equal(t, uint8(64), *cfg.Server.DefaultTTL)
 				assert.Equal(t, time.Duration(0), *cfg.Server.Timeout)
@@ -38,8 +38,10 @@ func TestCreateCommand_Flags(t *testing.T) {
 				assert.Equal(t, uint8(0), *cfg.HTTPS.FakeCount)
 				assert.False(t, *cfg.HTTPS.Disorder)
 				assert.Equal(t, HTTPSSplitModeSNI, *cfg.HTTPS.SplitMode)
-				assert.Equal(t, uint8(0), *cfg.HTTPS.ChunkSize)
+				assert.Equal(t, uint8(35), *cfg.HTTPS.ChunkSize)
 				assert.False(t, *cfg.HTTPS.Skip)
+				assert.Equal(t, 0, *cfg.UDP.FakeCount)
+				assert.Equal(t, 64, len(cfg.UDP.FakePacket))
 				assert.False(t, *cfg.Policy.Auto)
 			},
 		},
@@ -50,7 +52,7 @@ func TestCreateCommand_Flags(t *testing.T) {
 				"--clean", // Ensure no config file interferes
 				"--log-level", "debug",
 				"--silent",
-				"--system-proxy",
+				"--network-config",
 				"--listen-addr", "127.0.0.1:9090",
 				"--default-ttl", "128",
 				"--timeout", "5000",
@@ -65,13 +67,16 @@ func TestCreateCommand_Flags(t *testing.T) {
 				"--https-split-mode", "chunk",
 				"--https-chunk-size", "50",
 				"--https-skip",
+				"--udp-fake-count", "5",
+				"--udp-fake-packet", "0x01, 0x02",
+				"--udp-timeout", "1000",
 				"--policy-auto",
 			},
 			assert: func(t *testing.T, cfg *Config) {
 				// General
 				assert.Equal(t, zerolog.DebugLevel, *cfg.General.LogLevel)
 				assert.True(t, *cfg.General.Silent)
-				assert.True(t, *cfg.General.SetSystemProxy)
+				assert.True(t, *cfg.General.SetNetworkConfig)
 
 				// Server
 				assert.Equal(t, "127.0.0.1:9090", cfg.Server.ListenAddr.String())
@@ -92,6 +97,11 @@ func TestCreateCommand_Flags(t *testing.T) {
 				assert.Equal(t, HTTPSSplitModeChunk, *cfg.HTTPS.SplitMode)
 				assert.Equal(t, uint8(50), *cfg.HTTPS.ChunkSize)
 				assert.True(t, *cfg.HTTPS.Skip)
+
+				// UDP
+				assert.Equal(t, 5, *cfg.UDP.FakeCount)
+				assert.Equal(t, []byte{0x01, 0x02}, cfg.UDP.FakePacket)
+				assert.Equal(t, 1000*time.Millisecond, *cfg.UDP.Timeout)
 
 				// Policy
 				assert.True(t, *cfg.Policy.Auto)
@@ -125,6 +135,18 @@ func TestCreateCommand_Flags(t *testing.T) {
 				assert.Equal(t, "[::1]:1080", cfg.Server.ListenAddr.String())
 				ip := net.ParseIP("::1")
 				assert.True(t, cfg.Server.ListenAddr.IP.Equal(ip))
+			},
+		},
+		{
+			name: "socks5 default port",
+			args: []string{
+				"spoofdpi",
+				"--clean",
+				"--server-mode", "socks5",
+			},
+			assert: func(t *testing.T, cfg *Config) {
+				assert.Equal(t, "127.0.0.1:1080", cfg.Server.ListenAddr.String())
+				assert.Equal(t, ServerModeSOCKS5, *cfg.Server.Mode)
 			},
 		},
 	}
@@ -224,7 +246,7 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 		"--config", configPath,
 		"--log-level", "error",
 		"--silent=false",
-		"--system-proxy=false",
+		"--network-config=false",
 		"--listen-addr", "127.0.0.1:9090",
 		"--timeout", "2000",
 		"--default-ttl", "200",
@@ -239,6 +261,8 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 		"--https-split-mode", "sni",
 		"--https-chunk-size", "10",
 		"--https-skip=false",
+		"--udp-fake-count", "20",
+		"--udp-fake-packet", "0xcc,0xdd",
 		"--policy-auto=false",
 	}
 
@@ -250,7 +274,7 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 	// General
 	assert.Equal(t, zerolog.ErrorLevel, *capturedCfg.General.LogLevel)
 	assert.False(t, *capturedCfg.General.Silent)
-	assert.False(t, *capturedCfg.General.SetSystemProxy)
+	assert.False(t, *capturedCfg.General.SetNetworkConfig)
 
 	// Server
 	assert.Equal(t, "127.0.0.1:9090", capturedCfg.Server.ListenAddr.String())
@@ -271,6 +295,11 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 	assert.Equal(t, HTTPSSplitModeSNI, *capturedCfg.HTTPS.SplitMode)
 	assert.Equal(t, uint8(10), *capturedCfg.HTTPS.ChunkSize)
 	assert.False(t, *capturedCfg.HTTPS.Skip)
+
+	// UDP
+	assert.Equal(t, 20, *capturedCfg.UDP.FakeCount)
+	assert.Equal(t, []byte{0xcc, 0xdd}, capturedCfg.UDP.FakePacket)
+	assert.Equal(t, time.Duration(0), *capturedCfg.UDP.Timeout)
 
 	// Policy
 	assert.False(t, *capturedCfg.Policy.Auto)

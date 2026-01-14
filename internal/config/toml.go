@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/BurntSushi/toml"
-	"github.com/xvzc/SpoofDPI/internal/ptr"
+	"github.com/samber/lo"
 )
 
 func fromTomlFile(dir string) (*Config, error) {
@@ -65,7 +65,7 @@ func findFrom[T any](
 		return nil
 	}
 
-	return ptr.FromValue(val)
+	return lo.ToPtr(val)
 }
 
 func findStructFrom[T any, PT interface {

@@ -414,11 +414,10 @@ func TestFindSliceFrom(t *testing.T) {
 func TestFromTomlFile(t *testing.T) {
 	t.Run("full valid config", func(t *testing.T) {
 		tomlContent := `
-			[general]
-				log-level = "debug"
-				silent = true
-				system-proxy = true
-
+					[general]
+					log-level = "debug"
+					silent = true
+					network-config = true
 			[server]
 				listen-addr = "127.0.0.1:8080"
 				timeout = 1000
@@ -486,7 +485,7 @@ func TestFromTomlFile(t *testing.T) {
 		assert.Equal(t, time.Duration(1000*time.Millisecond), *cfg.Server.Timeout)
 		assert.Equal(t, zerolog.DebugLevel, *cfg.General.LogLevel)
 		assert.True(t, *cfg.General.Silent)
-		assert.True(t, *cfg.General.SetSystemProxy)
+		assert.True(t, *cfg.General.SetNetworkConfig)
 		assert.Equal(t, "8.8.8.8:53", cfg.DNS.Addr.String())
 		assert.True(t, *cfg.DNS.Cache)
 		assert.Equal(t, DNSModeHTTPS, *cfg.DNS.Mode)

@@ -12,26 +12,26 @@ import (
 
 // Minimal RFC 6724 address selection.
 
-func SortByRFC6724(addrs []net.IPAddr) {
-	if len(addrs) < 2 {
+func SortByRFC6724(ips []net.IP) {
+	if len(ips) < 2 {
 		return
 	}
-	sortByRFC6724withSrcs(addrs, srcAddrs(addrs))
+	sortByRFC6724withSrcs(ips, srcAddrs(ips))
 }
 
-func sortByRFC6724withSrcs(addrs []net.IPAddr, srcs []netip.Addr) {
-	if len(addrs) != len(srcs) {
+func sortByRFC6724withSrcs(ips []net.IP, srcs []netip.Addr) {
+	if len(ips) != len(srcs) {
 		panic("internal error")
 	}
-	addrAttr := make([]ipAttr, len(addrs))
+	addrAttr := make([]ipAttr, len(ips))
 	srcAttr := make([]ipAttr, len(srcs))
-	for i, v := range addrs {
-		addrAttrIP, _ := netip.AddrFromSlice(v.IP)
+	for i, v := range ips {
+		addrAttrIP, _ := netip.AddrFromSlice(v)
 		addrAttr[i] = ipAttrOf(addrAttrIP)
 		srcAttr[i] = ipAttrOf(srcs[i])
 	}
 	sort.Stable(&byRFC6724{
-		addrs:    addrs,
+		addrs:    ips,
 		addrAttr: addrAttr,
 		srcs:     srcs,
 		srcAttr:  srcAttr,
@@ -41,12 +41,12 @@ func sortByRFC6724withSrcs(addrs []net.IPAddr, srcs []netip.Addr) {
 // srcAddrs tries to UDP-connect to each address to see if it has a
 // route. This does not send any packets. The destination port number
 // is irrelevant.
-func srcAddrs(addrs []net.IPAddr) []netip.Addr {
-	srcs := make([]netip.Addr, len(addrs))
+func srcAddrs(ips []net.IP) []netip.Addr {
+	srcs := make([]netip.Addr, len(ips))
 	dst := net.UDPAddr{Port: 9}
-	for i := range addrs {
-		dst.IP = addrs[i].IP
-		dst.Zone = addrs[i].Zone
+	for i := range ips {
+		dst.IP = ips[i]
+		// dst.Zone = ips[i].Zone // Zone is not easily available in net.IP, skipping for now
 		c, err := net.DialUDP("udp", nil, &dst)
 		if err == nil {
 			if src, ok := c.LocalAddr().(*net.UDPAddr); ok {
@@ -79,7 +79,7 @@ func ipAttrOf(ip netip.Addr) ipAttr {
 }
 
 type byRFC6724 struct {
-	addrs    []net.IPAddr // Addresses to sort.
+	addrs    []net.IP // Addresses to sort.
 	addrAttr []ipAttr
 	srcs     []netip.Addr // Or not a valid addr if unreachable.
 	srcAttr  []ipAttr
@@ -99,8 +99,8 @@ func (s *byRFC6724) Swap(i, j int) {
 //
 // The algorithm and variable names are from RFC 6724 section 6.
 func (s *byRFC6724) Less(i, j int) bool {
-	DA := s.addrs[i].IP
-	DB := s.addrs[j].IP
+	DA := s.addrs[i]
+	DB := s.addrs[j]
 	SourceDA := s.srcs[i]
 	SourceDB := s.srcs[j]
 	attrDA := &s.addrAttr[i]

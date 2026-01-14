@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"os"
 	"path"
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/urfave/cli/v3"
 	"github.com/xvzc/SpoofDPI/internal/proto"
-	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
 func CreateCommand(
@@ -38,7 +39,7 @@ func CreateCommand(
 			&cli.BoolFlag{
 				Name: "clean",
 				Usage: `
-				if set, all configuration files will be ignored (default: %v)`,
+				if set, all configuration files will be ignored (default: false)`,
 				OnlyOnce: true,
 			},
 
@@ -61,7 +62,21 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkUint8NonZero,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.Server.DefaultTTL = ptr.FromValue(uint8(v))
+					argsCfg.Server.DefaultTTL = lo.ToPtr(uint8(v))
+					return nil
+				},
+			},
+
+			&cli.StringFlag{
+				Name: "server-mode",
+				Usage: fmt.Sprintf(`<"http"|"socks5"|"tun">
+				Specifies the proxy mode. (default: %q)`,
+					defaultCfg.Server.Mode.String(),
+				),
+				OnlyOnce:  true,
+				Validator: checkServerMode,
+				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
+					argsCfg.Server.Mode = lo.ToPtr(MustParseServerModeType(v))
 					return nil
 				},
 			},
@@ -75,7 +90,7 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkHostPort,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.DNS.Addr = ptr.FromValue(MustParseTCPAddr(v))
+					argsCfg.DNS.Addr = lo.ToPtr(MustParseTCPAddr(v))
 					return nil
 				},
 			},
@@ -84,12 +99,12 @@ func CreateCommand(
 				Name: "dns-cache",
 				Usage: fmt.Sprintf(`
 				If set, DNS records will be cached. (default: %v)`,
-					defaultCfg.DNS.Cache,
+					*defaultCfg.DNS.Cache,
 				),
 				Value:    false,
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.DNS.Cache = ptr.FromValue(v)
+					argsCfg.DNS.Cache = lo.ToPtr(v)
 					return nil
 				},
 			},
@@ -105,7 +120,7 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkDNSMode,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.DNS.Mode = ptr.FromValue(MustParseDNSModeType(v))
+					argsCfg.DNS.Mode = lo.ToPtr(MustParseDNSModeType(v))
 					return nil
 				},
 			},
@@ -121,7 +136,7 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkHTTPSEndpoint,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.DNS.HTTPSURL = ptr.FromValue(v)
+					argsCfg.DNS.HTTPSURL = lo.ToPtr(v)
 					return nil
 				},
 			},
@@ -137,7 +152,7 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkDNSQueryType,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.DNS.QType = ptr.FromValue(MustParseDNSQueryType(v))
+					argsCfg.DNS.QType = lo.ToPtr(MustParseDNSQueryType(v))
 					return nil
 				},
 			},
@@ -147,13 +162,13 @@ func CreateCommand(
 				Usage: fmt.Sprintf(`
 				Number of fake packets to be sent before the Client Hello.
 				Requires 'https-chunk-size' > 0 for fragmentation. (default: %v)`,
-					defaultCfg.HTTPS.FakeCount,
+					*defaultCfg.HTTPS.FakeCount,
 				),
 				Value:     0,
 				OnlyOnce:  true,
 				Validator: checkUint8,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.HTTPS.FakeCount = ptr.FromValue(uint8(v))
+					argsCfg.HTTPS.FakeCount = lo.ToPtr(uint8(v))
 					return nil
 				},
 			},
@@ -176,18 +191,18 @@ func CreateCommand(
 				Name: "https-disorder",
 				Usage: fmt.Sprintf(`
 				If set, sends fragmented Client Hello packets out-of-order. (default: %v)`,
-					defaultCfg.HTTPS.Disorder,
+					*defaultCfg.HTTPS.Disorder,
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.HTTPS.Disorder = ptr.FromValue(v)
+					argsCfg.HTTPS.Disorder = lo.ToPtr(v)
 					return nil
 				},
 			},
 
 			&cli.StringFlag{
 				Name: "https-split-mode",
-				Usage: fmt.Sprintf(`<"sni"|"random"|"chunk"|"sni"|"none">
+				Usage: fmt.Sprintf(`<"sni"|"random"|"chunk"|"sni"|"custom"|"none">
 				Specifies the default packet fragmentation strategy to use. (default: %q)`,
 					defaultCfg.HTTPS.SplitMode.String(),
 				),
@@ -195,7 +210,7 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkHTTPSSplitMode,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.HTTPS.SplitMode = ptr.FromValue(mustParseHTTPSSplitModeType(v))
+					argsCfg.HTTPS.SplitMode = lo.ToPtr(mustParseHTTPSSplitModeType(v))
 					return nil
 				},
 			},
@@ -205,11 +220,11 @@ func CreateCommand(
 				Usage: fmt.Sprintf(`
 				If set, HTTPS traffic will be processed without any DPI bypass techniques. 
 				(default: %v)`,
-					defaultCfg.HTTPS.Skip,
+					*defaultCfg.HTTPS.Skip,
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.HTTPS.Skip = ptr.FromValue(v)
+					argsCfg.HTTPS.Skip = lo.ToPtr(v)
 					return nil
 				},
 			},
@@ -222,29 +237,72 @@ func CreateCommand(
 				disables fragmentation (to avoid division-by-zero errors), you should set 
 				'https-split-default' to 'none' to disable the feature cleanly.
 				(default: %v, max: %v)`,
-					defaultCfg.HTTPS.ChunkSize,
+					*defaultCfg.HTTPS.ChunkSize,
 					math.MaxUint8,
 				),
-				Value:     0,
 				OnlyOnce:  true,
 				Validator: checkUint8NonZero,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.HTTPS.ChunkSize = ptr.FromValue(uint8(v))
+					argsCfg.HTTPS.ChunkSize = lo.ToPtr(uint8(v))
+					return nil
+				},
+			},
+
+			&cli.Int64Flag{
+				Name: "udp-fake-count",
+				Usage: fmt.Sprintf(`
+				Number of fake packets to be sent. (default: %v)`,
+					*defaultCfg.UDP.FakeCount,
+				),
+				Value:     0,
+				OnlyOnce:  true,
+				Validator: int64Range(0, math.MaxInt),
+				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
+					argsCfg.UDP.FakeCount = lo.ToPtr(int(v))
+					return nil
+				},
+			},
+
+			&cli.StringFlag{
+				Name: "udp-fake-packet",
+				Usage: `<byte_array>
+				Comma-separated hexadecimal byte array used for fake packet. 
+				(default: built-in fake packet)`,
+				Value:     MustParseHexCSV(defaultCfg.UDP.FakePacket),
+				OnlyOnce:  true,
+				Validator: checkHexBytesStr,
+				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
+					argsCfg.UDP.FakePacket = MustParseBytes(v)
+					return nil
+				},
+			},
+
+			&cli.Int64Flag{
+				Name: "udp-timeout",
+				Usage: fmt.Sprintf(`
+				UDP session timeout in milliseconds. (default: %v)`,
+					*defaultCfg.UDP.Timeout,
+				),
+				Value:     0,
+				OnlyOnce:  true,
+				Validator: checkUint16,
+				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
+					argsCfg.UDP.Timeout = lo.ToPtr(time.Duration(v) * time.Millisecond)
 					return nil
 				},
 			},
 
 			&cli.StringFlag{
 				Name: "listen-addr",
-				Usage: fmt.Sprintf(`
-				IP address to listen on (default: %v)`,
-					defaultCfg.Server.ListenAddr.String(),
-				),
-				Value:     "127.0.0.1:8080",
+				Usage: `
+				IP address to listen on (default: 127.0.0.1:8080 for http, or 127.0.0.1:1080 for socks5)`,
 				OnlyOnce:  true,
 				Validator: checkHostPort,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.Server.ListenAddr = ptr.FromValue(MustParseTCPAddr(v))
+					if v == "" {
+						return nil
+					}
+					argsCfg.Server.ListenAddr = lo.ToPtr(MustParseTCPAddr(v))
 					return nil
 				},
 			},
@@ -256,7 +314,7 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkLogLevel,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.General.LogLevel = ptr.FromValue(MustParseLogLevel(v))
+					argsCfg.General.LogLevel = lo.ToPtr(MustParseLogLevel(v))
 					return nil
 				},
 			},
@@ -269,7 +327,7 @@ func CreateCommand(
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.Policy.Auto = ptr.FromValue(v)
+					argsCfg.Policy.Auto = lo.ToPtr(v)
 					return nil
 				},
 			},
@@ -278,24 +336,24 @@ func CreateCommand(
 				Name: "silent",
 				Usage: fmt.Sprintf(`
 				Do not show the banner at start up (default: %v)`,
-					defaultCfg.General.Silent,
+					*defaultCfg.General.Silent,
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.General.Silent = ptr.FromValue(v)
+					argsCfg.General.Silent = lo.ToPtr(v)
 					return nil
 				},
 			},
 
 			&cli.BoolFlag{
-				Name: "system-proxy",
+				Name: "network-config",
 				Usage: fmt.Sprintf(`
 				Automatically set system-wide proxy configuration (default: %v)`,
-					defaultCfg.General.SetSystemProxy,
+					*defaultCfg.General.SetNetworkConfig,
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.General.SetSystemProxy = ptr.FromValue(v)
+					argsCfg.General.SetNetworkConfig = lo.ToPtr(v)
 					return nil
 				},
 			},
@@ -305,14 +363,14 @@ func CreateCommand(
 				Usage: fmt.Sprintf(`
 				Timeout for tcp connection in milliseconds. 
 				No effect when the value is 0 (default: %v, max: %v)`,
-					defaultCfg.Server.Timeout,
+					*defaultCfg.Server.Timeout,
 					math.MaxUint16,
 				),
 				Value:     0,
 				OnlyOnce:  true,
 				Validator: checkUint16,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.Server.Timeout = ptr.FromValue(
+					argsCfg.Server.Timeout = lo.ToPtr(
 						time.Duration(v * int64(time.Millisecond)),
 					)
 					return nil
@@ -360,6 +418,17 @@ func CreateCommand(
 			}
 
 			finalCfg := defaultCfg.Merge(tomlCfg.Merge(argsCfg))
+
+			if finalCfg.Server.ListenAddr == nil {
+				port := 8080
+				if *finalCfg.Server.Mode == ServerModeSOCKS5 {
+					port = 1080
+				}
+				finalCfg.Server.ListenAddr = &net.TCPAddr{
+					IP:   net.ParseIP("127.0.0.1"),
+					Port: port,
+				}
+			}
 
 			runFunc(ctx, strings.Replace(configDir, os.Getenv("HOME"), "~", 1), finalCfg)
 			return nil

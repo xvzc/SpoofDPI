@@ -108,6 +108,19 @@ func MustParseLogLevel(s string) zerolog.Level {
 	return level
 }
 
+func MustParseServerModeType(s string) ServerModeType {
+	switch s {
+	case "http":
+		return ServerModeHTTP
+	case "socks5":
+		return ServerModeSOCKS5
+	case "tun":
+		return ServerModeTUN
+	default:
+		panic(fmt.Sprintf("cannot parse %q to ServerModeType", s))
+	}
+}
+
 func MustParseDNSModeType(s string) DNSModeType {
 	switch s {
 	case "udp":
@@ -146,8 +159,21 @@ func mustParseHTTPSSplitModeType(s string) HTTPSSplitModeType {
 		return HTTPSSplitModeFirstByte
 	case "none":
 		return HTTPSSplitModeNone
+	case "custom":
+		return HTTPSSplitModeCustom
 	default:
 		panic(fmt.Sprintf("cannot parse %q to HTTPSSplitModeType", s))
+	}
+}
+
+func mustParseSegmentFromType(s string) SegmentFromType {
+	switch s {
+	case "sni":
+		return SegmentFromSNI
+	case "head":
+		return SegmentFromHead
+	default:
+		panic(fmt.Sprintf("cannot parse %q to SegmentFromType", s))
 	}
 }
 

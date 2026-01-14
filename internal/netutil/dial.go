@@ -19,24 +19,22 @@ type dialResult struct {
 func DialFastest(
 	ctx context.Context,
 	network string,
-	addrs []net.IPAddr,
-	port int,
-	timeout time.Duration,
+	dst *Destination,
 ) (net.Conn, error) {
-	if len(addrs) == 0 {
+	if len(dst.Addrs) == 0 {
 		return nil, fmt.Errorf("no addresses provided to dial")
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	results := make(chan dialResult, len(addrs))
+	results := make(chan dialResult, len(dst.Addrs))
 
 	const maxConcurrency = 10
 	sem := make(chan struct{}, maxConcurrency) // semaphore
 
 	go func() {
-		for _, addr := range addrs {
+		for _, addr := range dst.Addrs {
 			// Get semaphore
 			select {
 			case sem <- struct{}{}:
@@ -47,10 +45,15 @@ func DialFastest(
 			go func(ip net.IP) {
 				defer func() { <-sem }() // Return semaphore
 
-				targetAddr := net.JoinHostPort(ip.String(), strconv.Itoa(port))
+				targetAddr := net.JoinHostPort(ip.String(), strconv.Itoa(dst.Port))
 				dialer := &net.Dialer{}
-				if timeout > 0 {
-					dialer.Deadline = time.Now().Add(timeout)
+				if dst.Timeout > 0 {
+					dialer.Deadline = time.Now().Add(dst.Timeout)
+				}
+
+				// If Iface is specified, bind to the interface
+				if dst.Iface != nil {
+					bindToInterface(dialer, dst.Iface, ip)
 				}
 
 				conn, err := dialer.DialContext(ctx, network, targetAddr)
@@ -62,14 +65,14 @@ func DialFastest(
 						_ = conn.Close() // Close on context cancel
 					}
 				}
-			}(addr.IP)
+			}(addr)
 		}
 	}()
 
 	var firstError error
 	failureCount := 0
 
-	for range addrs {
+	for range dst.Addrs {
 		select {
 		case res := <-results:
 			if res.err == nil {

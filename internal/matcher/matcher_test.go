@@ -3,14 +3,14 @@ package matcher
 import (
 	"testing"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/xvzc/SpoofDPI/internal/config"
-	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
 func TestGetHigherPriorityRule(t *testing.T) {
-	r1 := &config.Rule{Priority: ptr.FromValue(uint16(10))}
-	r2 := &config.Rule{Priority: ptr.FromValue(uint16(20))}
+	r1 := &config.Rule{Priority: lo.ToPtr(uint16(10))}
+	r2 := &config.Rule{Priority: lo.ToPtr(uint16(20))}
 
 	tcs := []struct {
 		name   string

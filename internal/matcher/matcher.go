@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/samber/lo"
 	"github.com/xvzc/SpoofDPI/internal/config"
-	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
 // -----------------------------------------------------------------------------
@@ -142,7 +142,7 @@ func GetHigherPriorityRule(r1, r2 *config.Rule) *config.Rule {
 		return r1
 	}
 
-	if ptr.FromPtr(r1.Priority) >= ptr.FromPtr(r2.Priority) {
+	if lo.FromPtr(r1.Priority) >= lo.FromPtr(r2.Priority) {
 		return r1
 	}
 	return r2

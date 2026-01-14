@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strconv"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/cache"
 	"github.com/xvzc/SpoofDPI/internal/logging"
-	"github.com/xvzc/SpoofDPI/internal/session"
 )
 
 var _ Sniffer = (*TCPSniffer)(nil)
@@ -52,28 +50,22 @@ func (ts *TCPSniffer) StartCapturing() {
 	packets := packetSource.Packets()
 	// _ = ht.handle.SetBPFRawInstructionFilter(generateSynAckFilter())
 	_ = ts.handle.ClearBPF()
-	_ = ts.handle.SetBPFRawInstructionFilter(generateSynAckFilter())
+	_ = ts.handle.SetBPFRawInstructionFilter(generateSynAckFilter(ts.handle.LinkType()))
 
 	// Start a dedicated goroutine to process incoming packets.
 	go func() {
 		// Create a base context for this goroutine.
-		ctx := session.WithNewTraceID(context.Background())
 		for packet := range packets {
-			ts.processPacket(ctx, packet)
+			ts.processPacket(context.Background(), packet)
 		}
 	}()
 }
 
 // RegisterUntracked registers new IP addresses for tracking.
 // Addresses that are already being tracked are ignored.
-func (ts *TCPSniffer) RegisterUntracked(addrs []net.IPAddr, port int) {
-	portStr := strconv.Itoa(port)
+func (ts *TCPSniffer) RegisterUntracked(addrs []net.IP) {
 	for _, v := range addrs {
-		ts.nhopCache.Set(
-			v.String()+":"+portStr,
-			ts.defaultTTL,
-			cache.Options().WithSkipExisting(true),
-		)
+		ts.nhopCache.Set(v.String(), ts.defaultTTL, cache.Options().WithSkipExisting(true))
 	}
 }
 
@@ -111,6 +103,11 @@ func (ts *TCPSniffer) processPacket(ctx context.Context, p gopacket.Packet) {
 	// Handle IPv4
 	if ipLayer := p.Layer(layers.LayerTypeIPv4); ipLayer != nil {
 		ip, _ := ipLayer.(*layers.IPv4)
+		// Skip packets from local/private IPs (outgoing packets)
+		if isLocalIP(ip.SrcIP) {
+			fmt.Println(ip.SrcIP)
+			return
+		}
 		srcIP = ip.SrcIP.String()
 		ttlLeft = ip.TTL
 	} else if ipLayer := p.Layer(layers.LayerTypeIPv6); ipLayer != nil {
@@ -124,75 +121,110 @@ func (ts *TCPSniffer) processPacket(ctx context.Context, p gopacket.Packet) {
 
 	// Create the cache key: ServerIP:ServerPort
 	// (The source of the SYN/ACK is the server)
-	key := fmt.Sprintf("%s:%d", srcIP, tcp.SrcPort)
+	key := srcIP
 	// Calculate hop count from the TTL
 	nhops := estimateHops(ttlLeft)
-	ok := ts.nhopCache.Set(key, nhops, nil)
+	ok := ts.nhopCache.Set(key, nhops, cache.Options().WithUpdateExistingOnly(true))
 	if ok {
 		logger.Trace().
-			Str("host_info", key).
+			Str("from", key).
 			Uint8("nhops", nhops).
 			Uint8("ttlLeft", ttlLeft).
-			Msgf("received syn+ack")
+			Msgf("ttl(tcp) update")
 	}
-}
-
-// estimateHops estimates the number of hops based on TTL.
-// This logic is based on the hop counting mechanism from GoodbyeDPI.
-// It returns 0 if the TTL is not recognizable.
-func estimateHops(ttlLeft uint8) uint8 {
-	// Unrecognizable initial TTL
-	estimatedInitialHops := uint8(255)
-	switch {
-	case ttlLeft <= 64:
-		estimatedInitialHops = 64
-	case ttlLeft <= 128:
-		estimatedInitialHops = 128
-	default:
-		estimatedInitialHops = 255
-	}
-
-	return estimatedInitialHops - ttlLeft
 }
 
 // GenerateSynAckFilter creates a BPF program for "ip and tcp and (tcp[13] & 18 == 18)".
 // This captures only TCP SYN-ACK packets (IPv4).
-func generateSynAckFilter() []BPFInstruction {
-	instructions := []BPFInstruction{
-		// 1. Check EtherType == IPv4 (0x0800)
-		{Op: 0x28, Jt: 0, Jf: 0, K: 12},
-		{Op: 0x15, Jt: 0, Jf: 8, K: 0x0800},
+// GenerateSynAckFilter creates a BPF program adapted to the LinkType.
+// It supports Ethernet, Null (Loopback/VPN), and Raw IP link types.
+func generateSynAckFilter(linkType layers.LinkType) []BPFInstruction {
+	var baseOffset uint32
 
-		// 2. Check Protocol == TCP (6)
-		{Op: 0x30, Jt: 0, Jf: 0, K: 23},
-		{Op: 0x15, Jt: 0, Jf: 6, K: 6},
-
-		// 3. Check Fragmentation
-		{Op: 0x28, Jt: 0, Jf: 0, K: 20},
-		{Op: 0x45, Jt: 4, Jf: 0, K: 0x1fff},
-
-		// 4. Find TCP Header Start (IP Header Length to X)
-		// Loads byte at offset 14 (IP Header Start), gets IHL, multiplies by 4, stores in X.
-		{Op: 0xb1, Jt: 0, Jf: 0, K: 14},
-
-		// 5. Check TCP Flags (SYN+ACK)
-		// We want to load: Ethernet(14) + IP_Len(X) + TCP_Flags(13)
-		// Instruction is: Load [X + K]
-		// So K must be 14 + 13 = 27.
-
-		// [FIX] K was 13, changed to 27
-		{Op: 0x50, Jt: 0, Jf: 0, K: 27},
-
-		// Bitwise AND with 18 (SYN=2 | ACK=16)
-		{Op: 0x54, Jt: 0, Jf: 0, K: 18},
-
-		// Compare Result == 18
-		{Op: 0x15, Jt: 0, Jf: 1, K: 18},
-
-		// 6. Capture
-		{Op: 0x6, Jt: 0, Jf: 0, K: 0x00040000},
-		{Op: 0x6, Jt: 0, Jf: 0, K: 0x00000000},
+	// Determine the offset where the IP header begins
+	switch linkType {
+	case layers.LinkTypeEthernet:
+		baseOffset = 14
+	case layers.LinkTypeNull, layers.LinkTypeLoop: // BSD Loopback / macOS utun
+		baseOffset = 4
+	case layers.LinkTypeRaw: // Linux TUN
+		baseOffset = 0
+	default:
+		// Fallback to Ethernet or handle error if necessary
+		baseOffset = 14
 	}
+
+	instructions := []BPFInstruction{}
+
+	// 1. Protocol Verification (IPv4)
+	if linkType == layers.LinkTypeEthernet {
+		// Check EtherType == IPv4 (0x0800) at offset 12
+		instructions = append(
+			instructions,
+			BPFInstruction{Op: 0x28, Jt: 0, Jf: 0, K: 12}, // Ldh [12]
+			BPFInstruction{
+				Op: 0x15,
+				Jt: 0,
+				Jf: 8,
+				K:  0x0800,
+			}, // Jeq 0x800, True, False(Skip to End)
+		)
+	} else {
+		// Check IP Version == 4 at the base offset
+		// Load byte at baseOffset, mask 0xF0, check if 0x40
+		instructions = append(instructions,
+			// BPFInstruction{Op: 0x30, Jt: 0, Jf: 0, K: baseOffset}, // Ldb [baseOffset]
+			BPFInstruction{Op: 0x54, Jt: 0, Jf: 0, K: 0xf0}, // And 0xf0
+			BPFInstruction{Op: 0x15, Jt: 0, Jf: 8, K: 0x40}, // Jeq 0x40, True, False(Skip to End)
+		)
+	}
+
+	// 2. Check Protocol == TCP (6)
+	// Protocol field is at IP header + 9 bytes
+	instructions = append(instructions,
+		BPFInstruction{Op: 0x30, Jt: 0, Jf: 0, K: baseOffset + 9}, // Ldb [baseOffset + 9]
+		BPFInstruction{Op: 0x15, Jt: 0, Jf: 6, K: 6},              // Jeq 6, True, False
+	)
+
+	// 3. Check Fragmentation (Flags & Fragment Offset)
+	// At IP header + 6 bytes
+	instructions = append(
+		instructions,
+		BPFInstruction{Op: 0x28, Jt: 0, Jf: 0, K: baseOffset + 6}, // Ldh [baseOffset + 6]
+		BPFInstruction{
+			Op: 0x45,
+			Jt: 4,
+			Jf: 0,
+			K:  0x1fff,
+		}, // Jset 0x1fff, True(Skip), False
+	)
+
+	// 4. Find TCP Header Start
+	// Load IP IHL from (baseOffset), multiply by 4 to get length, store in X
+	instructions = append(instructions,
+		BPFInstruction{Op: 0xb1, Jt: 0, Jf: 0, K: baseOffset}, // Ldxb 4*([baseOffset]&0xf)
+	)
+
+	// 5. Check TCP Flags (SYN+ACK)
+	// We need to load: baseOffset + IP_Len(X) + TCP_Flags(13)
+	// Instruction: Load [X + K] -> K = baseOffset + 13
+	instructions = append(
+		instructions,
+		BPFInstruction{
+			Op: 0x50,
+			Jt: 0,
+			Jf: 0,
+			K:  baseOffset + 13,
+		}, // Ldb [X + baseOffset + 13]
+		BPFInstruction{Op: 0x54, Jt: 0, Jf: 0, K: 18}, // And 18 (SYN|ACK)
+		BPFInstruction{Op: 0x15, Jt: 0, Jf: 1, K: 18}, // Jeq 18, True, False
+	)
+
+	// 6. Capture
+	instructions = append(instructions,
+		BPFInstruction{Op: 0x6, Jt: 0, Jf: 0, K: 0x00040000}, // Ret capture_len
+		BPFInstruction{Op: 0x6, Jt: 0, Jf: 0, K: 0x00000000}, // Ret 0
+	)
 
 	return instructions
 }

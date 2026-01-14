@@ -179,3 +179,28 @@ func (c *TTLCache) ForceCleanup() {
 		shard.mu.Unlock()
 	}
 }
+
+// Range iterates over the cache items.
+// If f returns false, the item is removed from the cache.
+func (c *TTLCache) Range(f func(key string, value any) bool) {
+	for _, shard := range c.shards {
+		shard.mu.Lock()
+		for key, i := range shard.items {
+			if !f(key, i.value) {
+				delete(shard.items, key)
+			}
+		}
+		shard.mu.Unlock()
+	}
+}
+
+// Size returns the total number of items across all shards.
+func (c *TTLCache) Size() int {
+	total := 0
+	for _, shard := range c.shards {
+		shard.mu.RLock()
+		total += len(shard.items)
+		shard.mu.RUnlock()
+	}
+	return total
+}

@@ -124,3 +124,36 @@ func (c *LRUCache) Set(key string, value any, opts *options) bool {
 
 	return true
 }
+
+// Range iterates over the cache items.
+// If f returns false, the item is removed from the cache.
+func (c *LRUCache) Range(f func(key string, value any) bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var next *list.Element
+	for e := c.list.Front(); e != nil; e = next {
+		next = e.Next()
+		entry := e.Value.(*lruEntry)
+		if !f(entry.key, entry.value) {
+			c.removeElement(e)
+		}
+	}
+}
+
+// Delete removes an item from the cache.
+func (c *LRUCache) Delete(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if element, ok := c.cache[key]; ok {
+		c.removeElement(element)
+	}
+}
+
+// Size returns the number of items in the cache.
+func (c *LRUCache) Size() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.list.Len()
+}

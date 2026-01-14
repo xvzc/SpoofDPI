@@ -38,4 +38,8 @@ type Cache interface {
 	Get(key string) (any, bool)
 	// Set adds a value to the cache, applying any provided options.
 	Set(key string, value any, opts *options) bool
+	Delete(key string)
+	Range(f func(key string, value any) bool)
+	// Size returns the number of items in the cache.
+	Size() int
 }

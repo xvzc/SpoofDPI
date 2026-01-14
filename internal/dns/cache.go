@@ -54,7 +54,7 @@ func (cr *CacheResolver) Resolve(
 	// For now, assuming simplistic cache key = domain, but awareness of potential issue.
 	// Ideally: key = domain + qtypes + spec-related-things
 	if item, ok := cr.ttlCache.Get(domain); ok {
-		logger.Trace().Msgf("hit")
+		logger.Debug().Str("domain", domain).Msgf("hit")
 		return item.(*RecordSet).Clone(), nil
 	}
 
@@ -64,7 +64,9 @@ func (cr *CacheResolver) Resolve(
 
 	// 2. [Cache Miss]
 	//    Delegate the actual network request to 'r.next' (the worker).
-	logger.Trace().Str("fallback", fallback.Info()[0].Name).Msgf("miss")
+	logger.Debug().Str("domain", domain).Str("fallback", fallback.Info()[0].Name).
+		Msgf("miss")
+
 	rSet, err := fallback.Resolve(ctx, domain, nil, rule)
 	if err != nil {
 		return nil, err
@@ -73,7 +75,8 @@ func (cr *CacheResolver) Resolve(
 	// 3. [Cache Write]
 	// (Assuming the actual TTL is parsed from the DNS response)
 	// realTTL := 5 * time.Second
-	logger.Trace().
+	logger.Debug().
+		Str("domain", domain).
 		Int("len", len(rSet.Addrs)).
 		Uint32("ttl", rSet.TTL).
 		Msg("set")

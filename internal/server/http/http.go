@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/config"
@@ -31,7 +32,7 @@ func (h *HTTPHandler) HandleRequest(
 ) error {
 	logger := logging.WithLocalScope(ctx, h.logger, "http")
 
-	rConn, err := netutil.DialFastest(ctx, "tcp", dst.Addrs, dst.Port, dst.Timeout)
+	rConn, err := netutil.DialFastest(ctx, "tcp", dst)
 	if err != nil {
 		_ = proto.HTTPBadGatewayResponse().Write(lConn)
 		return err
@@ -49,31 +50,22 @@ func (h *HTTPHandler) HandleRequest(
 		return fmt.Errorf("failed to send request: %w", err)
 	}
 
-	errCh := make(chan error, 2)
+	// Start bi-directional tunneling
+	resCh := make(chan netutil.TransferResult, 2)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	go netutil.TunnelConns(ctx, logger, errCh, rConn, lConn)
-	go netutil.TunnelConns(ctx, logger, errCh, lConn, rConn)
+	startedAt := time.Now()
+	go netutil.TunnelConns(ctx, resCh, lConn, rConn, netutil.TunnelDirOut)
+	go netutil.TunnelConns(ctx, resCh, rConn, lConn, netutil.TunnelDirIn)
 
-	for range 2 {
-		e := <-errCh
-		if e == nil {
-			continue
-		}
-
-		if netutil.IsConnectionResetByPeer(e) {
-			return netutil.ErrBlocked
-		}
-
-		return fmt.Errorf(
-			"unsuccessful tunnel %s -> %s: %w",
-			lConn.RemoteAddr(),
-			rConn.RemoteAddr(),
-			e,
-		)
-	}
-
-	return nil
+	return netutil.WaitAndLogTunnel(
+		ctx,
+		logger,
+		resCh,
+		startedAt,
+		netutil.DescribeRoute(lConn, rConn),
+		nil,
+	)
 }
