@@ -18,26 +18,29 @@ import (
 )
 
 type ConnectHandler struct {
-	logger     zerolog.Logger
-	desyncer   *desync.TLSDesyncer
-	sniffer    packet.Sniffer
-	serverOpts *config.ServerOptions
-	httpsOpts  *config.HTTPSOptions
+	logger           zerolog.Logger
+	desyncer         *desync.TLSDesyncer
+	sniffer          packet.Sniffer
+	appOpts          *config.AppOptions
+	defaultConnOpts  *config.ConnOptions
+	defaultHTTPSOpts *config.HTTPSOptions
 }
 
 func NewConnectHandler(
 	logger zerolog.Logger,
 	desyncer *desync.TLSDesyncer,
 	sniffer packet.Sniffer,
-	serverOpts *config.ServerOptions,
-	httpsOpts *config.HTTPSOptions,
+	appOpts *config.AppOptions,
+	defaultConnOpts *config.ConnOptions,
+	defaultHTTPSOpts *config.HTTPSOptions,
 ) *ConnectHandler {
 	return &ConnectHandler{
-		logger:     logger,
-		desyncer:   desyncer,
-		sniffer:    sniffer,
-		serverOpts: serverOpts,
-		httpsOpts:  httpsOpts,
+		logger:           logger,
+		desyncer:         desyncer,
+		sniffer:          sniffer,
+		appOpts:          appOpts,
+		defaultConnOpts:  defaultConnOpts,
+		defaultHTTPSOpts: defaultHTTPSOpts,
 	}
 }
 
@@ -48,15 +51,17 @@ func (h *ConnectHandler) Handle(
 	dst *netutil.Destination,
 	rule *config.Rule,
 ) error {
-	opts := h.httpsOpts.Clone()
+	httpsOpts := h.defaultHTTPSOpts.Clone()
+	connOpts := h.defaultConnOpts.Clone()
 	if rule != nil {
-		opts = opts.Merge(rule.HTTPS)
+		httpsOpts = httpsOpts.Merge(rule.HTTPS)
+		connOpts = connOpts.Merge(rule.Conn)
 	}
 
 	logger := logging.WithLocalScope(ctx, h.logger, "connect")
 
 	// 1. Validate Destination
-	ok, err := netutil.ValidateDestination(dst.Addrs, dst.Port, h.serverOpts.ListenAddr)
+	ok, err := netutil.ValidateDestination(dst.Addrs, dst.Port, h.appOpts.ListenAddr)
 	if err != nil {
 		logger.Debug().Err(err).Msg("error determining if valid destination")
 		if !ok {
@@ -79,6 +84,7 @@ func (h *ConnectHandler) Handle(
 	}
 
 	// logger := logging.WithLocalScope(ctx, h.logger, "connect(tcp)")
+	dst.Timeout = *connOpts.TCPTimeout
 
 	rConn, err := netutil.DialFastest(ctx, "tcp", dst)
 	if err != nil {
@@ -96,11 +102,11 @@ func (h *ConnectHandler) Handle(
 	b, err := bufConn.Peek(1)
 	if err == nil && b[0] == byte(proto.TLSHandshake) { // 0x16
 
-		if h.sniffer != nil && lo.FromPtr(opts.FakeCount) > 0 {
+		if h.sniffer != nil && lo.FromPtr(httpsOpts.FakeCount) > 0 {
 			h.sniffer.RegisterUntracked(dst.Addrs)
 		}
 
-		return h.handleHTTPS(ctx, bufConn, rConn, opts)
+		return h.handleHTTPS(ctx, bufConn, rConn, httpsOpts)
 	}
 
 	// If not TLS, fall back to pure TCP tunnel

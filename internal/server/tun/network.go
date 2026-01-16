@@ -1,15 +1,23 @@
-//go:build !darwin
+//go:build !darwin && !linux && !freebsd
 
 package tun
 
-func SetRouting(iface string, subnets []string) error {
+func SetRoute(iface string, subnets []string) error {
 	return nil
 }
 
-func UnsetRouting(iface string, subnets []string) error {
+func UnsetRoute(iface string, subnets []string) error {
 	return nil
 }
 
 func SetInterfaceAddress(iface string, local string, remote string) error {
+	return nil
+}
+
+func UnsetGatewayRoute(gateway, iface string) error {
+	return nil
+}
+
+func SetGatewayRoute(gateway, iface string) error {
 	return nil
 }

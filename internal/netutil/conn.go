@@ -157,6 +157,7 @@ func CloseConns(closers ...io.Closer) {
 }
 
 // SetTTL configures the TTL or Hop Limit depending on the IP version.
+// The isIPv4 parameter is determined by examining the remote address of the connection.
 func SetTTL(conn net.Conn, isIPv4 bool, ttl uint8) error {
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
@@ -168,8 +169,19 @@ func SetTTL(conn net.Conn, isIPv4 bool, ttl uint8) error {
 		return err
 	}
 
+	// Re-check IP version using remote address to handle IPv4-mapped IPv6 addresses
+	// On Linux, when using dual-stack sockets, the local address might be IPv6
+	// but the actual connection could be IPv4-mapped (::ffff:x.x.x.x)
+	actualIPv4 := isIPv4
+	if tcpAddr, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
+		// If the IP is IPv4 or IPv4-mapped IPv6, we should use IPv4 options
+		if ip4 := tcpAddr.IP.To4(); ip4 != nil {
+			actualIPv4 = true
+		}
+	}
+
 	var level, opt int
-	if isIPv4 {
+	if actualIPv4 {
 		level = syscall.IPPROTO_IP
 		opt = syscall.IP_TTL
 	} else {

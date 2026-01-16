@@ -108,14 +108,14 @@ func MustParseLogLevel(s string) zerolog.Level {
 	return level
 }
 
-func MustParseServerModeType(s string) ServerModeType {
+func MustParseServerModeType(s string) AppModeType {
 	switch s {
 	case "http":
-		return ServerModeHTTP
+		return AppModeHTTP
 	case "socks5":
-		return ServerModeSOCKS5
+		return AppModeSOCKS5
 	case "tun":
-		return ServerModeTUN
+		return AppModeTUN
 	default:
 		panic(fmt.Sprintf("cannot parse %q to ServerModeType", s))
 	}

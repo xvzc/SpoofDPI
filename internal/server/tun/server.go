@@ -115,7 +115,10 @@ func (s *TunServer) SetNetworkConfig() error {
 
 	// Add route for the TUN interface subnet to ensure packets can return
 	// This is crucial for the TUN interface to receive packets destined for its own subnet
-	if err := SetRoute(s.iface.Name(), []string{local + "/30"}); err != nil {
+	// Calculate the network address for /30 subnet (e.g., 10.0.0.1 -> 10.0.0.0/30)
+	localIP := net.ParseIP(local)
+	networkAddr := net.IPv4(localIP[12], localIP[13], localIP[14], localIP[15]&0xFC) // Mask with /30
+	if err := SetRoute(s.iface.Name(), []string{networkAddr.String() + "/30"}); err != nil {
 		return fmt.Errorf("failed to set local route: %w", err)
 	}
 

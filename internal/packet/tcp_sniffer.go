@@ -2,7 +2,6 @@ package packet
 
 import (
 	"context"
-	"fmt"
 	"net"
 
 	"github.com/google/gopacket"
@@ -105,9 +104,9 @@ func (ts *TCPSniffer) processPacket(ctx context.Context, p gopacket.Packet) {
 		ip, _ := ipLayer.(*layers.IPv4)
 		// Skip packets from local/private IPs (outgoing packets)
 		if isLocalIP(ip.SrcIP) {
-			fmt.Println(ip.SrcIP)
 			return
 		}
+
 		srcIP = ip.SrcIP.String()
 		ttlLeft = ip.TTL
 	} else if ipLayer := p.Layer(layers.LayerTypeIPv6); ipLayer != nil {
@@ -124,13 +123,17 @@ func (ts *TCPSniffer) processPacket(ctx context.Context, p gopacket.Packet) {
 	key := srcIP
 	// Calculate hop count from the TTL
 	nhops := estimateHops(ttlLeft)
-	ok := ts.nhopCache.Set(key, nhops, cache.Options().WithUpdateExistingOnly(true))
-	if ok {
-		logger.Trace().
-			Str("from", key).
-			Uint8("nhops", nhops).
-			Uint8("ttlLeft", ttlLeft).
-			Msgf("ttl(tcp) update")
+
+	stored, exists := ts.nhopCache.Get(key)
+
+	if ts.nhopCache.Set(key, nhops, cache.Options().WithUpdateExistingOnly(true)) {
+		if !exists || stored != nhops {
+			logger.Trace().
+				Str("from", key).
+				Uint8("nhops", nhops).
+				Uint8("ttlLeft", ttlLeft).
+				Msgf("ttl(tcp) update")
+		}
 	}
 }
 
@@ -172,10 +175,16 @@ func generateSynAckFilter(linkType layers.LinkType) []BPFInstruction {
 	} else {
 		// Check IP Version == 4 at the base offset
 		// Load byte at baseOffset, mask 0xF0, check if 0x40
-		instructions = append(instructions,
+		instructions = append(
+			instructions,
 			// BPFInstruction{Op: 0x30, Jt: 0, Jf: 0, K: baseOffset}, // Ldb [baseOffset]
 			BPFInstruction{Op: 0x54, Jt: 0, Jf: 0, K: 0xf0}, // And 0xf0
-			BPFInstruction{Op: 0x15, Jt: 0, Jf: 8, K: 0x40}, // Jeq 0x40, True, False(Skip to End)
+			BPFInstruction{
+				Op: 0x15,
+				Jt: 0,
+				Jf: 8,
+				K:  0x40,
+			}, // Jeq 0x40, True, False(Skip to End)
 		)
 	}
 

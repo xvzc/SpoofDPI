@@ -42,11 +42,11 @@ func main() {
 }
 
 func runApp(ctx context.Context, configDir string, cfg *config.Config) {
-	if !*cfg.General.Silent {
+	if !*cfg.App.Silent {
 		printBanner()
 	}
 
-	logging.SetGlobalLogger(ctx, *cfg.General.LogLevel)
+	logging.SetGlobalLogger(ctx, *cfg.App.LogLevel)
 
 	logger := log.Logger.With().Ctx(ctx).Logger()
 	logger.Info().Str("version", version).Msg("started spoofdpi")
@@ -74,7 +74,7 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 	<-ready
 
 	// System Proxy Config
-	if *cfg.General.SetNetworkConfig {
+	if *cfg.App.SetNetworkConfig {
 		if err := srv.SetNetworkConfig(); err != nil {
 			logger.Fatal().Err(err).Msg("failed to set system network config")
 		}
@@ -108,13 +108,23 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 		Bool("auto", *cfg.Policy.Auto).
 		Msgf("policy")
 
-	if *cfg.Server.Timeout > 0 {
+	if *cfg.Conn.DNSTimeout > 0 {
 		logger.Info().
-			Str("value", fmt.Sprintf("%dms", cfg.Server.Timeout)).
-			Msgf("connection timeout")
+			Str("value", fmt.Sprintf("%dms", cfg.Conn.DNSTimeout.Milliseconds())).
+			Msgf("dns connection timeout")
+	}
+	if *cfg.Conn.TCPTimeout > 0 {
+		logger.Info().
+			Str("value", fmt.Sprintf("%dms", cfg.Conn.TCPTimeout.Milliseconds())).
+			Msgf("tcp connection timeout")
+	}
+	if *cfg.Conn.UDPTimeout > 0 {
+		logger.Info().
+			Str("value", fmt.Sprintf("%dms", cfg.Conn.UDPTimeout.Milliseconds())).
+			Msgf("udp connection timeout")
 	}
 
-	logger.Info().Msgf("server-mode; %s", cfg.Server.Mode.String())
+	logger.Info().Msgf("app-mode; %s", cfg.App.Mode.String())
 
 	logger.Info().Msgf("server started on %s", srv.Addr())
 
@@ -142,9 +152,17 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 func createResolver(logger zerolog.Logger, cfg *config.Config) dns.Resolver {
 	// create a TTL cache for storing DNS records.
 
-	udpResolver := dns.NewUDPResolver(logging.WithScope(logger, "dns"), cfg.DNS.Clone())
+	udpResolver := dns.NewUDPResolver(
+		logging.WithScope(logger, "dns"),
+		cfg.DNS.Clone(),
+		cfg.Conn.Clone(),
+	)
 
-	dohResolver := dns.NewHTTPSResolver(logging.WithScope(logger, "dns"), cfg.DNS.Clone())
+	dohResolver := dns.NewHTTPSResolver(
+		logging.WithScope(logger, "dns"),
+		cfg.DNS.Clone(),
+		cfg.Conn.Clone(),
+	)
 
 	sysResolver := dns.NewSystemResolver(
 		logging.WithScope(logger, "dns"),
@@ -238,7 +256,7 @@ func createPacketObjects(
 		logging.WithScope(logger, "pkt"),
 		hopCache,
 		tcpHandle,
-		uint8(*cfg.Server.DefaultTTL),
+		uint8(*cfg.Conn.DefaultFakeTTL),
 	)
 	tcpSniffer.StartCapturing()
 
@@ -254,7 +272,7 @@ func createPacketObjects(
 		logging.WithScope(logger, "pkt"),
 		hopCache,
 		udpHandle,
-		uint8(*cfg.Server.DefaultTTL),
+		uint8(*cfg.Conn.DefaultFakeTTL),
 	)
 	udpSniffer.StartCapturing()
 
@@ -306,14 +324,15 @@ func createServer(
 		tcpSniffer,
 	)
 
-	switch *cfg.Server.Mode {
-	case config.ServerModeHTTP:
+	switch *cfg.App.Mode {
+	case config.AppModeHTTP:
 		httpHandler := http.NewHTTPHandler(logging.WithScope(logger, "hnd"))
 		httpsHandler := http.NewHTTPSHandler(
 			logging.WithScope(logger, "hnd"),
 			desyncer,
 			tcpSniffer,
 			cfg.HTTPS.Clone(),
+			cfg.Conn.Clone(),
 		)
 
 		return http.NewHTTPProxy(
@@ -322,15 +341,17 @@ func createServer(
 			httpHandler,
 			httpsHandler,
 			ruleMatcher,
-			cfg.Server.Clone(),
+			cfg.App.Clone(),
+			cfg.Conn.Clone(),
 			cfg.Policy.Clone(),
 		), nil
-	case config.ServerModeSOCKS5:
+	case config.AppModeSOCKS5:
 		connectHandler := socks5.NewConnectHandler(
 			logging.WithScope(logger, "hnd"),
 			desyncer,
 			tcpSniffer,
-			cfg.Server.Clone(),
+			cfg.App.Clone(),
+			cfg.Conn.Clone(),
 			cfg.HTTPS.Clone(),
 		)
 		udpAssociateHandler := socks5.NewUdpAssociateHandler(
@@ -346,14 +367,16 @@ func createServer(
 			connectHandler,
 			bindHandler,
 			udpAssociateHandler,
-			cfg.Server.Clone(),
+			cfg.App.Clone(),
+			cfg.Conn.Clone(),
 			cfg.Policy.Clone(),
 		), nil
-	case config.ServerModeTUN:
+	case config.AppModeTUN:
 		tcpHandler := tun.NewTCPHandler(
 			logging.WithScope(logger, "hnd"),
 			ruleMatcher, // For domain-based TLS matching
 			cfg.HTTPS.Clone(),
+			cfg.Conn.Clone(),
 			desyncer,
 			tcpSniffer, // For TTL tracking
 			"",         // iface and gateway will be set later
@@ -370,6 +393,7 @@ func createServer(
 			logging.WithScope(logger, "hnd"),
 			udpDesyncer,
 			cfg.UDP.Clone(),
+			cfg.Conn.Clone(),
 			netutil.NewConnPool(4096, 60*time.Second),
 		)
 
@@ -381,7 +405,7 @@ func createServer(
 			udpHandler,
 		), nil
 	default:
-		return nil, fmt.Errorf("unknown server mode: %s", *cfg.Server.Mode)
+		return nil, fmt.Errorf("unknown server mode: %s", *cfg.App.Mode)
 	}
 }
 

@@ -14,12 +14,12 @@ import (
 )
 
 type RouteResolver struct {
-	logger  zerolog.Logger
-	https   Resolver
-	udp     Resolver
-	system  Resolver
-	cache   Resolver
-	dnsOpts *config.DNSOptions
+	logger         zerolog.Logger
+	https          Resolver
+	udp            Resolver
+	system         Resolver
+	cache          Resolver
+	defaultDNSOpts *config.DNSOptions
 }
 
 func NewRouteResolver(
@@ -28,15 +28,15 @@ func NewRouteResolver(
 	udp Resolver,
 	sys Resolver,
 	cache Resolver,
-	dnsOpts *config.DNSOptions,
+	defaultDNSOpts *config.DNSOptions,
 ) *RouteResolver {
 	return &RouteResolver{
-		logger:  logger,
-		https:   doh,
-		udp:     udp,
-		system:  sys,
-		cache:   cache,
-		dnsOpts: dnsOpts,
+		logger:         logger,
+		https:          doh,
+		udp:            udp,
+		system:         sys,
+		cache:          cache,
+		defaultDNSOpts: defaultDNSOpts,
 	}
 }
 
@@ -55,7 +55,7 @@ func (rr *RouteResolver) Resolve(
 	fallback Resolver,
 	rule *config.Rule,
 ) (*RecordSet, error) {
-	opts := rr.dnsOpts.Clone()
+	opts := rr.defaultDNSOpts.Clone()
 	if rule != nil {
 		opts = opts.Merge(rule.DNS)
 	}

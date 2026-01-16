@@ -14,25 +14,28 @@ import (
 )
 
 type UDPHandler struct {
-	logger   zerolog.Logger
-	udpOpts  *config.UDPOptions
-	desyncer *desync.UDPDesyncer
-	pool     *netutil.ConnPool
-	iface    string
-	gateway  string
+	logger          zerolog.Logger
+	defaultUDPOpts  *config.UDPOptions
+	defaultConnOpts *config.ConnOptions
+	desyncer        *desync.UDPDesyncer
+	pool            *netutil.ConnPool
+	iface           string
+	gateway         string
 }
 
 func NewUDPHandler(
 	logger zerolog.Logger,
 	desyncer *desync.UDPDesyncer,
-	udpOpts *config.UDPOptions,
+	defaultUDPOpts *config.UDPOptions,
+	defaultConnOpts *config.ConnOptions,
 	pool *netutil.ConnPool,
 ) *UDPHandler {
 	return &UDPHandler{
-		logger:   logger,
-		desyncer: desyncer,
-		udpOpts:  udpOpts,
-		pool:     pool,
+		logger:          logger,
+		desyncer:        desyncer,
+		defaultUDPOpts:  defaultUDPOpts,
+		defaultConnOpts: defaultConnOpts,
+		pool:            pool,
 	}
 }
 
@@ -68,10 +71,12 @@ func (h *UDPHandler) Handle(ctx context.Context, lConn net.Conn, rule *config.Ru
 	}
 
 	// Apply rule if matched in server.go
-	opts := h.udpOpts.Clone()
+	udpOpts := h.defaultUDPOpts.Clone()
+	connOpts := h.defaultConnOpts.Clone()
 	if rule != nil {
 		logger.Trace().RawJSON("summary", rule.JSON()).Msg("match")
-		opts = opts.Merge(rule.UDP)
+		udpOpts = udpOpts.Merge(rule.UDP)
+		connOpts = connOpts.Merge(rule.Conn)
 	}
 
 	// Key for connection pool
@@ -87,11 +92,11 @@ func (h *UDPHandler) Handle(ctx context.Context, lConn net.Conn, rule *config.Ru
 	rConn := h.pool.Add(key, rawConn)
 
 	// Wrap lConn with TimeoutConn as well
-	timeout := *opts.Timeout
+	timeout := *connOpts.UDPTimeout
 	lConnWrapped := &netutil.TimeoutConn{Conn: lConn, Timeout: timeout}
 
 	// Desync
-	_, _ = h.desyncer.Desync(ctx, lConnWrapped, rConn, opts)
+	_, _ = h.desyncer.Desync(ctx, lConnWrapped, rConn, udpOpts)
 
 	logger.Debug().
 		Msgf("new remote conn (%s -> %s)", lConn.RemoteAddr(), rConn.RemoteAddr())

@@ -1,8 +1,10 @@
-//go:build !darwin && !linux
+//go:build !darwin
 
 package socks5
 
-import "github.com/rs/zerolog"
+import (
+	"github.com/rs/zerolog"
+)
 
 func SetSystemProxy(logger zerolog.Logger, port uint16) error {
 	return nil

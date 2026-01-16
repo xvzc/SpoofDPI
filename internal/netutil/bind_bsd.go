@@ -1,8 +1,9 @@
-//go:build darwin
+//go:build darwin || freebsd
 
 package netutil
 
 import (
+	"fmt"
 	"net"
 	"syscall"
 
@@ -10,9 +11,17 @@ import (
 )
 
 // bindToInterface sets the dialer's Control function to bind the socket
-// to a specific network interface using IP_BOUND_IF on Darwin.
-func bindToInterface(dialer *net.Dialer, iface *net.Interface, targetIP net.IP) {
-	addrs, _ := iface.Addrs()
+// to a specific network interface using IP_BOUND_IF on BSD systems.
+func bindToInterface(dialer *net.Dialer, iface *net.Interface, targetIP net.IP) error {
+	if iface == nil {
+		return nil
+	}
+
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return fmt.Errorf("failed to get interface addresses: %w", err)
+	}
+
 	for _, addr := range addrs {
 		if ipnet, ok := addr.(*net.IPNet); ok {
 			if targetIP.To4() != nil && ipnet.IP.To4() != nil && !ipnet.IP.IsLoopback() {
@@ -33,8 +42,10 @@ func bindToInterface(dialer *net.Dialer, iface *net.Interface, targetIP net.IP) 
 
 					return setsockoptErr
 				}
-				break
+				return nil
 			}
 		}
 	}
+
+	return fmt.Errorf("no suitable IP address found on interface %s for target %s", iface.Name, targetIP)
 }

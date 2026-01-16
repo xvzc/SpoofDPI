@@ -26,7 +26,8 @@ type HTTPProxy struct {
 	httpHandler  *HTTPHandler
 	httpsHandler *HTTPSHandler
 	ruleMatcher  matcher.RuleMatcher
-	serverOpts   *config.ServerOptions
+	appOpts      *config.AppOptions
+	connOpts     *config.ConnOptions
 	policyOpts   *config.PolicyOptions
 
 	listener net.Listener
@@ -38,7 +39,8 @@ func NewHTTPProxy(
 	httpHandler *HTTPHandler,
 	httpsHandler *HTTPSHandler,
 	ruleMatcher matcher.RuleMatcher,
-	serverOpts *config.ServerOptions,
+	appOpts *config.AppOptions,
+	connOpts *config.ConnOptions,
 	policyOpts *config.PolicyOptions,
 ) server.Server {
 	return &HTTPProxy{
@@ -47,17 +49,18 @@ func NewHTTPProxy(
 		httpHandler:  httpHandler,
 		httpsHandler: httpsHandler,
 		ruleMatcher:  ruleMatcher,
-		serverOpts:   serverOpts,
+		appOpts:      appOpts,
+		connOpts:     connOpts,
 		policyOpts:   policyOpts,
 	}
 }
 
 func (p *HTTPProxy) Start(ctx context.Context, ready chan<- struct{}) error {
-	listener, err := net.ListenTCP("tcp", p.serverOpts.ListenAddr)
+	listener, err := net.ListenTCP("tcp", p.appOpts.ListenAddr)
 	if err != nil {
 		return fmt.Errorf(
 			"error creating listener on %s: %w",
-			p.serverOpts.ListenAddr.String(),
+			p.appOpts.ListenAddr.String(),
 			err,
 		)
 	}
@@ -92,7 +95,7 @@ func (p *HTTPProxy) Stop() error {
 }
 
 func (p *HTTPProxy) SetNetworkConfig() error {
-	return SetSystemProxy(p.logger, uint16(p.serverOpts.ListenAddr.Port))
+	return SetSystemProxy(p.logger, uint16(p.appOpts.ListenAddr.Port))
 }
 
 func (p *HTTPProxy) UnsetNetworkConfig() error {
@@ -100,7 +103,7 @@ func (p *HTTPProxy) UnsetNetworkConfig() error {
 }
 
 func (p *HTTPProxy) Addr() string {
-	return p.serverOpts.ListenAddr.String()
+	return p.appOpts.ListenAddr.String()
 }
 
 func (p *HTTPProxy) handleNewConnection(ctx context.Context, conn net.Conn) {
@@ -166,7 +169,7 @@ func (p *HTTPProxy) handleNewConnection(ctx context.Context, conn net.Conn) {
 	}
 
 	// Avoid recursively querying self.
-	ok, err := netutil.ValidateDestination(addrs, dstPort, p.serverOpts.ListenAddr)
+	ok, err := netutil.ValidateDestination(addrs, dstPort, p.appOpts.ListenAddr)
 	if err != nil {
 		logger.Debug().Err(err).Msg("error validating dst addrs")
 		if !ok {
@@ -199,7 +202,7 @@ func (p *HTTPProxy) handleNewConnection(ctx context.Context, conn net.Conn) {
 		Domain:  host, // Updated from Domain to Host
 		Addrs:   addrs,
 		Port:    dstPort,
-		Timeout: *p.serverOpts.Timeout,
+		Timeout: *p.connOpts.TCPTimeout,
 	}
 
 	var handleErr error

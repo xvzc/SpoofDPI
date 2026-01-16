@@ -31,7 +31,8 @@ type SOCKS5Proxy struct {
 	bindHandler         *BindHandler
 	udpAssociateHandler *UdpAssociateHandler
 
-	serverOpts *config.ServerOptions
+	appOpts    *config.AppOptions
+	connOpts   *config.ConnOptions
 	policyOpts *config.PolicyOptions
 
 	listener net.Listener
@@ -44,7 +45,8 @@ func NewSOCKS5Proxy(
 	connectHandler *ConnectHandler,
 	bindHandler *BindHandler,
 	udpAssociateHandler *UdpAssociateHandler,
-	serverOpts *config.ServerOptions,
+	appOpts *config.AppOptions,
+	connOpts *config.ConnOptions,
 	policyOpts *config.PolicyOptions,
 ) server.Server {
 	return &SOCKS5Proxy{
@@ -54,17 +56,18 @@ func NewSOCKS5Proxy(
 		connectHandler:      connectHandler,
 		bindHandler:         bindHandler,
 		udpAssociateHandler: udpAssociateHandler,
-		serverOpts:          serverOpts,
+		appOpts:             appOpts,
+		connOpts:            connOpts,
 		policyOpts:          policyOpts,
 	}
 }
 
 func (p *SOCKS5Proxy) Start(ctx context.Context, ready chan<- struct{}) error {
-	listener, err := net.ListenTCP("tcp", p.serverOpts.ListenAddr)
+	listener, err := net.ListenTCP("tcp", p.appOpts.ListenAddr)
 	if err != nil {
 		return fmt.Errorf(
 			"error creating listener on %s: %w",
-			p.serverOpts.ListenAddr.String(),
+			p.appOpts.ListenAddr.String(),
 			err,
 		)
 	}
@@ -98,7 +101,7 @@ func (p *SOCKS5Proxy) Stop() error {
 }
 
 func (p *SOCKS5Proxy) SetNetworkConfig() error {
-	return SetSystemProxy(p.logger, uint16(p.serverOpts.ListenAddr.Port))
+	return SetSystemProxy(p.logger, uint16(p.appOpts.ListenAddr.Port))
 }
 
 func (p *SOCKS5Proxy) UnsetNetworkConfig() error {
@@ -106,7 +109,7 @@ func (p *SOCKS5Proxy) UnsetNetworkConfig() error {
 }
 
 func (p *SOCKS5Proxy) Addr() string {
-	return p.serverOpts.ListenAddr.String()
+	return p.appOpts.ListenAddr.String()
 }
 
 func (p *SOCKS5Proxy) handleConnection(ctx context.Context, conn net.Conn) {
@@ -188,7 +191,7 @@ func (p *SOCKS5Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 			Domain:  req.FQDN,
 			Addrs:   addrs,
 			Port:    req.Port,
-			Timeout: *p.serverOpts.Timeout,
+			Timeout: *p.connOpts.TCPTimeout,
 		}
 		if err = p.connectHandler.Handle(ctx, conn, req, dst, bestMatch); err != nil {
 			return // Handler logs error

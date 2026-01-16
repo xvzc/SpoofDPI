@@ -18,7 +18,7 @@ func TestConfig_UnmarshalTOML(t *testing.T) {
 		{
 			name: "valid config",
 			input: map[string]any{
-				"server": map[string]any{
+				"general": map[string]any{
 					"listen-addr": "127.0.0.1:9090",
 				},
 				"dns": map[string]any{
@@ -40,7 +40,7 @@ func TestConfig_UnmarshalTOML(t *testing.T) {
 			},
 			wantErr: false,
 			assert: func(t *testing.T, c Config) {
-				assert.Equal(t, "127.0.0.1:9090", c.Server.ListenAddr.String())
+				assert.Equal(t, "127.0.0.1:9090", c.App.ListenAddr.String())
 				assert.Equal(t, "1.1.1.1:53", c.DNS.Addr.String())
 				if assert.Len(t, c.Policy.Overrides, 1) {
 					assert.Equal(t, "test", *c.Policy.Overrides[0].Name)
@@ -55,7 +55,7 @@ func TestConfig_UnmarshalTOML(t *testing.T) {
 		{
 			name: "validation error",
 			input: map[string]any{
-				"server": map[string]any{
+				"general": map[string]any{
 					"listen-addr": "invalid-addr",
 				},
 			},
@@ -149,17 +149,17 @@ func TestConfig_Merge(t *testing.T) {
 		{
 			name: "keep toml if arg is nil",
 			tomlCfg: &Config{
-				Server: &ServerOptions{
+				App: &AppOptions{
 					ListenAddr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8080},
 				},
 			},
 			argsCfg: &Config{
-				Server: &ServerOptions{
+				App: &AppOptions{
 					ListenAddr: nil,
 				},
 			},
 			assert: func(t *testing.T, merged *Config) {
-				assert.Equal(t, "127.0.0.1:8080", merged.Server.ListenAddr.String())
+				assert.Equal(t, "127.0.0.1:8080", merged.App.ListenAddr.String())
 			},
 		},
 		{
@@ -199,17 +199,17 @@ func TestConfig_Clone(t *testing.T) {
 		{
 			name: "non-nil receiver",
 			input: &Config{
-				General: &GeneralOptions{},
-				Server:  &ServerOptions{},
-				DNS:     &DNSOptions{},
-				HTTPS:   &HTTPSOptions{},
-				Policy:  &PolicyOptions{},
+				App:    &AppOptions{},
+				Conn:   &ConnOptions{},
+				DNS:    &DNSOptions{},
+				HTTPS:  &HTTPSOptions{},
+				Policy: &PolicyOptions{},
 			},
 			assert: func(t *testing.T, input *Config, output *Config) {
 				assert.NotNil(t, output)
 				assert.NotSame(t, input, output)
-				assert.NotSame(t, input.General, output.General)
-				assert.NotSame(t, input.Server, output.Server)
+				assert.NotSame(t, input.App, output.App)
+				assert.NotSame(t, input.Conn, output.Conn)
 				assert.NotSame(t, input.DNS, output.DNS)
 				assert.NotSame(t, input.HTTPS, output.HTTPS)
 				assert.NotSame(t, input.Policy, output.Policy)

@@ -15,17 +15,17 @@ type SystemResolver struct {
 	logger zerolog.Logger
 
 	*net.Resolver
-	dnsOpts *config.DNSOptions
+	defaultDNSOpts *config.DNSOptions
 }
 
 func NewSystemResolver(
 	logger zerolog.Logger,
-	dnsOps *config.DNSOptions,
+	defaultDNSOpts *config.DNSOptions,
 ) *SystemResolver {
 	return &SystemResolver{
-		logger:   logger,
-		Resolver: &net.Resolver{PreferGo: true},
-		dnsOpts:  dnsOps,
+		logger:         logger,
+		Resolver:       &net.Resolver{PreferGo: true},
+		defaultDNSOpts: defaultDNSOpts,
 	}
 }
 
@@ -44,7 +44,7 @@ func (sr *SystemResolver) Resolve(
 	fallback Resolver,
 	rule *config.Rule,
 ) (*RecordSet, error) {
-	opts := sr.dnsOpts.Clone()
+	opts := sr.defaultDNSOpts.Clone()
 	if rule != nil {
 		opts = opts.Merge(rule.DNS)
 	}

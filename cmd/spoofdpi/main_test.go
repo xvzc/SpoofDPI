@@ -22,6 +22,11 @@ func TestCreateResolver(t *testing.T) {
 		QType:    lo.ToPtr(config.DNSQueryIPv4),
 		Cache:    lo.ToPtr(true),
 	}
+	cfg.Conn = &config.ConnOptions{
+		DNSTimeout: lo.ToPtr(time.Duration(0)),
+		TCPTimeout: lo.ToPtr(time.Duration(0)),
+		UDPTimeout: lo.ToPtr(time.Duration(0)),
+	}
 
 	logger := zerolog.Nop()
 	resolver := createResolver(logger, cfg)
@@ -30,15 +35,21 @@ func TestCreateResolver(t *testing.T) {
 }
 
 func TestCreateProxy_NoPcap(t *testing.T) {
-	// Setup configuration that doesn't require PCAP (root privileges)
+	// Setup configuration that dAppModeHTTP PCAP (root privileges)
 	cfg := config.NewConfig()
 
-	// Server Config
-	cfg.Server = &config.ServerOptions{
-		Mode:       lo.ToPtr(config.ServerModeHTTP),
+	// App Config
+	cfg.App = &config.AppOptions{
+		Mode:       lo.ToPtr(config.AppModeHTTP),
 		ListenAddr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0},
-		DefaultTTL: lo.ToPtr(uint8(64)),
-		Timeout:    lo.ToPtr(time.Duration(0)),
+	}
+
+	// Conn Config
+	cfg.Conn = &config.ConnOptions{
+		DefaultFakeTTL: lo.ToPtr(uint8(64)),
+		DNSTimeout:     lo.ToPtr(time.Duration(0)),
+		TCPTimeout:     lo.ToPtr(time.Duration(0)),
+		UDPTimeout:     lo.ToPtr(time.Duration(0)),
 	}
 
 	// HTTPS Config (Ensure FakeCount is 0 to disable PCAP)
@@ -76,12 +87,18 @@ func TestCreateProxy_NoPcap(t *testing.T) {
 func TestCreateProxy_WithPolicy(t *testing.T) {
 	cfg := config.NewConfig()
 
-	// Server Config
-	cfg.Server = &config.ServerOptions{
-		Mode:       lo.ToPtr(config.ServerModeHTTP),
+	// App Config
+	cfg.App = &config.AppOptions{
+		Mode:       lo.ToPtr(config.AppModeHTTP),
 		ListenAddr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0},
-		DefaultTTL: lo.ToPtr(uint8(64)),
-		Timeout:    lo.ToPtr(time.Duration(0)),
+	}
+
+	// Conn Config
+	cfg.Conn = &config.ConnOptions{
+		DefaultFakeTTL: lo.ToPtr(uint8(64)),
+		DNSTimeout:     lo.ToPtr(time.Duration(0)),
+		TCPTimeout:     lo.ToPtr(time.Duration(0)),
+		UDPTimeout:     lo.ToPtr(time.Duration(0)),
 	}
 
 	// HTTPS Config

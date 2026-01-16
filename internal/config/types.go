@@ -32,17 +32,19 @@ func clonePrimitive[T primitive](x *T) *T {
 // ┌─────────────────┐
 // │ GENERAL OPTIONS │
 // └─────────────────┘
-var _ merger[*GeneralOptions] = (*GeneralOptions)(nil)
+var _ merger[*AppOptions] = (*AppOptions)(nil)
 
 var availableLogLevelValues = []string{"info", "warn", "trace", "error", "debug"}
 
-type GeneralOptions struct {
+type AppOptions struct {
 	LogLevel         *zerolog.Level `toml:"log-level"`
 	Silent           *bool          `toml:"silent"`
 	SetNetworkConfig *bool          `toml:"network-config"`
+	Mode             *AppModeType   `toml:"mode"`
+	ListenAddr       *net.TCPAddr   `toml:"listen-addr"`
 }
 
-func (o *GeneralOptions) UnmarshalTOML(data any) (err error) {
+func (o *AppOptions) UnmarshalTOML(data any) (err error) {
 	m, ok := data.(map[string]any)
 	if !ok {
 		return fmt.Errorf("non-table type general config")
@@ -53,11 +55,17 @@ func (o *GeneralOptions) UnmarshalTOML(data any) (err error) {
 	if p := findFrom(m, "log-level", parseStringFn(checkLogLevel), &err); isOk(p, err) {
 		o.LogLevel = lo.ToPtr(MustParseLogLevel(*p))
 	}
+	if p := findFrom(m, "mode", parseStringFn(checkAppMode), &err); isOk(p, err) {
+		o.Mode = lo.ToPtr(MustParseServerModeType(*p))
+	}
+	if p := findFrom(m, "listen-addr", parseStringFn(checkHostPort), &err); isOk(p, err) {
+		o.ListenAddr = lo.ToPtr(MustParseTCPAddr(*p))
+	}
 
 	return err
 }
 
-func (o *GeneralOptions) Clone() *GeneralOptions {
+func (o *AppOptions) Clone() *AppOptions {
 	if o == nil {
 		return nil
 	}
@@ -65,86 +73,6 @@ func (o *GeneralOptions) Clone() *GeneralOptions {
 	var newLevel *zerolog.Level
 	if o.LogLevel != nil {
 		newLevel = lo.ToPtr(MustParseLogLevel(strings.ToLower(o.LogLevel.String())))
-	}
-
-	return &GeneralOptions{
-		LogLevel:         newLevel,
-		Silent:           clonePrimitive(o.Silent),
-		SetNetworkConfig: clonePrimitive(o.SetNetworkConfig),
-	}
-}
-
-func (origin *GeneralOptions) Merge(overrides *GeneralOptions) *GeneralOptions {
-	if overrides == nil {
-		return origin.Clone()
-	}
-
-	if origin == nil {
-		return overrides.Clone()
-	}
-
-	return &GeneralOptions{
-		LogLevel: lo.CoalesceOrEmpty(overrides.LogLevel, origin.LogLevel),
-		Silent:   lo.CoalesceOrEmpty(overrides.Silent, origin.Silent),
-		SetNetworkConfig: lo.CoalesceOrEmpty(
-			overrides.SetNetworkConfig,
-			origin.SetNetworkConfig,
-		),
-	}
-}
-
-// ┌────────────────┐
-// │ SERVER OPTIONS │
-// └────────────────┘
-var _ merger[*ServerOptions] = (*ServerOptions)(nil)
-
-type ServerModeType int
-
-const (
-	ServerModeHTTP ServerModeType = iota
-	ServerModeSOCKS5
-	ServerModeTUN
-)
-
-var availableServerModeValues = []string{"http", "socks5", "tun"}
-
-func (t ServerModeType) String() string {
-	return availableServerModeValues[t]
-}
-
-type ServerOptions struct {
-	Mode       *ServerModeType `toml:"mode"`
-	DefaultTTL *uint8          `toml:"default-ttl"`
-	ListenAddr *net.TCPAddr    `toml:"listen-addr"`
-	Timeout    *time.Duration  `toml:"timeout"`
-}
-
-func (o *ServerOptions) UnmarshalTOML(data any) (err error) {
-	v, ok := data.(map[string]any)
-	if !ok {
-		return fmt.Errorf("non-table type server config")
-	}
-
-	if p := findFrom(v, "mode", parseStringFn(checkServerMode), &err); isOk(p, err) {
-		o.Mode = lo.ToPtr(MustParseServerModeType(*p))
-	}
-
-	o.DefaultTTL = findFrom(v, "default-ttl", parseIntFn[uint8](checkUint8NonZero), &err)
-
-	if p := findFrom(v, "listen-addr", parseStringFn(checkHostPort), &err); isOk(p, err) {
-		o.ListenAddr = lo.ToPtr(MustParseTCPAddr(*p))
-	}
-
-	if p := findFrom(v, "timeout", parseIntFn[uint16](checkUint16), &err); isOk(p, err) {
-		o.Timeout = lo.ToPtr(time.Duration(*p) * time.Millisecond)
-	}
-
-	return err
-}
-
-func (o *ServerOptions) Clone() *ServerOptions {
-	if o == nil {
-		return nil
 	}
 
 	var newAddr *net.TCPAddr
@@ -156,15 +84,16 @@ func (o *ServerOptions) Clone() *ServerOptions {
 		}
 	}
 
-	return &ServerOptions{
-		Mode:       clonePrimitive(o.Mode),
-		DefaultTTL: clonePrimitive(o.DefaultTTL),
-		ListenAddr: newAddr,
-		Timeout:    clonePrimitive(o.Timeout),
+	return &AppOptions{
+		LogLevel:         newLevel,
+		Silent:           clonePrimitive(o.Silent),
+		SetNetworkConfig: clonePrimitive(o.SetNetworkConfig),
+		Mode:             clonePrimitive(o.Mode),
+		ListenAddr:       newAddr,
 	}
 }
 
-func (origin *ServerOptions) Merge(overrides *ServerOptions) *ServerOptions {
+func (origin *AppOptions) Merge(overrides *AppOptions) *AppOptions {
 	if overrides == nil {
 		return origin.Clone()
 	}
@@ -173,11 +102,121 @@ func (origin *ServerOptions) Merge(overrides *ServerOptions) *ServerOptions {
 		return overrides.Clone()
 	}
 
-	return &ServerOptions{
+	return &AppOptions{
+		LogLevel: lo.CoalesceOrEmpty(overrides.LogLevel, origin.LogLevel),
+		Silent:   lo.CoalesceOrEmpty(overrides.Silent, origin.Silent),
+		SetNetworkConfig: lo.CoalesceOrEmpty(
+			overrides.SetNetworkConfig,
+			origin.SetNetworkConfig,
+		),
 		Mode:       lo.CoalesceOrEmpty(overrides.Mode, origin.Mode),
-		DefaultTTL: lo.CoalesceOrEmpty(overrides.DefaultTTL, origin.DefaultTTL),
 		ListenAddr: lo.CoalesceOrEmpty(overrides.ListenAddr, origin.ListenAddr),
-		Timeout:    lo.CoalesceOrEmpty(overrides.Timeout, origin.Timeout),
+	}
+}
+
+// ┌──────────────────────┐
+// │ CONNECTION OPTIONS   │
+// └──────────────────────┘
+var _ merger[*ConnOptions] = (*ConnOptions)(nil)
+
+type AppModeType int
+
+const (
+	AppModeHTTP AppModeType = iota
+	AppModeSOCKS5
+	AppModeTUN
+)
+
+var availableAppModeValues = []string{"http", "socks5", "tun"}
+
+func (t AppModeType) String() string {
+	return availableAppModeValues[t]
+}
+
+type ConnOptions struct {
+	DefaultFakeTTL *uint8         `toml:"default-fake-ttl"`
+	DNSTimeout     *time.Duration `toml:"dns-timeout"`
+	TCPTimeout     *time.Duration `toml:"tcp-timeout"`
+	UDPTimeout     *time.Duration `toml:"udp-timeout"`
+}
+
+func (o *ConnOptions) UnmarshalTOML(data any) (err error) {
+	v, ok := data.(map[string]any)
+	if !ok {
+		return fmt.Errorf("non-table type connection config")
+	}
+
+	o.DefaultFakeTTL = findFrom(
+		v,
+		"default-fake-ttl",
+		parseIntFn[uint8](checkUint8NonZero),
+		&err,
+	)
+
+	if p := findFrom(
+		v,
+		"dns-timeout",
+		parseIntFn[uint16](checkUint16),
+		&err,
+	); isOk(
+		p,
+		err,
+	) {
+		o.DNSTimeout = lo.ToPtr(time.Duration(*p) * time.Millisecond)
+	}
+	if p := findFrom(
+		v,
+		"tcp-timeout",
+		parseIntFn[uint16](checkUint16),
+		&err,
+	); isOk(
+		p,
+		err,
+	) {
+		o.TCPTimeout = lo.ToPtr(time.Duration(*p) * time.Millisecond)
+	}
+	if p := findFrom(
+		v,
+		"udp-timeout",
+		parseIntFn[uint16](checkUint16),
+		&err,
+	); isOk(
+		p,
+		err,
+	) {
+		o.UDPTimeout = lo.ToPtr(time.Duration(*p) * time.Millisecond)
+	}
+
+	return err
+}
+
+func (o *ConnOptions) Clone() *ConnOptions {
+	if o == nil {
+		return nil
+	}
+
+	return &ConnOptions{
+		DefaultFakeTTL: clonePrimitive(o.DefaultFakeTTL),
+		DNSTimeout:     clonePrimitive(o.DNSTimeout),
+		TCPTimeout:     clonePrimitive(o.TCPTimeout),
+		UDPTimeout:     clonePrimitive(o.UDPTimeout),
+	}
+}
+
+func (origin *ConnOptions) Merge(overrides *ConnOptions) *ConnOptions {
+	if overrides == nil {
+		return origin.Clone()
+	}
+
+	if origin == nil {
+		return overrides.Clone()
+	}
+
+	return &ConnOptions{
+		DefaultFakeTTL: lo.CoalesceOrEmpty(overrides.DefaultFakeTTL, origin.DefaultFakeTTL),
+		DNSTimeout:     lo.CoalesceOrEmpty(overrides.DNSTimeout, origin.DNSTimeout),
+		TCPTimeout:     lo.CoalesceOrEmpty(overrides.TCPTimeout, origin.TCPTimeout),
+		UDPTimeout:     lo.CoalesceOrEmpty(overrides.UDPTimeout, origin.UDPTimeout),
 	}
 }
 
@@ -524,9 +563,8 @@ func (origin *HTTPSOptions) Merge(overrides *HTTPSOptions) *HTTPSOptions {
 var _ merger[*UDPOptions] = (*UDPOptions)(nil)
 
 type UDPOptions struct {
-	FakeCount  *int           `toml:"fake-count"  json:"fc,omitempty"`
-	FakePacket []byte         `toml:"fake-packet" json:"fp,omitempty"`
-	Timeout    *time.Duration `toml:"timeout"     json:"to,omitempty"`
+	FakeCount  *int   `toml:"fake-count"  json:"fc,omitempty"`
+	FakePacket []byte `toml:"fake-packet" json:"fp,omitempty"`
 }
 
 func (o *UDPOptions) UnmarshalTOML(data any) (err error) {
@@ -540,10 +578,6 @@ func (o *UDPOptions) UnmarshalTOML(data any) (err error) {
 	)
 	o.FakePacket = findSliceFrom(m, "fake-packet", parseByteFn(nil), &err)
 
-	if p := findFrom(m, "timeout", parseIntFn[uint16](checkUint16), &err); isOk(p, err) {
-		o.Timeout = lo.ToPtr(time.Duration(*p) * time.Millisecond)
-	}
-
 	return err
 }
 
@@ -555,7 +589,6 @@ func (o *UDPOptions) Clone() *UDPOptions {
 	return &UDPOptions{
 		FakeCount:  clonePrimitive(o.FakeCount),
 		FakePacket: append([]byte(nil), o.FakePacket...),
-		Timeout:    clonePrimitive(o.Timeout),
 	}
 }
 
@@ -576,7 +609,6 @@ func (origin *UDPOptions) Merge(overrides *UDPOptions) *UDPOptions {
 	return &UDPOptions{
 		FakeCount:  lo.CoalesceOrEmpty(overrides.FakeCount, origin.FakeCount),
 		FakePacket: fakePacket,
-		Timeout:    lo.CoalesceOrEmpty(overrides.Timeout, origin.Timeout),
 	}
 }
 
@@ -730,6 +762,7 @@ type Rule struct {
 	DNS      *DNSOptions   `toml:"dns-override"   json:"D,omitempty"`
 	HTTPS    *HTTPSOptions `toml:"https-override" json:"H,omitempty"`
 	UDP      *UDPOptions   `toml:"udp-override"   json:"U,omitempty"`
+	Conn     *ConnOptions  `toml:"conn-override"  json:"C,omitempty"`
 }
 
 func (r *Rule) UnmarshalTOML(data any) (err error) {
@@ -745,6 +778,7 @@ func (r *Rule) UnmarshalTOML(data any) (err error) {
 	r.DNS = findStructFrom[DNSOptions](m, "dns", &err)
 	r.HTTPS = findStructFrom[HTTPSOptions](m, "https", &err)
 	r.UDP = findStructFrom[UDPOptions](m, "udp", &err)
+	r.Conn = findStructFrom[ConnOptions](m, "connection", &err)
 
 	// if err == nil {
 	// 	err = checkRule(*r)
@@ -765,6 +799,7 @@ func (r *Rule) Clone() *Rule {
 		DNS:      r.DNS.Clone(),
 		HTTPS:    r.HTTPS.Clone(),
 		UDP:      r.UDP.Clone(),
+		Conn:     r.Conn.Clone(),
 	}
 }
 

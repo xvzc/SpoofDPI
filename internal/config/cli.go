@@ -36,6 +36,20 @@ func CreateCommand(
 			return err
 		},
 		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name: "app-mode",
+				Usage: fmt.Sprintf(`<"http"|"socks5"|"tun">
+				Specifies the proxy mode. (default: %q)`,
+					defaultCfg.App.Mode.String(),
+				),
+				OnlyOnce:  true,
+				Validator: checkAppMode,
+				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
+					argsCfg.App.Mode = lo.ToPtr(MustParseServerModeType(v))
+					return nil
+				},
+			},
+
 			&cli.BoolFlag{
 				Name: "clean",
 				Usage: `
@@ -54,29 +68,15 @@ func CreateCommand(
 			},
 
 			&cli.Int64Flag{
-				Name: "default-ttl",
+				Name: "default-fake-ttl",
 				Usage: fmt.Sprintf(`
-				Default TTL value for manipulated packets. (default: %v)`,
-					*defaultCfg.Server.DefaultTTL,
+				Default TTL value for fake packets. (default: %v)`,
+					*defaultCfg.Conn.DefaultFakeTTL,
 				),
 				OnlyOnce:  true,
 				Validator: checkUint8NonZero,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.Server.DefaultTTL = lo.ToPtr(uint8(v))
-					return nil
-				},
-			},
-
-			&cli.StringFlag{
-				Name: "server-mode",
-				Usage: fmt.Sprintf(`<"http"|"socks5"|"tun">
-				Specifies the proxy mode. (default: %q)`,
-					defaultCfg.Server.Mode.String(),
-				),
-				OnlyOnce:  true,
-				Validator: checkServerMode,
-				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.Server.Mode = lo.ToPtr(MustParseServerModeType(v))
+					argsCfg.Conn.DefaultFakeTTL = lo.ToPtr(uint8(v))
 					return nil
 				},
 			},
@@ -153,6 +153,25 @@ func CreateCommand(
 				Validator: checkDNSQueryType,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
 					argsCfg.DNS.QType = lo.ToPtr(MustParseDNSQueryType(v))
+					return nil
+				},
+			},
+
+			&cli.Int64Flag{
+				Name: "dns-timeout",
+				Usage: fmt.Sprintf(`
+				Timeout for dns connection in milliseconds. 
+				No effect when the value is 0 (default: %v, max: %v)`,
+					defaultCfg.Conn.DNSTimeout.Milliseconds(),
+					math.MaxUint16,
+				),
+				Value:     0,
+				OnlyOnce:  true,
+				Validator: checkUint16,
+				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
+					argsCfg.Conn.DNSTimeout = lo.ToPtr(
+						time.Duration(v * int64(time.Millisecond)),
+					)
 					return nil
 				},
 			},
@@ -280,14 +299,18 @@ func CreateCommand(
 			&cli.Int64Flag{
 				Name: "udp-timeout",
 				Usage: fmt.Sprintf(`
-				UDP session timeout in milliseconds. (default: %v)`,
-					*defaultCfg.UDP.Timeout,
+				Timeout for udp connection in milliseconds. 
+				No effect when the value is 0 (default: %v, max: %v)`,
+					defaultCfg.Conn.UDPTimeout.Milliseconds(),
+					math.MaxUint16,
 				),
 				Value:     0,
 				OnlyOnce:  true,
 				Validator: checkUint16,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.UDP.Timeout = lo.ToPtr(time.Duration(v) * time.Millisecond)
+					argsCfg.Conn.UDPTimeout = lo.ToPtr(
+						time.Duration(v * int64(time.Millisecond)),
+					)
 					return nil
 				},
 			},
@@ -302,7 +325,7 @@ func CreateCommand(
 					if v == "" {
 						return nil
 					}
-					argsCfg.Server.ListenAddr = lo.ToPtr(MustParseTCPAddr(v))
+					argsCfg.App.ListenAddr = lo.ToPtr(MustParseTCPAddr(v))
 					return nil
 				},
 			},
@@ -314,7 +337,7 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkLogLevel,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.General.LogLevel = lo.ToPtr(MustParseLogLevel(v))
+					argsCfg.App.LogLevel = lo.ToPtr(MustParseLogLevel(v))
 					return nil
 				},
 			},
@@ -336,11 +359,11 @@ func CreateCommand(
 				Name: "silent",
 				Usage: fmt.Sprintf(`
 				Do not show the banner at start up (default: %v)`,
-					*defaultCfg.General.Silent,
+					*defaultCfg.App.Silent,
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.General.Silent = lo.ToPtr(v)
+					argsCfg.App.Silent = lo.ToPtr(v)
 					return nil
 				},
 			},
@@ -349,28 +372,28 @@ func CreateCommand(
 				Name: "network-config",
 				Usage: fmt.Sprintf(`
 				Automatically set system-wide proxy configuration (default: %v)`,
-					*defaultCfg.General.SetNetworkConfig,
+					*defaultCfg.App.SetNetworkConfig,
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.General.SetNetworkConfig = lo.ToPtr(v)
+					argsCfg.App.SetNetworkConfig = lo.ToPtr(v)
 					return nil
 				},
 			},
 
 			&cli.Int64Flag{
-				Name: "timeout",
+				Name: "tcp-timeout",
 				Usage: fmt.Sprintf(`
 				Timeout for tcp connection in milliseconds. 
 				No effect when the value is 0 (default: %v, max: %v)`,
-					*defaultCfg.Server.Timeout,
+					defaultCfg.Conn.TCPTimeout.Milliseconds(),
 					math.MaxUint16,
 				),
 				Value:     0,
 				OnlyOnce:  true,
 				Validator: checkUint16,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.Server.Timeout = lo.ToPtr(
+					argsCfg.Conn.TCPTimeout = lo.ToPtr(
 						time.Duration(v * int64(time.Millisecond)),
 					)
 					return nil
@@ -419,12 +442,12 @@ func CreateCommand(
 
 			finalCfg := defaultCfg.Merge(tomlCfg.Merge(argsCfg))
 
-			if finalCfg.Server.ListenAddr == nil {
+			if finalCfg.App.ListenAddr == nil {
 				port := 8080
-				if *finalCfg.Server.Mode == ServerModeSOCKS5 {
+				if *finalCfg.App.Mode == AppModeSOCKS5 {
 					port = 1080
 				}
-				finalCfg.Server.ListenAddr = &net.TCPAddr{
+				finalCfg.App.ListenAddr = &net.TCPAddr{
 					IP:   net.ParseIP("127.0.0.1"),
 					Port: port,
 				}

@@ -53,7 +53,13 @@ func DialFastest(
 
 				// If Iface is specified, bind to the interface
 				if dst.Iface != nil {
-					bindToInterface(dialer, dst.Iface, ip)
+					if err := bindToInterface(dialer, dst.Iface, ip); err != nil {
+						select {
+						case results <- dialResult{conn: nil, err: err}:
+						case <-ctx.Done():
+						}
+						return
+					}
 				}
 
 				conn, err := dialer.DialContext(ctx, network, targetAddr)

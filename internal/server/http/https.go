@@ -20,23 +20,26 @@ import (
 )
 
 type HTTPSHandler struct {
-	logger    zerolog.Logger
-	desyncer  *desync.TLSDesyncer
-	sniffer   packet.Sniffer
-	httpsOpts *config.HTTPSOptions
+	logger           zerolog.Logger
+	desyncer         *desync.TLSDesyncer
+	sniffer          packet.Sniffer
+	defaultHTTPSOpts *config.HTTPSOptions
+	defaultConnOpts  *config.ConnOptions
 }
 
 func NewHTTPSHandler(
 	logger zerolog.Logger,
 	desyncer *desync.TLSDesyncer,
 	sniffer packet.Sniffer,
-	httpsOpts *config.HTTPSOptions,
+	defaultHTTPSOpts *config.HTTPSOptions,
+	defaultConnOpts *config.ConnOptions,
 ) *HTTPSHandler {
 	return &HTTPSHandler{
-		logger:    logger,
-		desyncer:  desyncer,
-		sniffer:   sniffer,
-		httpsOpts: httpsOpts,
+		logger:           logger,
+		desyncer:         desyncer,
+		sniffer:          sniffer,
+		defaultHTTPSOpts: defaultHTTPSOpts,
+		defaultConnOpts:  defaultConnOpts,
 	}
 }
 
@@ -46,9 +49,11 @@ func (h *HTTPSHandler) HandleRequest(
 	dst *netutil.Destination,
 	rule *config.Rule,
 ) error {
-	opts := h.httpsOpts.Clone()
+	httpsOpts := h.defaultHTTPSOpts.Clone()
+	connOpts := h.defaultConnOpts.Clone()
 	if rule != nil {
-		opts = opts.Merge(rule.HTTPS)
+		httpsOpts = httpsOpts.Merge(rule.HTTPS)
+		connOpts = connOpts.Merge(rule.Conn)
 	}
 
 	logger := logging.WithLocalScope(ctx, h.logger, "handshake")
@@ -64,21 +69,23 @@ func (h *HTTPSHandler) HandleRequest(
 	logger.Trace().Msgf("sent 200 connection established -> %s", lConn.RemoteAddr())
 
 	// 2. Tunnel
-	return h.tunnel(ctx, lConn, dst, opts)
+	return h.tunnel(ctx, lConn, dst, httpsOpts, connOpts)
 }
 
 func (h *HTTPSHandler) tunnel(
 	ctx context.Context,
 	lConn net.Conn,
 	dst *netutil.Destination,
-	opts *config.HTTPSOptions,
+	httpsOpts *config.HTTPSOptions,
+	connOpts *config.ConnOptions,
 ) error {
-	if h.sniffer != nil && lo.FromPtr(opts.FakeCount) > 0 {
+	if h.sniffer != nil && lo.FromPtr(httpsOpts.FakeCount) > 0 {
 		h.sniffer.RegisterUntracked(dst.Addrs)
 	}
 
 	logger := logging.WithLocalScope(ctx, h.logger, "https")
 
+	dst.Timeout = *connOpts.TCPTimeout
 	rConn, err := netutil.DialFastest(ctx, "tcp", dst)
 	if err != nil {
 		return err
@@ -107,7 +114,7 @@ func (h *HTTPSHandler) tunnel(
 	}
 
 	// Send ClientHello to the remote server (with desync if configured)
-	n, err := h.sendClientHello(ctx, rConn, tlsMsg, opts)
+	n, err := h.sendClientHello(ctx, rConn, tlsMsg, httpsOpts)
 	if err != nil {
 		return fmt.Errorf("failed to send client hello: %w", err)
 	}

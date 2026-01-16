@@ -15,12 +15,12 @@ import (
 // ┌─────────────────┐
 // │ GENERAL OPTIONS │
 // └─────────────────┘
-func TestGeneralOptions_UnmarshalTOML(t *testing.T) {
+func TestAppOptions_UnmarshalTOML(t *testing.T) {
 	tcs := []struct {
 		name    string
 		input   any
 		wantErr bool
-		assert  func(t *testing.T, o GeneralOptions)
+		assert  func(t *testing.T, o AppOptions)
 	}{
 		{
 			name: "valid general options",
@@ -28,12 +28,14 @@ func TestGeneralOptions_UnmarshalTOML(t *testing.T) {
 				"log-level":      "debug",
 				"silent":         true,
 				"network-config": true,
+				"mode":           "socks5",
 			},
 			wantErr: false,
-			assert: func(t *testing.T, o GeneralOptions) {
+			assert: func(t *testing.T, o AppOptions) {
 				assert.Equal(t, zerolog.DebugLevel, *o.LogLevel)
 				assert.True(t, *o.Silent)
 				assert.True(t, *o.SetNetworkConfig)
+				assert.Equal(t, AppModeSOCKS5, *o.Mode)
 			},
 		},
 		{
@@ -45,7 +47,7 @@ func TestGeneralOptions_UnmarshalTOML(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			var o GeneralOptions
+			var o AppOptions
 			err := o.UnmarshalTOML(tc.input)
 			if tc.wantErr {
 				assert.Error(t, err)
@@ -59,26 +61,26 @@ func TestGeneralOptions_UnmarshalTOML(t *testing.T) {
 	}
 }
 
-func TestGeneralOptions_Clone(t *testing.T) {
+func TestAppOptions_Clone(t *testing.T) {
 	tcs := []struct {
 		name   string
-		input  *GeneralOptions
-		assert func(t *testing.T, input *GeneralOptions, output *GeneralOptions)
+		input  *AppOptions
+		assert func(t *testing.T, input *AppOptions, output *AppOptions)
 	}{
 		{
 			name:  "nil receiver",
 			input: nil,
-			assert: func(t *testing.T, input *GeneralOptions, output *GeneralOptions) {
+			assert: func(t *testing.T, input *AppOptions, output *AppOptions) {
 				assert.Nil(t, output)
 			},
 		},
 		{
 			name: "non-nil receiver",
-			input: &GeneralOptions{
+			input: &AppOptions{
 				LogLevel: lo.ToPtr(zerolog.DebugLevel),
 				Silent:   lo.ToPtr(true),
 			},
-			assert: func(t *testing.T, input *GeneralOptions, output *GeneralOptions) {
+			assert: func(t *testing.T, input *AppOptions, output *AppOptions) {
 				assert.NotNil(t, output)
 				assert.Equal(t, zerolog.DebugLevel, *output.LogLevel)
 				assert.True(t, *output.Silent)
@@ -95,39 +97,39 @@ func TestGeneralOptions_Clone(t *testing.T) {
 	}
 }
 
-func TestGeneralOptions_Merge(t *testing.T) {
+func TestAppOptions_Merge(t *testing.T) {
 	tcs := []struct {
 		name     string
-		base     *GeneralOptions
-		override *GeneralOptions
-		assert   func(t *testing.T, output *GeneralOptions)
+		base     *AppOptions
+		override *AppOptions
+		assert   func(t *testing.T, output *AppOptions)
 	}{
 		{
 			name:     "nil receiver",
 			base:     nil,
-			override: &GeneralOptions{Silent: lo.ToPtr(true)},
-			assert: func(t *testing.T, output *GeneralOptions) {
+			override: &AppOptions{Silent: lo.ToPtr(true)},
+			assert: func(t *testing.T, output *AppOptions) {
 				assert.True(t, *output.Silent)
 			},
 		},
 		{
 			name:     "nil override",
-			base:     &GeneralOptions{Silent: lo.ToPtr(false)},
+			base:     &AppOptions{Silent: lo.ToPtr(false)},
 			override: nil,
-			assert: func(t *testing.T, output *GeneralOptions) {
+			assert: func(t *testing.T, output *AppOptions) {
 				assert.False(t, *output.Silent)
 			},
 		},
 		{
 			name: "merge values",
-			base: &GeneralOptions{
+			base: &AppOptions{
 				Silent:   lo.ToPtr(false),
 				LogLevel: lo.ToPtr(zerolog.InfoLevel),
 			},
-			override: &GeneralOptions{
+			override: &AppOptions{
 				Silent: lo.ToPtr(true),
 			},
-			assert: func(t *testing.T, output *GeneralOptions) {
+			assert: func(t *testing.T, output *AppOptions) {
 				assert.True(t, *output.Silent)
 				assert.Equal(t, zerolog.InfoLevel, *output.LogLevel)
 			},
@@ -145,25 +147,27 @@ func TestGeneralOptions_Merge(t *testing.T) {
 // ┌────────────────┐
 // │ SERVER OPTIONS │
 // └────────────────┘
-func TestServerOptions_UnmarshalTOML(t *testing.T) {
+func TestConnOptions_UnmarshalTOML(t *testing.T) {
 	tcs := []struct {
 		name    string
 		input   any
 		wantErr bool
-		assert  func(t *testing.T, o ServerOptions)
+		assert  func(t *testing.T, o ConnOptions)
 	}{
 		{
 			name: "valid server options",
 			input: map[string]any{
-				"default-ttl": int64(64),
-				"listen-addr": "127.0.0.1:8080",
-				"timeout":     int64(1000),
+				"default-fake-ttl": int64(64),
+				"dns-timeout":      int64(1000),
+				"tcp-timeout":      int64(1000),
+				"udp-timeout":      int64(1000),
 			},
 			wantErr: false,
-			assert: func(t *testing.T, o ServerOptions) {
-				assert.Equal(t, uint8(64), *o.DefaultTTL)
-				assert.Equal(t, "127.0.0.1:8080", o.ListenAddr.String())
-				assert.Equal(t, 1000*time.Millisecond, *o.Timeout)
+			assert: func(t *testing.T, o ConnOptions) {
+				assert.Equal(t, uint8(64), *o.DefaultFakeTTL)
+				assert.Equal(t, 1000*time.Millisecond, *o.DNSTimeout)
+				assert.Equal(t, 1000*time.Millisecond, *o.TCPTimeout)
+				assert.Equal(t, 1000*time.Millisecond, *o.UDPTimeout)
 			},
 		},
 		{
@@ -175,7 +179,7 @@ func TestServerOptions_UnmarshalTOML(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			var o ServerOptions
+			var o ConnOptions
 			err := o.UnmarshalTOML(tc.input)
 			if tc.wantErr {
 				assert.Error(t, err)
@@ -189,33 +193,34 @@ func TestServerOptions_UnmarshalTOML(t *testing.T) {
 	}
 }
 
-func TestServerOptions_Clone(t *testing.T) {
+func TestConnOptions_Clone(t *testing.T) {
 	tcs := []struct {
 		name   string
-		input  *ServerOptions
-		assert func(t *testing.T, input *ServerOptions, output *ServerOptions)
+		input  *ConnOptions
+		assert func(t *testing.T, input *ConnOptions, output *ConnOptions)
 	}{
 		{
 			name:  "nil receiver",
 			input: nil,
-			assert: func(t *testing.T, input *ServerOptions, output *ServerOptions) {
+			assert: func(t *testing.T, input *ConnOptions, output *ConnOptions) {
 				assert.Nil(t, output)
 			},
 		},
 		{
 			name: "non-nil receiver",
-			input: &ServerOptions{
-				DefaultTTL: lo.ToPtr(uint8(64)),
-				ListenAddr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8080},
+			input: &ConnOptions{
+				DefaultFakeTTL: lo.ToPtr(uint8(64)),
+				DNSTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
+				TCPTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
+				UDPTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
 			},
-			assert: func(t *testing.T, input *ServerOptions, output *ServerOptions) {
+			assert: func(t *testing.T, input *ConnOptions, output *ConnOptions) {
 				assert.NotNil(t, output)
-				assert.Equal(t, uint8(64), *output.DefaultTTL)
-				assert.Equal(t, "127.0.0.1:8080", output.ListenAddr.String())
+				assert.Equal(t, uint8(64), *output.DefaultFakeTTL)
+				assert.Equal(t, 1000*time.Millisecond, *output.DNSTimeout)
+				assert.Equal(t, 1000*time.Millisecond, *output.TCPTimeout)
+				assert.Equal(t, 1000*time.Millisecond, *output.UDPTimeout)
 				assert.NotSame(t, input, output)
-				if output.ListenAddr != nil {
-					assert.NotSame(t, input.ListenAddr, output.ListenAddr)
-				}
 			},
 		},
 	}
@@ -228,41 +233,45 @@ func TestServerOptions_Clone(t *testing.T) {
 	}
 }
 
-func TestServerOptions_Merge(t *testing.T) {
+func TestConnOptions_Merge(t *testing.T) {
 	tcs := []struct {
 		name     string
-		base     *ServerOptions
-		override *ServerOptions
-		assert   func(t *testing.T, output *ServerOptions)
+		base     *ConnOptions
+		override *ConnOptions
+		assert   func(t *testing.T, output *ConnOptions)
 	}{
 		{
 			name:     "nil receiver",
 			base:     nil,
-			override: &ServerOptions{DefaultTTL: lo.ToPtr(uint8(64))},
-			assert: func(t *testing.T, output *ServerOptions) {
-				assert.Equal(t, uint8(64), *output.DefaultTTL)
+			override: &ConnOptions{DefaultFakeTTL: lo.ToPtr(uint8(64))},
+			assert: func(t *testing.T, output *ConnOptions) {
+				assert.Equal(t, uint8(64), *output.DefaultFakeTTL)
 			},
 		},
 		{
 			name:     "nil override",
-			base:     &ServerOptions{DefaultTTL: lo.ToPtr(uint8(128))},
+			base:     &ConnOptions{DefaultFakeTTL: lo.ToPtr(uint8(128))},
 			override: nil,
-			assert: func(t *testing.T, output *ServerOptions) {
-				assert.Equal(t, uint8(128), *output.DefaultTTL)
+			assert: func(t *testing.T, output *ConnOptions) {
+				assert.Equal(t, uint8(128), *output.DefaultFakeTTL)
 			},
 		},
 		{
 			name: "merge values",
-			base: &ServerOptions{
-				DefaultTTL: lo.ToPtr(uint8(64)),
-				ListenAddr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8080},
+			base: &ConnOptions{
+				DefaultFakeTTL: lo.ToPtr(uint8(64)),
+				DNSTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
+				TCPTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
+				UDPTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
 			},
-			override: &ServerOptions{
-				DefaultTTL: lo.ToPtr(uint8(128)),
+			override: &ConnOptions{
+				DefaultFakeTTL: lo.ToPtr(uint8(128)),
 			},
-			assert: func(t *testing.T, output *ServerOptions) {
-				assert.Equal(t, uint8(128), *output.DefaultTTL)
-				assert.Equal(t, "127.0.0.1:8080", output.ListenAddr.String())
+			assert: func(t *testing.T, output *ConnOptions) {
+				assert.Equal(t, uint8(128), *output.DefaultFakeTTL)
+				assert.Equal(t, 1000*time.Millisecond, *output.DNSTimeout)
+				assert.Equal(t, 1000*time.Millisecond, *output.TCPTimeout)
+				assert.Equal(t, 1000*time.Millisecond, *output.UDPTimeout)
 			},
 		},
 	}
@@ -844,6 +853,20 @@ func TestRule_UnmarshalTOML(t *testing.T) {
 				assert.Equal(t, "rule1", *r.Name)
 				assert.Equal(t, "example.com", r.Match.Domains[0])
 				assert.True(t, *r.Block)
+			},
+		},
+		{
+			name: "valid rule with connection options",
+			input: map[string]any{
+				"name": "rule2",
+				"connection": map[string]any{
+					"tcp-timeout": int64(500),
+				},
+			},
+			wantErr: false,
+			assert: func(t *testing.T, r Rule) {
+				assert.Equal(t, "rule2", *r.Name)
+				assert.Equal(t, time.Duration(500*time.Millisecond), *r.Conn.TCPTimeout)
 			},
 		},
 		{

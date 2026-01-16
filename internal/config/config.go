@@ -22,12 +22,12 @@ type cloner[T any] interface {
 var _ merger[*Config] = (*Config)(nil)
 
 type Config struct {
-	General *GeneralOptions `toml:"general"`
-	Server  *ServerOptions  `toml:"server"`
-	DNS     *DNSOptions     `toml:"dns"`
-	HTTPS   *HTTPSOptions   `toml:"https"`
-	UDP     *UDPOptions     `toml:"udp"`
-	Policy  *PolicyOptions  `toml:"policy"`
+	App    *AppOptions    `toml:"general"`
+	Conn   *ConnOptions   `toml:"connection"`
+	DNS    *DNSOptions    `toml:"dns"`
+	HTTPS  *HTTPSOptions  `toml:"https"`
+	UDP    *UDPOptions    `toml:"udp"`
+	Policy *PolicyOptions `toml:"policy"`
 }
 
 func (c *Config) UnmarshalTOML(data any) (err error) {
@@ -36,8 +36,8 @@ func (c *Config) UnmarshalTOML(data any) (err error) {
 		return fmt.Errorf("non-table type config file")
 	}
 
-	c.General = findStructFrom[GeneralOptions](m, "general", &err)
-	c.Server = findStructFrom[ServerOptions](m, "server", &err)
+	c.App = findStructFrom[AppOptions](m, "general", &err)
+	c.Conn = findStructFrom[ConnOptions](m, "connection", &err)
 	c.DNS = findStructFrom[DNSOptions](m, "dns", &err)
 	c.HTTPS = findStructFrom[HTTPSOptions](m, "https", &err)
 	c.UDP = findStructFrom[UDPOptions](m, "udp", &err)
@@ -48,12 +48,12 @@ func (c *Config) UnmarshalTOML(data any) (err error) {
 
 func NewConfig() *Config {
 	return &Config{
-		General: &GeneralOptions{},
-		Server:  &ServerOptions{},
-		DNS:     &DNSOptions{},
-		HTTPS:   &HTTPSOptions{},
-		UDP:     &UDPOptions{},
-		Policy:  &PolicyOptions{},
+		App:    &AppOptions{},
+		Conn:   &ConnOptions{},
+		DNS:    &DNSOptions{},
+		HTTPS:  &HTTPSOptions{},
+		UDP:    &UDPOptions{},
+		Policy: &PolicyOptions{},
 	}
 }
 
@@ -63,12 +63,12 @@ func (c *Config) Clone() *Config {
 	}
 
 	return &Config{
-		General: c.General.Clone(),
-		Server:  c.Server.Clone(),
-		DNS:     c.DNS.Clone(),
-		HTTPS:   c.HTTPS.Clone(),
-		UDP:     c.UDP.Clone(),
-		Policy:  c.Policy.Clone(),
+		App:    c.App.Clone(),
+		Conn:   c.Conn.Clone(),
+		DNS:    c.DNS.Clone(),
+		HTTPS:  c.HTTPS.Clone(),
+		UDP:    c.UDP.Clone(),
+		Policy: c.Policy.Clone(),
 	}
 }
 
@@ -82,12 +82,12 @@ func (origin *Config) Merge(overrides *Config) *Config {
 	}
 
 	return &Config{
-		General: origin.General.Merge(overrides.General),
-		Server:  origin.Server.Merge(overrides.Server),
-		DNS:     origin.DNS.Merge(overrides.DNS),
-		HTTPS:   origin.HTTPS.Merge(overrides.HTTPS),
-		UDP:     origin.UDP.Merge(overrides.UDP),
-		Policy:  origin.Policy.Merge(overrides.Policy),
+		App:    origin.App.Merge(overrides.App),
+		Conn:   origin.Conn.Merge(overrides.Conn),
+		DNS:    origin.DNS.Merge(overrides.DNS),
+		HTTPS:  origin.HTTPS.Merge(overrides.HTTPS),
+		UDP:    origin.UDP.Merge(overrides.UDP),
+		Policy: origin.Policy.Merge(overrides.Policy),
 	}
 }
 
@@ -132,16 +132,18 @@ func (c *Config) ShouldEnablePcap() bool {
 
 func getDefault() *Config { //exhaustruct:enforce
 	return &Config{
-		General: &GeneralOptions{
+		App: &AppOptions{
 			LogLevel:         lo.ToPtr(zerolog.InfoLevel),
 			Silent:           lo.ToPtr(false),
 			SetNetworkConfig: lo.ToPtr(false),
+			Mode:             lo.ToPtr(AppModeHTTP),
+			ListenAddr:       nil,
 		},
-		Server: &ServerOptions{
-			Mode:       lo.ToPtr(ServerModeHTTP),
-			DefaultTTL: lo.ToPtr(uint8(64)),
-			ListenAddr: nil,
-			Timeout:    lo.ToPtr(time.Duration(0)),
+		Conn: &ConnOptions{
+			DefaultFakeTTL: lo.ToPtr(uint8(8)),
+			DNSTimeout:     lo.ToPtr(time.Duration(5000) * time.Millisecond),
+			TCPTimeout:     lo.ToPtr(time.Duration(10000) * time.Millisecond),
+			UDPTimeout:     lo.ToPtr(time.Duration(25000) * time.Millisecond),
 		},
 		DNS: &DNSOptions{
 			Mode:     lo.ToPtr(DNSModeUDP),
@@ -162,7 +164,6 @@ func getDefault() *Config { //exhaustruct:enforce
 		UDP: &UDPOptions{
 			FakeCount:  lo.ToPtr(0),
 			FakePacket: make([]byte, 64),
-			Timeout:    lo.ToPtr(time.Duration(0)),
 		},
 		Policy: &PolicyOptions{
 			Auto:      lo.ToPtr(false),

@@ -21,21 +21,23 @@ import (
 var _ Resolver = (*HTTPSResolver)(nil)
 
 type HTTPSResolver struct {
-	logger  zerolog.Logger
-	client  *http.Client
-	dnsOpts *config.DNSOptions
+	logger          zerolog.Logger
+	client          *http.Client
+	defaultDNSOpts  *config.DNSOptions
+	defaultConnOpts *config.ConnOptions
 }
 
 func NewHTTPSResolver(
 	logger zerolog.Logger,
-	dnsOpts *config.DNSOptions,
+	defaultDNSOpts *config.DNSOptions,
+	defaultConnOpts *config.ConnOptions,
 ) *HTTPSResolver {
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			NextProtos: []string{"h2", "http/1.1"},
 		},
 		DialContext: (&net.Dialer{
-			Timeout:   7 * time.Second,
+			Timeout:   *defaultConnOpts.DNSTimeout,
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
 		TLSHandshakeTimeout: 9 * time.Second,
@@ -54,9 +56,10 @@ func NewHTTPSResolver(
 		logger: logger,
 		client: &http.Client{
 			Transport: tr,
-			Timeout:   10 * time.Second,
+			Timeout:   *defaultConnOpts.DNSTimeout,
 		},
-		dnsOpts: dnsOpts,
+		defaultDNSOpts:  defaultDNSOpts,
+		defaultConnOpts: defaultConnOpts,
 	}
 }
 
@@ -64,7 +67,7 @@ func (dr *HTTPSResolver) Info() []ResolverInfo {
 	return []ResolverInfo{
 		{
 			Name: "https",
-			Dst:  *dr.dnsOpts.HTTPSURL,
+			Dst:  *dr.defaultDNSOpts.HTTPSURL,
 		},
 	}
 }
@@ -75,7 +78,7 @@ func (dr *HTTPSResolver) Resolve(
 	fallback Resolver,
 	rule *config.Rule,
 ) (*RecordSet, error) {
-	opts := dr.dnsOpts.Clone()
+	opts := dr.defaultDNSOpts.Clone()
 	if rule != nil {
 		opts = opts.Merge(rule.DNS)
 	}

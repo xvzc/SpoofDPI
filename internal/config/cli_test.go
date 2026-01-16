@@ -24,12 +24,14 @@ func TestCreateCommand_Flags(t *testing.T) {
 			args: []string{"spoofdpi", "--clean"},
 			assert: func(t *testing.T, cfg *Config) {
 				// Verify defaults are preserved
-				assert.Equal(t, zerolog.InfoLevel, *cfg.General.LogLevel)
-				assert.False(t, *cfg.General.Silent)
-				assert.False(t, *cfg.General.SetNetworkConfig)
-				assert.Equal(t, "127.0.0.1:8080", cfg.Server.ListenAddr.String())
-				assert.Equal(t, uint8(64), *cfg.Server.DefaultTTL)
-				assert.Equal(t, time.Duration(0), *cfg.Server.Timeout)
+				assert.Equal(t, zerolog.InfoLevel, *cfg.App.LogLevel)
+				assert.False(t, *cfg.App.Silent)
+				assert.False(t, *cfg.App.SetNetworkConfig)
+				assert.Equal(t, "127.0.0.1:8080", cfg.App.ListenAddr.String())
+				assert.Equal(t, uint8(8), *cfg.Conn.DefaultFakeTTL)
+				assert.Equal(t, int64(5000), cfg.Conn.DNSTimeout.Milliseconds())
+				assert.Equal(t, int64(10000), cfg.Conn.TCPTimeout.Milliseconds())
+				assert.Equal(t, int64(25000), cfg.Conn.UDPTimeout.Milliseconds())
 				assert.Equal(t, "8.8.8.8:53", cfg.DNS.Addr.String())
 				assert.Equal(t, DNSModeUDP, *cfg.DNS.Mode)
 				assert.Equal(t, "https://dns.google/dns-query", *cfg.DNS.HTTPSURL)
@@ -54,8 +56,10 @@ func TestCreateCommand_Flags(t *testing.T) {
 				"--silent",
 				"--network-config",
 				"--listen-addr", "127.0.0.1:9090",
-				"--default-ttl", "128",
-				"--timeout", "5000",
+				"--default-fake-ttl", "128",
+				"--dns-timeout", "5000",
+				"--tcp-timeout", "5000",
+				"--udp-timeout", "5000",
 				"--dns-addr", "1.1.1.1:53",
 				"--dns-mode", "https",
 				"--dns-https-url", "https://cloudflare-dns.com/dns-query",
@@ -69,19 +73,20 @@ func TestCreateCommand_Flags(t *testing.T) {
 				"--https-skip",
 				"--udp-fake-count", "5",
 				"--udp-fake-packet", "0x01, 0x02",
-				"--udp-timeout", "1000",
 				"--policy-auto",
 			},
 			assert: func(t *testing.T, cfg *Config) {
 				// General
-				assert.Equal(t, zerolog.DebugLevel, *cfg.General.LogLevel)
-				assert.True(t, *cfg.General.Silent)
-				assert.True(t, *cfg.General.SetNetworkConfig)
+				assert.Equal(t, zerolog.DebugLevel, *cfg.App.LogLevel)
+				assert.True(t, *cfg.App.Silent)
+				assert.True(t, *cfg.App.SetNetworkConfig)
 
 				// Server
-				assert.Equal(t, "127.0.0.1:9090", cfg.Server.ListenAddr.String())
-				assert.Equal(t, uint8(128), *cfg.Server.DefaultTTL)
-				assert.Equal(t, 5000*time.Millisecond, *cfg.Server.Timeout)
+				assert.Equal(t, "127.0.0.1:9090", cfg.App.ListenAddr.String())
+				assert.Equal(t, uint8(128), *cfg.Conn.DefaultFakeTTL)
+				assert.Equal(t, 5000*time.Millisecond, *cfg.Conn.DNSTimeout)
+				assert.Equal(t, 5000*time.Millisecond, *cfg.Conn.TCPTimeout)
+				assert.Equal(t, 5000*time.Millisecond, *cfg.Conn.UDPTimeout)
 
 				// DNS
 				assert.Equal(t, "1.1.1.1:53", cfg.DNS.Addr.String())
@@ -101,7 +106,7 @@ func TestCreateCommand_Flags(t *testing.T) {
 				// UDP
 				assert.Equal(t, 5, *cfg.UDP.FakeCount)
 				assert.Equal(t, []byte{0x01, 0x02}, cfg.UDP.FakePacket)
-				assert.Equal(t, 1000*time.Millisecond, *cfg.UDP.Timeout)
+				assert.Equal(t, []byte{0x01, 0x02}, cfg.UDP.FakePacket)
 
 				// Policy
 				assert.True(t, *cfg.Policy.Auto)
@@ -118,7 +123,7 @@ func TestCreateCommand_Flags(t *testing.T) {
 				"--https-split-mode", "random",
 			},
 			assert: func(t *testing.T, cfg *Config) {
-				assert.Equal(t, zerolog.ErrorLevel, *cfg.General.LogLevel)
+				assert.Equal(t, zerolog.ErrorLevel, *cfg.App.LogLevel)
 				assert.Equal(t, DNSModeSystem, *cfg.DNS.Mode)
 				assert.Equal(t, DNSQueryAll, *cfg.DNS.QType)
 				assert.Equal(t, HTTPSSplitModeRandom, *cfg.HTTPS.SplitMode)
@@ -132,9 +137,9 @@ func TestCreateCommand_Flags(t *testing.T) {
 				"--listen-addr", "[::1]:1080",
 			},
 			assert: func(t *testing.T, cfg *Config) {
-				assert.Equal(t, "[::1]:1080", cfg.Server.ListenAddr.String())
+				assert.Equal(t, "[::1]:1080", cfg.App.ListenAddr.String())
 				ip := net.ParseIP("::1")
-				assert.True(t, cfg.Server.ListenAddr.IP.Equal(ip))
+				assert.True(t, cfg.App.ListenAddr.IP.Equal(ip))
 			},
 		},
 		{
@@ -142,11 +147,11 @@ func TestCreateCommand_Flags(t *testing.T) {
 			args: []string{
 				"spoofdpi",
 				"--clean",
-				"--server-mode", "socks5",
+				"--app-mode", "socks5",
 			},
 			assert: func(t *testing.T, cfg *Config) {
-				assert.Equal(t, "127.0.0.1:1080", cfg.Server.ListenAddr.String())
-				assert.Equal(t, ServerModeSOCKS5, *cfg.Server.Mode)
+				assert.Equal(t, "127.0.0.1:1080", cfg.App.ListenAddr.String())
+				assert.Equal(t, AppModeSOCKS5, *cfg.App.Mode)
 			},
 		},
 	}
@@ -182,8 +187,10 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 
 [server]
     listen-addr = "127.0.0.1:8080"
-    timeout = 1000
-    default-ttl = 100
+    dns-timeout = 1000
+    tcp-timeout = 1000
+    udp-timeout = 1000
+    default-fake-ttl = 100
 
 [dns]
     addr = "8.8.8.8:53"
@@ -248,8 +255,10 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 		"--silent=false",
 		"--network-config=false",
 		"--listen-addr", "127.0.0.1:9090",
-		"--timeout", "2000",
-		"--default-ttl", "200",
+		"--dns-timeout", "2000",
+		"--tcp-timeout", "2000",
+		"--udp-timeout", "2000",
+		"--default-fake-ttl", "200",
 		"--dns-addr", "1.1.1.1:53",
 		"--dns-cache=false",
 		"--dns-mode", "udp",
@@ -272,14 +281,16 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 
 	// Verify Overrides
 	// General
-	assert.Equal(t, zerolog.ErrorLevel, *capturedCfg.General.LogLevel)
-	assert.False(t, *capturedCfg.General.Silent)
-	assert.False(t, *capturedCfg.General.SetNetworkConfig)
+	assert.Equal(t, zerolog.ErrorLevel, *capturedCfg.App.LogLevel)
+	assert.False(t, *capturedCfg.App.Silent)
+	assert.False(t, *capturedCfg.App.SetNetworkConfig)
 
 	// Server
-	assert.Equal(t, "127.0.0.1:9090", capturedCfg.Server.ListenAddr.String())
-	assert.Equal(t, 2000*time.Millisecond, *capturedCfg.Server.Timeout)
-	assert.Equal(t, uint8(200), *capturedCfg.Server.DefaultTTL)
+	assert.Equal(t, "127.0.0.1:9090", capturedCfg.App.ListenAddr.String())
+	assert.Equal(t, 2000*time.Millisecond, *capturedCfg.Conn.DNSTimeout)
+	assert.Equal(t, 2000*time.Millisecond, *capturedCfg.Conn.TCPTimeout)
+	assert.Equal(t, 2000*time.Millisecond, *capturedCfg.Conn.UDPTimeout)
+	assert.Equal(t, uint8(200), *capturedCfg.Conn.DefaultFakeTTL)
 
 	// DNS
 	assert.Equal(t, "1.1.1.1:53", capturedCfg.DNS.Addr.String())
@@ -299,7 +310,7 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 	// UDP
 	assert.Equal(t, 20, *capturedCfg.UDP.FakeCount)
 	assert.Equal(t, []byte{0xcc, 0xdd}, capturedCfg.UDP.FakePacket)
-	assert.Equal(t, time.Duration(0), *capturedCfg.UDP.Timeout)
+	assert.Equal(t, []byte{0xcc, 0xdd}, capturedCfg.UDP.FakePacket)
 
 	// Policy
 	assert.False(t, *capturedCfg.Policy.Auto)

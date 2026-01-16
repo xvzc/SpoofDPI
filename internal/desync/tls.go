@@ -91,7 +91,7 @@ func (d *TLSDesyncer) sendSegments(
 	total := 0
 	for _, chunk := range segments {
 		if !ttlErrored && chunk.Lazy {
-			setTTLWrap(0)
+			setTTLWrap(1)
 		}
 
 		n, err := conn.Write(chunk.Packet)
