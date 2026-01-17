@@ -223,28 +223,28 @@ func (b *BufferedConn) Peek(n int) ([]byte, error) {
 	return b.r.Peek(n)
 }
 
-// TimeoutConn wraps a net.Conn to update the read deadline on every Read call.
-// This is useful for UDP sessions which do not have a natural EOF.
-type TimeoutConn struct {
+// IdleTimeoutConn wraps a net.Conn to extend the deadline on every Read/Write call.
+// This is useful for sessions which should stay alive as long as there is activity.
+type IdleTimeoutConn struct {
 	net.Conn
 	Timeout    time.Duration
 	LastActive time.Time
 	ExpiredAt  time.Time // Calculated expiration time for cleanup
 }
 
-func (c *TimeoutConn) Read(b []byte) (int, error) {
+func (c *IdleTimeoutConn) Read(b []byte) (int, error) {
 	c.ExtendDeadline()
 	return c.Conn.Read(b)
 }
 
-func (c *TimeoutConn) Write(b []byte) (int, error) {
+func (c *IdleTimeoutConn) Write(b []byte) (int, error) {
 	c.ExtendDeadline()
 	return c.Conn.Write(b)
 }
 
 // ExtendDeadline attempts to extend the connection's deadline.
 // Returns false if the connection was already expired.
-func (c *TimeoutConn) ExtendDeadline() bool {
+func (c *IdleTimeoutConn) ExtendDeadline() bool {
 	now := time.Now()
 
 	// Check if already expired
