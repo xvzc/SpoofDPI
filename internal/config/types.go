@@ -137,7 +137,7 @@ type ConnOptions struct {
 	DefaultFakeTTL *uint8         `toml:"default-fake-ttl"`
 	DNSTimeout     *time.Duration `toml:"dns-timeout"`
 	TCPTimeout     *time.Duration `toml:"tcp-timeout"`
-	UDPTimeout     *time.Duration `toml:"udp-timeout"`
+	UDPIdleTimeout *time.Duration `toml:"udp-idle-timeout"`
 }
 
 func (o *ConnOptions) UnmarshalTOML(data any) (err error) {
@@ -177,14 +177,14 @@ func (o *ConnOptions) UnmarshalTOML(data any) (err error) {
 	}
 	if p := findFrom(
 		v,
-		"udp-timeout",
+		"udp-idle-timeout",
 		parseIntFn[uint16](checkUint16),
 		&err,
 	); isOk(
 		p,
 		err,
 	) {
-		o.UDPTimeout = lo.ToPtr(time.Duration(*p) * time.Millisecond)
+		o.UDPIdleTimeout = lo.ToPtr(time.Duration(*p) * time.Millisecond)
 	}
 
 	return err
@@ -199,7 +199,7 @@ func (o *ConnOptions) Clone() *ConnOptions {
 		DefaultFakeTTL: clonePrimitive(o.DefaultFakeTTL),
 		DNSTimeout:     clonePrimitive(o.DNSTimeout),
 		TCPTimeout:     clonePrimitive(o.TCPTimeout),
-		UDPTimeout:     clonePrimitive(o.UDPTimeout),
+		UDPIdleTimeout: clonePrimitive(o.UDPIdleTimeout),
 	}
 }
 
@@ -216,7 +216,7 @@ func (origin *ConnOptions) Merge(overrides *ConnOptions) *ConnOptions {
 		DefaultFakeTTL: lo.CoalesceOrEmpty(overrides.DefaultFakeTTL, origin.DefaultFakeTTL),
 		DNSTimeout:     lo.CoalesceOrEmpty(overrides.DNSTimeout, origin.DNSTimeout),
 		TCPTimeout:     lo.CoalesceOrEmpty(overrides.TCPTimeout, origin.TCPTimeout),
-		UDPTimeout:     lo.CoalesceOrEmpty(overrides.UDPTimeout, origin.UDPTimeout),
+		UDPIdleTimeout: lo.CoalesceOrEmpty(overrides.UDPIdleTimeout, origin.UDPIdleTimeout),
 	}
 }
 

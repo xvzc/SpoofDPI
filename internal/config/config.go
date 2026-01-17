@@ -143,7 +143,7 @@ func getDefault() *Config { //exhaustruct:enforce
 			DefaultFakeTTL: lo.ToPtr(uint8(8)),
 			DNSTimeout:     lo.ToPtr(time.Duration(5000) * time.Millisecond),
 			TCPTimeout:     lo.ToPtr(time.Duration(10000) * time.Millisecond),
-			UDPTimeout:     lo.ToPtr(time.Duration(25000) * time.Millisecond),
+			UDPIdleTimeout: lo.ToPtr(time.Duration(25000) * time.Millisecond),
 		},
 		DNS: &DNSOptions{
 			Mode:     lo.ToPtr(DNSModeUDP),

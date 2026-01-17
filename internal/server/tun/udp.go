@@ -91,9 +91,9 @@ func (h *UDPHandler) Handle(ctx context.Context, lConn net.Conn, rule *config.Ru
 	// Add to pool (pool handles LRU eviction and deadline)
 	rConn := h.pool.Add(key, rawConn)
 
-	// Wrap lConn with TimeoutConn as well
-	timeout := *connOpts.UDPTimeout
-	lConnWrapped := &netutil.TimeoutConn{Conn: lConn, Timeout: timeout}
+	// Wrap lConn with IdleTimeoutConn as well
+	timeout := *connOpts.UDPIdleTimeout
+	lConnWrapped := &netutil.IdleTimeoutConn{Conn: lConn, Timeout: timeout}
 
 	// Desync
 	_, _ = h.desyncer.Desync(ctx, lConnWrapped, rConn, udpOpts)

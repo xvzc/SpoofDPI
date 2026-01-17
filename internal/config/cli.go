@@ -297,18 +297,18 @@ func CreateCommand(
 			},
 
 			&cli.Int64Flag{
-				Name: "udp-timeout",
+				Name: "udp-idle-timeout",
 				Usage: fmt.Sprintf(`
-				Timeout for udp connection in milliseconds. 
+				Idle timeout for udp connection in milliseconds. 
 				No effect when the value is 0 (default: %v, max: %v)`,
-					defaultCfg.Conn.UDPTimeout.Milliseconds(),
+					defaultCfg.Conn.UDPIdleTimeout.Milliseconds(),
 					math.MaxUint16,
 				),
 				Value:     0,
 				OnlyOnce:  true,
 				Validator: checkUint16,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.Conn.UDPTimeout = lo.ToPtr(
+					argsCfg.Conn.UDPIdleTimeout = lo.ToPtr(
 						time.Duration(v * int64(time.Millisecond)),
 					)
 					return nil

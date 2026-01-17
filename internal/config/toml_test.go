@@ -423,7 +423,7 @@ func TestFromTomlFile(t *testing.T) {
 			[connection]
 				dns-timeout = 1000
 				tcp-timeout = 1000
-				udp-timeout = 1000
+				udp-idle-timeout = 1000
 				default-fake-ttl = 100
 
 			[dns]
@@ -487,7 +487,7 @@ func TestFromTomlFile(t *testing.T) {
 		assert.Equal(t, "127.0.0.1:8080", cfg.App.ListenAddr.String())
 		assert.Equal(t, time.Duration(1000*time.Millisecond), *cfg.Conn.DNSTimeout)
 		assert.Equal(t, time.Duration(1000*time.Millisecond), *cfg.Conn.TCPTimeout)
-		assert.Equal(t, time.Duration(1000*time.Millisecond), *cfg.Conn.UDPTimeout)
+		assert.Equal(t, time.Duration(1000*time.Millisecond), *cfg.Conn.UDPIdleTimeout)
 		assert.Equal(t, zerolog.DebugLevel, *cfg.App.LogLevel)
 		assert.True(t, *cfg.App.Silent)
 		assert.True(t, *cfg.App.SetNetworkConfig)

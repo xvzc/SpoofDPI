@@ -160,14 +160,14 @@ func TestConnOptions_UnmarshalTOML(t *testing.T) {
 				"default-fake-ttl": int64(64),
 				"dns-timeout":      int64(1000),
 				"tcp-timeout":      int64(1000),
-				"udp-timeout":      int64(1000),
+				"udp-idle-timeout":      int64(1000),
 			},
 			wantErr: false,
 			assert: func(t *testing.T, o ConnOptions) {
 				assert.Equal(t, uint8(64), *o.DefaultFakeTTL)
 				assert.Equal(t, 1000*time.Millisecond, *o.DNSTimeout)
 				assert.Equal(t, 1000*time.Millisecond, *o.TCPTimeout)
-				assert.Equal(t, 1000*time.Millisecond, *o.UDPTimeout)
+				assert.Equal(t, 1000*time.Millisecond, *o.UDPIdleTimeout)
 			},
 		},
 		{
@@ -212,14 +212,14 @@ func TestConnOptions_Clone(t *testing.T) {
 				DefaultFakeTTL: lo.ToPtr(uint8(64)),
 				DNSTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
 				TCPTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
-				UDPTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
+				UDPIdleTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
 			},
 			assert: func(t *testing.T, input *ConnOptions, output *ConnOptions) {
 				assert.NotNil(t, output)
 				assert.Equal(t, uint8(64), *output.DefaultFakeTTL)
 				assert.Equal(t, 1000*time.Millisecond, *output.DNSTimeout)
 				assert.Equal(t, 1000*time.Millisecond, *output.TCPTimeout)
-				assert.Equal(t, 1000*time.Millisecond, *output.UDPTimeout)
+				assert.Equal(t, 1000*time.Millisecond, *output.UDPIdleTimeout)
 				assert.NotSame(t, input, output)
 			},
 		},
@@ -262,7 +262,7 @@ func TestConnOptions_Merge(t *testing.T) {
 				DefaultFakeTTL: lo.ToPtr(uint8(64)),
 				DNSTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
 				TCPTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
-				UDPTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
+				UDPIdleTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
 			},
 			override: &ConnOptions{
 				DefaultFakeTTL: lo.ToPtr(uint8(128)),
@@ -271,7 +271,7 @@ func TestConnOptions_Merge(t *testing.T) {
 				assert.Equal(t, uint8(128), *output.DefaultFakeTTL)
 				assert.Equal(t, 1000*time.Millisecond, *output.DNSTimeout)
 				assert.Equal(t, 1000*time.Millisecond, *output.TCPTimeout)
-				assert.Equal(t, 1000*time.Millisecond, *output.UDPTimeout)
+				assert.Equal(t, 1000*time.Millisecond, *output.UDPIdleTimeout)
 			},
 		},
 	}

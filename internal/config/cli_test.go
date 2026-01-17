@@ -31,7 +31,7 @@ func TestCreateCommand_Flags(t *testing.T) {
 				assert.Equal(t, uint8(8), *cfg.Conn.DefaultFakeTTL)
 				assert.Equal(t, int64(5000), cfg.Conn.DNSTimeout.Milliseconds())
 				assert.Equal(t, int64(10000), cfg.Conn.TCPTimeout.Milliseconds())
-				assert.Equal(t, int64(25000), cfg.Conn.UDPTimeout.Milliseconds())
+				assert.Equal(t, int64(25000), cfg.Conn.UDPIdleTimeout.Milliseconds())
 				assert.Equal(t, "8.8.8.8:53", cfg.DNS.Addr.String())
 				assert.Equal(t, DNSModeUDP, *cfg.DNS.Mode)
 				assert.Equal(t, "https://dns.google/dns-query", *cfg.DNS.HTTPSURL)
@@ -59,7 +59,7 @@ func TestCreateCommand_Flags(t *testing.T) {
 				"--default-fake-ttl", "128",
 				"--dns-timeout", "5000",
 				"--tcp-timeout", "5000",
-				"--udp-timeout", "5000",
+				"--udp-idle-timeout", "5000",
 				"--dns-addr", "1.1.1.1:53",
 				"--dns-mode", "https",
 				"--dns-https-url", "https://cloudflare-dns.com/dns-query",
@@ -86,7 +86,7 @@ func TestCreateCommand_Flags(t *testing.T) {
 				assert.Equal(t, uint8(128), *cfg.Conn.DefaultFakeTTL)
 				assert.Equal(t, 5000*time.Millisecond, *cfg.Conn.DNSTimeout)
 				assert.Equal(t, 5000*time.Millisecond, *cfg.Conn.TCPTimeout)
-				assert.Equal(t, 5000*time.Millisecond, *cfg.Conn.UDPTimeout)
+				assert.Equal(t, 5000*time.Millisecond, *cfg.Conn.UDPIdleTimeout)
 
 				// DNS
 				assert.Equal(t, "1.1.1.1:53", cfg.DNS.Addr.String())
@@ -189,7 +189,7 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
     listen-addr = "127.0.0.1:8080"
     dns-timeout = 1000
     tcp-timeout = 1000
-    udp-timeout = 1000
+    udp-idle-timeout = 1000
     default-fake-ttl = 100
 
 [dns]
@@ -257,7 +257,7 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 		"--listen-addr", "127.0.0.1:9090",
 		"--dns-timeout", "2000",
 		"--tcp-timeout", "2000",
-		"--udp-timeout", "2000",
+		"--udp-idle-timeout", "2000",
 		"--default-fake-ttl", "200",
 		"--dns-addr", "1.1.1.1:53",
 		"--dns-cache=false",
@@ -289,7 +289,7 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 	assert.Equal(t, "127.0.0.1:9090", capturedCfg.App.ListenAddr.String())
 	assert.Equal(t, 2000*time.Millisecond, *capturedCfg.Conn.DNSTimeout)
 	assert.Equal(t, 2000*time.Millisecond, *capturedCfg.Conn.TCPTimeout)
-	assert.Equal(t, 2000*time.Millisecond, *capturedCfg.Conn.UDPTimeout)
+	assert.Equal(t, 2000*time.Millisecond, *capturedCfg.Conn.UDPIdleTimeout)
 	assert.Equal(t, uint8(200), *capturedCfg.Conn.DefaultFakeTTL)
 
 	// DNS

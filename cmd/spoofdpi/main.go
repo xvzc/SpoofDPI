@@ -118,10 +118,10 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 			Str("value", fmt.Sprintf("%dms", cfg.Conn.TCPTimeout.Milliseconds())).
 			Msgf("tcp connection timeout")
 	}
-	if *cfg.Conn.UDPTimeout > 0 {
+	if *cfg.Conn.UDPIdleTimeout > 0 {
 		logger.Info().
-			Str("value", fmt.Sprintf("%dms", cfg.Conn.UDPTimeout.Milliseconds())).
-			Msgf("udp connection timeout")
+			Str("value", fmt.Sprintf("%dms", cfg.Conn.UDPIdleTimeout.Milliseconds())).
+			Msgf("udp idle timeout")
 	}
 
 	logger.Info().Msgf("app-mode; %s", cfg.App.Mode.String())
