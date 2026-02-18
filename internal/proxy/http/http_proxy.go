@@ -157,6 +157,8 @@ func (p *HTTPProxy) handleNewConnection(ctx context.Context, conn net.Conn) {
 		logger.Debug().Err(err).Msg("error validating dst addrs")
 		if !ok {
 			_ = proto.HTTPForbiddenResponse().Write(conn)
+
+			return
 		}
 	}
 
