@@ -356,14 +356,14 @@ func CreateCommand(
 			},
 
 			&cli.BoolFlag{
-				Name: "network-config",
+				Name: "auto-configure-network",
 				Usage: fmt.Sprintf(`
 				Automatically set system-wide proxy configuration (default: %v)`,
-					*defaultCfg.App.SetNetworkConfig,
+					*defaultCfg.App.AutoConfigureNetwork,
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.App.SetNetworkConfig = lo.ToPtr(v)
+					argsCfg.App.AutoConfigureNetwork = lo.ToPtr(v)
 					return nil
 				},
 			},

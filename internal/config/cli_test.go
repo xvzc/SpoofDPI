@@ -26,7 +26,7 @@ func TestCreateCommand_Flags(t *testing.T) {
 				// Verify defaults are preserved
 				assert.Equal(t, zerolog.InfoLevel, *cfg.App.LogLevel)
 				assert.False(t, *cfg.App.Silent)
-				assert.False(t, *cfg.App.SetNetworkConfig)
+				assert.False(t, *cfg.App.AutoConfigureNetwork)
 				assert.Equal(t, "127.0.0.1:8080", cfg.App.ListenAddr.String())
 				assert.Equal(t, uint8(8), *cfg.Conn.DefaultFakeTTL)
 				assert.Equal(t, int64(5000), cfg.Conn.DNSTimeout.Milliseconds())
@@ -53,7 +53,7 @@ func TestCreateCommand_Flags(t *testing.T) {
 				"--clean", // Ensure no config file interferes
 				"--log-level", "debug",
 				"--silent",
-				"--network-config",
+				"--auto-configure-network",
 				"--listen-addr", "127.0.0.1:9090",
 				"--default-fake-ttl", "128",
 				"--dns-timeout", "5000",
@@ -77,7 +77,7 @@ func TestCreateCommand_Flags(t *testing.T) {
 				// General
 				assert.Equal(t, zerolog.DebugLevel, *cfg.App.LogLevel)
 				assert.True(t, *cfg.App.Silent)
-				assert.True(t, *cfg.App.SetNetworkConfig)
+				assert.True(t, *cfg.App.AutoConfigureNetwork)
 
 				// Server
 				assert.Equal(t, "127.0.0.1:9090", cfg.App.ListenAddr.String())
@@ -246,7 +246,7 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 		"--config", configPath,
 		"--log-level", "error",
 		"--silent=false",
-		"--network-config=false",
+		"--auto-configure-network=false",
 		"--listen-addr", "127.0.0.1:9090",
 		"--dns-timeout", "2000",
 		"--tcp-timeout", "2000",
@@ -275,7 +275,7 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 	// General
 	assert.Equal(t, zerolog.ErrorLevel, *capturedCfg.App.LogLevel)
 	assert.False(t, *capturedCfg.App.Silent)
-	assert.False(t, *capturedCfg.App.SetNetworkConfig)
+	assert.False(t, *capturedCfg.App.AutoConfigureNetwork)
 
 	// Server
 	assert.Equal(t, "127.0.0.1:9090", capturedCfg.App.ListenAddr.String())

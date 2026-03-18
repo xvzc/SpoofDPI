@@ -25,16 +25,16 @@ func TestAppOptions_UnmarshalTOML(t *testing.T) {
 		{
 			name: "valid general options",
 			input: map[string]any{
-				"log-level":      "debug",
-				"silent":         true,
-				"network-config": true,
-				"mode":           "socks5",
+				"log-level":              "debug",
+				"silent":                 true,
+				"auto-configure-network": true,
+				"mode":                   "socks5",
 			},
 			wantErr: false,
 			assert: func(t *testing.T, o AppOptions) {
 				assert.Equal(t, zerolog.DebugLevel, *o.LogLevel)
 				assert.True(t, *o.Silent)
-				assert.True(t, *o.SetNetworkConfig)
+				assert.True(t, *o.AutoConfigureNetwork)
 				assert.Equal(t, AppModeSOCKS5, *o.Mode)
 			},
 		},

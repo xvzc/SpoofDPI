@@ -44,11 +44,11 @@ var availableLogLevelValues = []string{
 }
 
 type AppOptions struct {
-	LogLevel         *zerolog.Level `toml:"log-level"`
-	Silent           *bool          `toml:"silent"`
-	SetNetworkConfig *bool          `toml:"network-config"`
-	Mode             *AppModeType   `toml:"mode"`
-	ListenAddr       *net.TCPAddr   `toml:"listen-addr"`
+	LogLevel             *zerolog.Level `toml:"log-level"`
+	Silent               *bool          `toml:"silent"`
+	AutoConfigureNetwork *bool          `toml:"auto-configure-network"`
+	Mode                 *AppModeType   `toml:"mode"`
+	ListenAddr           *net.TCPAddr   `toml:"listen-addr"`
 }
 
 func (o *AppOptions) UnmarshalTOML(data any) (err error) {
@@ -58,7 +58,7 @@ func (o *AppOptions) UnmarshalTOML(data any) (err error) {
 	}
 
 	o.Silent = findFrom(m, "silent", parseBoolFn(), &err)
-	o.SetNetworkConfig = findFrom(m, "network-config", parseBoolFn(), &err)
+	o.AutoConfigureNetwork = findFrom(m, "auto-configure-network", parseBoolFn(), &err)
 	if p := findFrom(m, "log-level", parseStringFn(checkLogLevel), &err); isOk(p, err) {
 		o.LogLevel = lo.ToPtr(MustParseLogLevel(*p))
 	}
@@ -92,11 +92,11 @@ func (o *AppOptions) Clone() *AppOptions {
 	}
 
 	return &AppOptions{
-		LogLevel:         newLevel,
-		Silent:           clonePrimitive(o.Silent),
-		SetNetworkConfig: clonePrimitive(o.SetNetworkConfig),
-		Mode:             clonePrimitive(o.Mode),
-		ListenAddr:       newAddr,
+		LogLevel:             newLevel,
+		Silent:               clonePrimitive(o.Silent),
+		AutoConfigureNetwork: clonePrimitive(o.AutoConfigureNetwork),
+		Mode:                 clonePrimitive(o.Mode),
+		ListenAddr:           newAddr,
 	}
 }
 
@@ -112,9 +112,9 @@ func (origin *AppOptions) Merge(overrides *AppOptions) *AppOptions {
 	return &AppOptions{
 		LogLevel: lo.CoalesceOrEmpty(overrides.LogLevel, origin.LogLevel),
 		Silent:   lo.CoalesceOrEmpty(overrides.Silent, origin.Silent),
-		SetNetworkConfig: lo.CoalesceOrEmpty(
-			overrides.SetNetworkConfig,
-			origin.SetNetworkConfig,
+		AutoConfigureNetwork: lo.CoalesceOrEmpty(
+			overrides.AutoConfigureNetwork,
+			origin.AutoConfigureNetwork,
 		),
 		Mode:       lo.CoalesceOrEmpty(overrides.Mode, origin.Mode),
 		ListenAddr: lo.CoalesceOrEmpty(overrides.ListenAddr, origin.ListenAddr),
@@ -387,8 +387,8 @@ var availableHTTPSModeValues = []string{
 	"random",
 	"chunk",
 	"first-byte",
-	"none",
 	"custom",
+	"none",
 }
 
 const (
@@ -396,8 +396,8 @@ const (
 	HTTPSSplitModeRandom
 	HTTPSSplitModeChunk
 	HTTPSSplitModeFirstByte
-	HTTPSSplitModeNone
 	HTTPSSplitModeCustom
+	HTTPSSplitModeNone
 )
 
 func (k HTTPSSplitModeType) String() string {

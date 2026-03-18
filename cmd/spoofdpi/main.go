@@ -74,7 +74,7 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 	<-ready
 
 	// System Proxy Config
-	if *cfg.App.SetNetworkConfig {
+	if *cfg.App.AutoConfigureNetwork {
 		if err := srv.SetNetworkConfig(); err != nil {
 			logger.Fatal().Err(err).Msg("failed to set system network config")
 		}

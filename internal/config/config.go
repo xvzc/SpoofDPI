@@ -133,11 +133,11 @@ func (c *Config) ShouldEnablePcap() bool {
 func getDefault() *Config { //exhaustruct:enforce
 	return &Config{
 		App: &AppOptions{
-			LogLevel:         lo.ToPtr(zerolog.InfoLevel),
-			Silent:           lo.ToPtr(false),
-			SetNetworkConfig: lo.ToPtr(false),
-			Mode:             lo.ToPtr(AppModeHTTP),
-			ListenAddr:       nil,
+			LogLevel:             lo.ToPtr(zerolog.InfoLevel),
+			Silent:               lo.ToPtr(false),
+			AutoConfigureNetwork: lo.ToPtr(false),
+			Mode:                 lo.ToPtr(AppModeHTTP),
+			ListenAddr:           nil,
 		},
 		Conn: &ConnOptions{
 			DefaultFakeTTL: lo.ToPtr(uint8(8)),
