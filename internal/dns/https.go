@@ -48,8 +48,7 @@ func NewHTTPSResolver(
 
 	// Configure HTTP/2 transport explicitly
 	if err := http2.ConfigureTransport(tr); err != nil {
-		// Log error instead of panic if strict http2 is not required, otherwise panic
-		panic(fmt.Sprintf("failed to configure http2: %v", err))
+		logger.Warn().Err(err).Msg("failed to configure http2 expressly, falling back to default / http/1.1")
 	}
 
 	return &HTTPSResolver{

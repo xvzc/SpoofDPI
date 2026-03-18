@@ -81,12 +81,12 @@ func (h *UdpAssociateHandler) Handle(
 	done := make(chan struct{})
 	go func() {
 		_, _ = io.Copy(io.Discard, lConn) // Block until TCP closes
-		close(done)
-		lNewConn.Close() // Force ReadFromUDP to unblock and avoid goroutine leak
+		close(done)                       // Close the channel to signal UDP handler to exit
+		lNewConn.Close()                  // Force ReadFromUDP to unblock and avoid goroutine leak
 	}()
 
 	buf := make([]byte, 65535)
-	var clientAddr *net.UDPAddr
+	tcpRemoteIP := lConn.RemoteAddr().(*net.TCPAddr).IP
 
 	for {
 		// Wait for data
@@ -104,13 +104,12 @@ func (h *UdpAssociateHandler) Handle(
 			}
 		}
 
-		// Initial Client Identification
-		if clientAddr == nil {
-			clientAddr = addr
-		}
-
-		// Only accept packets from the client that established the association
-		if !addr.IP.Equal(clientAddr.IP) || addr.Port != clientAddr.Port {
+		// Security: Only accept UDP packets from the same IP that established the TCP connection
+		if !addr.IP.Equal(tcpRemoteIP) {
+			logger.Debug().
+				Str("expected", tcpRemoteIP.String()).
+				Str("actual", addr.IP.String()).
+				Msg("dropped udp packet from unexpected ip")
 			continue
 		}
 
@@ -132,7 +131,7 @@ func (h *UdpAssociateHandler) Handle(
 		}
 
 		// Key: Client Addr -> Target Addr (Zero Allocation Struct)
-		key := netutil.NewNATKey(clientAddr, uAddr)
+		key := netutil.NewNATKey(addr, uAddr)
 
 		dst := &netutil.Destination{
 			Addrs: []net.IP{uAddr.IP},
