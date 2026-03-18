@@ -123,7 +123,9 @@ func (s *TunServer) SetNetworkConfig() error {
 		localIP[14],
 		localIP[15]&0xFC,
 	) // Mask with /30
-	if err := SetRoute(s.iface.Name(), []string{networkAddr.String() + "/30"}); err != nil {
+
+	err = SetRoute(s.iface.Name(), []string{networkAddr.String() + "/30"})
+	if err != nil {
 		return fmt.Errorf("failed to set local route: %w", err)
 	}
 

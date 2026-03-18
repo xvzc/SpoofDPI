@@ -66,8 +66,9 @@ func (h *UdpAssociateHandler) Handle(
 		Str("bind_addr", lAddr.String()).
 		Msg("socks5 udp associate established")
 
-	// 2. Reply with the bound address
-	if err := proto.SOCKS5SuccessResponse().Bind(lAddr.IP).Port(lAddr.Port).Write(lConn); err != nil {
+		// 2. Reply with the bound address
+	err = proto.SOCKS5SuccessResponse().Bind(lAddr.IP).Port(lAddr.Port).Write(lConn)
+	if err != nil {
 		logger.Error().Err(err).Msg("failed to write socks5 success reply")
 		return err
 	}

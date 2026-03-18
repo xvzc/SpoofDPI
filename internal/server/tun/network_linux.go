@@ -209,7 +209,18 @@ func SetGatewayRoute(gateway, iface string) error {
 	}
 
 	// Add default route to the allocated table via the gateway
-	cmd = exec.Command("ip", "route", "add", "default", "via", gateway, "dev", iface, "table", tableIDStr)
+	cmd = exec.Command(
+		"ip",
+		"route",
+		"add",
+		"default",
+		"via",
+		gateway,
+		"dev",
+		iface,
+		"table",
+		tableIDStr,
+	)
 	out, err = cmd.CombinedOutput()
 	if err != nil {
 		if !strings.Contains(string(out), "File exists") {
