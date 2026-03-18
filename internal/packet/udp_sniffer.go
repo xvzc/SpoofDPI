@@ -167,11 +167,14 @@ func generateUdpFilter(linkType layers.LinkType) []BPFInstruction {
 	} else {
 		// Check IP Version == 4 at the base offset
 		// Load byte at baseOffset, mask 0xF0, check if 0x40
+		// Ldb [baseOffset]
+		// And 0xf0
+		// Jeq 0x40, True, False(Skip to End)
 		instructions = append(
 			instructions,
-			BPFInstruction{Op: 0x30, Jt: 0, Jf: 0, K: baseOffset}, // Ldb [baseOffset]
-			BPFInstruction{Op: 0x54, Jt: 0, Jf: 0, K: 0xf0},       // And 0xf0
-			BPFInstruction{Op: 0x15, Jt: 0, Jf: 3, K: 0x40},       // Jeq 0x40, True, False(Skip to End)
+			BPFInstruction{Op: 0x30, Jt: 0, Jf: 0, K: baseOffset},
+			BPFInstruction{Op: 0x54, Jt: 0, Jf: 0, K: 0xf0},
+			BPFInstruction{Op: 0x15, Jt: 0, Jf: 3, K: 0x40},
 		)
 	}
 

@@ -36,7 +36,11 @@ func bindToInterface(dialer *net.Dialer, iface *net.Interface, targetIP net.IP) 
 		}
 	}
 
-	return fmt.Errorf("no suitable IP address found on interface %s for target %s", iface.Name, targetIP)
+	return fmt.Errorf(
+		"no suitable IP address found on interface %s for target %s",
+		iface.Name,
+		targetIP,
+	)
 }
 
 // getDefaultGateway parses the system route table to find the default gateway on Linux

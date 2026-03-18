@@ -45,7 +45,8 @@ func (h *BindHandler) Handle(
 	lAddr := listener.Addr().(*net.TCPAddr)
 
 	// 2. First Reply: Send the address/port we are listening on
-	if err := proto.SOCKS5SuccessResponse().Bind(lAddr.IP).Port(lAddr.Port).Write(conn); err != nil {
+	err = proto.SOCKS5SuccessResponse().Bind(lAddr.IP).Port(lAddr.Port).Write(conn)
+	if err != nil {
 		logger.Error().Err(err).Msg("failed to write first bind reply")
 		return err
 	}
