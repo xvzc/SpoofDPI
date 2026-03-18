@@ -78,7 +78,8 @@ func (h *ConnectHandler) Handle(
 	}
 
 	// 3. Send Success Response
-	if err := proto.SOCKS5SuccessResponse().Bind(net.IPv4zero).Port(0).Write(lConn); err != nil {
+	err = proto.SOCKS5SuccessResponse().Bind(net.IPv4zero).Port(0).Write(lConn)
+	if err != nil {
 		logger.Error().Err(err).Msg("failed to write socks5 success reply")
 		return err
 	}

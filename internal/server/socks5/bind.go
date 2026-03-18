@@ -71,7 +71,8 @@ func (h *BindHandler) Handle(
 		Msg("accepted incoming connection")
 
 	// 4. Second Reply: Send the address/port of the connecting host
-	if err := proto.SOCKS5SuccessResponse().Bind(rAddr.IP).Port(rAddr.Port).Write(conn); err != nil {
+	err = proto.SOCKS5SuccessResponse().Bind(rAddr.IP).Port(rAddr.Port).Write(conn)
+	if err != nil {
 		logger.Error().Err(err).Msg("failed to write second bind reply")
 		return err
 	}
