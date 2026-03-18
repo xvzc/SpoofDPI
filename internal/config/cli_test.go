@@ -44,7 +44,6 @@ func TestCreateCommand_Flags(t *testing.T) {
 				assert.False(t, *cfg.HTTPS.Skip)
 				assert.Equal(t, 0, *cfg.UDP.FakeCount)
 				assert.Equal(t, 64, len(cfg.UDP.FakePacket))
-				assert.False(t, *cfg.Policy.Auto)
 			},
 		},
 		{
@@ -73,7 +72,6 @@ func TestCreateCommand_Flags(t *testing.T) {
 				"--https-skip",
 				"--udp-fake-count", "5",
 				"--udp-fake-packet", "0x01, 0x02",
-				"--policy-auto",
 			},
 			assert: func(t *testing.T, cfg *Config) {
 				// General
@@ -106,10 +104,6 @@ func TestCreateCommand_Flags(t *testing.T) {
 				// UDP
 				assert.Equal(t, 5, *cfg.UDP.FakeCount)
 				assert.Equal(t, []byte{0x01, 0x02}, cfg.UDP.FakePacket)
-				assert.Equal(t, []byte{0x01, 0x02}, cfg.UDP.FakePacket)
-
-				// Policy
-				assert.True(t, *cfg.Policy.Auto)
 			},
 		},
 		{
@@ -180,12 +174,12 @@ func TestCreateCommand_Flags(t *testing.T) {
 
 func TestCreateCommand_OverrideTOML(t *testing.T) {
 	tomlContent := `
-[general]
+[app]
     log-level = "debug"
     silent = true
     system-proxy = true
 
-[server]
+[connection]
     listen-addr = "127.0.0.1:8080"
     dns-timeout = 1000
     tcp-timeout = 1000
@@ -208,7 +202,6 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
     skip = true
 
 [policy]
-    auto = true
     [[policy.overrides]]
         name = "test-rule"
         priority = 100
@@ -272,7 +265,6 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 		"--https-skip=false",
 		"--udp-fake-count", "20",
 		"--udp-fake-packet", "0xcc,0xdd",
-		"--policy-auto=false",
 	}
 
 	err = cmd.Run(context.Background(), args)
@@ -311,9 +303,6 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 	assert.Equal(t, 20, *capturedCfg.UDP.FakeCount)
 	assert.Equal(t, []byte{0xcc, 0xdd}, capturedCfg.UDP.FakePacket)
 	assert.Equal(t, []byte{0xcc, 0xdd}, capturedCfg.UDP.FakePacket)
-
-	// Policy
-	assert.False(t, *capturedCfg.Policy.Auto)
 
 	// Verify TOML-only fields are preserved
 	require.Len(t, capturedCfg.Policy.Overrides, 1)

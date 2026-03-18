@@ -9,23 +9,30 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/config"
+	"github.com/xvzc/SpoofDPI/internal/desync"
 	"github.com/xvzc/SpoofDPI/internal/logging"
 	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/proto"
 )
 
 type UdpAssociateHandler struct {
-	logger zerolog.Logger
-	pool   *netutil.ConnPool
+	logger         zerolog.Logger
+	pool           *netutil.ConnPool
+	desyncer       *desync.UDPDesyncer
+	defaultUDPOpts *config.UDPOptions
 }
 
 func NewUdpAssociateHandler(
 	logger zerolog.Logger,
 	pool *netutil.ConnPool,
+	desyncer *desync.UDPDesyncer,
+	defaultUDPOpts *config.UDPOptions,
 ) *UdpAssociateHandler {
 	return &UdpAssociateHandler{
-		logger: logger,
-		pool:   pool,
+		logger:         logger,
+		pool:           pool,
+		desyncer:       desyncer,
+		defaultUDPOpts: defaultUDPOpts,
 	}
 }
 
@@ -138,6 +145,17 @@ func (h *UdpAssociateHandler) Handle(
 
 		// Add to pool (pool handles LRU eviction and deadline)
 		conn := h.pool.Add(key, rawConn)
+
+		// Apply UDP options from rule if matched
+		udpOpts := h.defaultUDPOpts.Clone()
+		if rule != nil && rule.UDP != nil {
+			udpOpts = udpOpts.Merge(rule.UDP)
+		}
+
+		// Send fake packets before real payload (UDP desync)
+		if h.desyncer != nil {
+			_, _ = h.desyncer.Desync(ctx, lNewConn, conn.Conn, udpOpts)
+		}
 
 		// Start a goroutine to read from the target and forward to the client
 		go func(targetConn *netutil.PooledConn, clientAddr *net.UDPAddr) {

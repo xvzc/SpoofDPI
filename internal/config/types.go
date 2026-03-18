@@ -34,7 +34,14 @@ func clonePrimitive[T primitive](x *T) *T {
 // └─────────────────┘
 var _ merger[*AppOptions] = (*AppOptions)(nil)
 
-var availableLogLevelValues = []string{"info", "warn", "trace", "error", "debug"}
+var availableLogLevelValues = []string{
+	"info",
+	"warn",
+	"trace",
+	"error",
+	"debug",
+	"disabled",
+}
 
 type AppOptions struct {
 	LogLevel         *zerolog.Level `toml:"log-level"`
@@ -622,7 +629,6 @@ var (
 )
 
 type PolicyOptions struct {
-	Auto      *bool  `toml:"auto"`
 	Template  *Rule  `toml:"template"`
 	Overrides []Rule `toml:"overries"`
 }
@@ -633,7 +639,6 @@ func (o *PolicyOptions) UnmarshalTOML(data any) (err error) {
 		return fmt.Errorf("non-table type policy config")
 	}
 
-	o.Auto = findFrom(m, "auto", parseBoolFn(), &err)
 	o.Template = findStructFrom[Rule](m, "template", &err)
 	o.Overrides = findStructSliceFrom[Rule](m, "overrides", &err)
 
@@ -651,7 +656,6 @@ func (o *PolicyOptions) Clone() *PolicyOptions {
 	}
 
 	return &PolicyOptions{
-		Auto:      clonePrimitive(o.Auto),
 		Template:  o.Template.Clone(),
 		Overrides: overrides,
 	}
@@ -667,7 +671,6 @@ func (origin *PolicyOptions) Merge(overrides *PolicyOptions) *PolicyOptions {
 	}
 
 	return &PolicyOptions{
-		Auto:      lo.CoalesceOrEmpty(overrides.Auto, origin.Auto),
 		Template:  lo.CoalesceOrEmpty(overrides.Template.Clone(), origin.Template.Clone()),
 		Overrides: lo.CoalesceSliceOrEmpty(overrides.Overrides, origin.Overrides),
 	}

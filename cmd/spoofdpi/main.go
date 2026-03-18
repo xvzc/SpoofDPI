@@ -104,10 +104,6 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 		Uint8("count", uint8(*cfg.HTTPS.FakeCount)).
 		Msg(" fake")
 
-	logger.Info().
-		Bool("auto", *cfg.Policy.Auto).
-		Msgf("policy")
-
 	if *cfg.Conn.DNSTimeout > 0 {
 		logger.Info().
 			Str("value", fmt.Sprintf("%dms", cfg.Conn.DNSTimeout.Milliseconds())).
@@ -354,9 +350,16 @@ func createServer(
 			cfg.Conn.Clone(),
 			cfg.HTTPS.Clone(),
 		)
+		udpDesyncer := desync.NewUDPDesyncer(
+			logging.WithScope(logger, "dsn"),
+			udpWriter,
+			udpSniffer,
+		)
 		udpAssociateHandler := socks5.NewUdpAssociateHandler(
 			logging.WithScope(logger, "hnd"),
 			netutil.NewConnPool(4096, 60*time.Second),
+			udpDesyncer,
+			cfg.UDP.Clone(),
 		)
 		bindHandler := socks5.NewBindHandler(logging.WithScope(logger, "hnd"))
 

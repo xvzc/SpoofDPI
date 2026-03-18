@@ -1,6 +1,60 @@
-# General Configuration
+# App Configuration
 
-General settings for the application, including logging and system integration.
+Application-level settings including mode, logging, and system integration.
+
+## `app-mode`
+
+`type: string`
+
+### Description
+
+Specifies the proxy mode. `(default: "http")`
+
+### Allowed Values
+
+- `http`: HTTP proxy mode
+- `socks5`: SOCKS5 proxy mode
+- `tun`: TUN interface mode (transparent proxy)
+
+### Usage
+
+**Command-Line Flag**
+```console
+$ spoofdpi --app-mode socks5
+```
+
+**TOML Config**
+```toml
+[app]
+mode = "socks5"
+```
+
+---
+
+## `listen-addr`
+
+`type: <ip:port>`
+
+### Description
+
+Specifies the IP address and port to listen on. `(default: 127.0.0.1:8080 for http, 127.0.0.1:1080 for socks5)`
+
+If you want to run SpoofDPI remotely (e.g., on a physically separated machine), set the IP part to `0.0.0.0`. Otherwise, it is recommended to leave this option as default for security.
+
+### Usage
+
+**Command-Line Flag**
+```console
+$ spoofdpi --listen-addr "0.0.0.0:8080"
+```
+
+**TOML Config**
+```toml
+[app]
+listen-addr = "0.0.0.0:8080"
+```
+
+---
 
 ## `log-level`
 
@@ -21,7 +75,7 @@ $ spoofdpi --log-level trace
 
 **TOML Config**
 ```toml
-[general]
+[app]
 log-level = "trace"
 ```
 
@@ -44,13 +98,13 @@ $ spoofdpi --silent
 
 **TOML Config**
 ```toml
-[general]
+[app]
 silent = true
 ```
 
 ---
 
-## `system-proxy`
+## `network-config`
 
 `type: boolean`
 
@@ -65,13 +119,13 @@ Specifies whether to automatically set up the system-wide proxy configuration. `
 
 **Command-Line Flag**
 ```console
-$ spoofdpi --system-proxy
+$ spoofdpi --network-config
 ```
 
 **TOML Config**
 ```toml
-[general]
-system-proxy = true
+[app]
+network-config = true
 ```
 
 ---

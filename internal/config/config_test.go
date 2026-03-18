@@ -18,7 +18,7 @@ func TestConfig_UnmarshalTOML(t *testing.T) {
 		{
 			name: "valid config",
 			input: map[string]any{
-				"general": map[string]any{
+				"app": map[string]any{
 					"listen-addr": "127.0.0.1:9090",
 				},
 				"dns": map[string]any{
@@ -55,7 +55,7 @@ func TestConfig_UnmarshalTOML(t *testing.T) {
 		{
 			name: "validation error",
 			input: map[string]any{
-				"general": map[string]any{
+				"app": map[string]any{
 					"listen-addr": "invalid-addr",
 				},
 			},

@@ -25,14 +25,15 @@ If a specific path is not provided via a `--config` flag, SpoofDPI will search f
 
 ## Options
 
-The configuration is organized into five main categories. Click on each category to view detailed options.
+The configuration is organized into six main categories. Click on each category to view detailed options.
 
 | Category | Description |
 | :--- | :--- |
-| **[General](general.md)** | General application options (logging, system proxy, etc.). |
-| **[Server](server.md)** | Server connection options (address, timeout). |
+| **[App](app.md)** | Application-level options (mode, address, logging, etc.). |
+| **[Connection](connection.md)** | Connection timeout and packet TTL settings. |
 | **[DNS](dns.md)** | DNS resolution options. |
 | **[HTTPS](https.md)** | HTTPS/TLS packet manipulation options. |
+| **[UDP](udp.md)** | UDP packet manipulation options. |
 | **[Policy](policy.md)** | Rule-based routing and automatic bypass policies. |
 
 ## Example
@@ -44,7 +45,7 @@ The following two methods will achieve the exact same configuration.
 All settings are passed directly via flags.
 
 ```console
-$ spoofdpi --dns-addr "1.1.1.1:53" --dns-https-url "https://dns.google/dns-query" --dns-mode "https"
+$ spoofdpi --app-mode socks5 --dns-mode https --https-disorder
 ```
 
 ### Method 2: Using a TOML Config File
@@ -52,10 +53,14 @@ $ spoofdpi --dns-addr "1.1.1.1:53" --dns-https-url "https://dns.google/dns-query
 Place the settings in your `spoofdpi.toml` file:
 
 ```toml
+[app]
+mode = "socks5"
+
 [dns]
-    addr = "1.1.1.1:53"
-    https-url = "https://dns.google/dns-query"
-    mode = "https"
+mode = "https"
+
+[https]
+disorder = true
 ```
 
 Then, run spoofdpi without those flags (it will automatically load the file if placed in a standard path):

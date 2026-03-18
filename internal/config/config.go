@@ -22,7 +22,7 @@ type cloner[T any] interface {
 var _ merger[*Config] = (*Config)(nil)
 
 type Config struct {
-	App    *AppOptions    `toml:"general"`
+	App    *AppOptions    `toml:"app"`
 	Conn   *ConnOptions   `toml:"connection"`
 	DNS    *DNSOptions    `toml:"dns"`
 	HTTPS  *HTTPSOptions  `toml:"https"`
@@ -36,7 +36,7 @@ func (c *Config) UnmarshalTOML(data any) (err error) {
 		return fmt.Errorf("non-table type config file")
 	}
 
-	c.App = findStructFrom[AppOptions](m, "general", &err)
+	c.App = findStructFrom[AppOptions](m, "app", &err)
 	c.Conn = findStructFrom[ConnOptions](m, "connection", &err)
 	c.DNS = findStructFrom[DNSOptions](m, "dns", &err)
 	c.HTTPS = findStructFrom[HTTPSOptions](m, "https", &err)
@@ -166,7 +166,6 @@ func getDefault() *Config { //exhaustruct:enforce
 			FakePacket: make([]byte, 64),
 		},
 		Policy: &PolicyOptions{
-			Auto:      lo.ToPtr(false),
 			Template:  &Rule{},
 			Overrides: []Rule{},
 		},

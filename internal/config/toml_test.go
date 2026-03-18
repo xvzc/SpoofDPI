@@ -414,7 +414,7 @@ func TestFindSliceFrom(t *testing.T) {
 func TestFromTomlFile(t *testing.T) {
 	t.Run("full valid config", func(t *testing.T) {
 		tomlContent := `
-					[general]
+					[app]
 					log-level = "debug"
 					silent = true
 					network-config = true
@@ -442,7 +442,6 @@ func TestFromTomlFile(t *testing.T) {
 				skip = true
 
 			[policy]
-				auto = true
 				[[policy.overrides]]
 					name = "test-rule"
 					priority = 100
@@ -498,7 +497,6 @@ func TestFromTomlFile(t *testing.T) {
 		assert.Equal(t, "https://1.1.1.1/dns-query", *cfg.DNS.HTTPSURL)
 		assert.Equal(t, DNSQueryIPv4, *cfg.DNS.QType)
 		assert.Equal(t, uint8(100), *cfg.Conn.DefaultFakeTTL)
-		assert.True(t, *cfg.Policy.Auto)
 		assert.True(t, *cfg.HTTPS.Disorder)
 		assert.Equal(t, uint8(5), *cfg.HTTPS.FakeCount)
 		assert.Equal(t, []byte{0x01, 0x02, 0x03}, cfg.HTTPS.FakePacket.Raw())

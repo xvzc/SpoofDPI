@@ -23,8 +23,8 @@ func TestCreateResolver(t *testing.T) {
 		Cache:    lo.ToPtr(true),
 	}
 	cfg.Conn = &config.ConnOptions{
-		DNSTimeout: lo.ToPtr(time.Duration(0)),
-		TCPTimeout: lo.ToPtr(time.Duration(0)),
+		DNSTimeout:     lo.ToPtr(time.Duration(0)),
+		TCPTimeout:     lo.ToPtr(time.Duration(0)),
 		UDPIdleTimeout: lo.ToPtr(time.Duration(0)),
 	}
 
@@ -49,7 +49,7 @@ func TestCreateProxy_NoPcap(t *testing.T) {
 		DefaultFakeTTL: lo.ToPtr(uint8(64)),
 		DNSTimeout:     lo.ToPtr(time.Duration(0)),
 		TCPTimeout:     lo.ToPtr(time.Duration(0)),
-		UDPIdleTimeout:     lo.ToPtr(time.Duration(0)),
+		UDPIdleTimeout: lo.ToPtr(time.Duration(0)),
 	}
 
 	// HTTPS Config (Ensure FakeCount is 0 to disable PCAP)
@@ -63,9 +63,7 @@ func TestCreateProxy_NoPcap(t *testing.T) {
 	}
 
 	// Policy Config
-	cfg.Policy = &config.PolicyOptions{
-		Auto: lo.ToPtr(false),
-	}
+	cfg.Policy = &config.PolicyOptions{}
 
 	// DNS Config
 	cfg.DNS = &config.DNSOptions{
@@ -98,7 +96,7 @@ func TestCreateProxy_WithPolicy(t *testing.T) {
 		DefaultFakeTTL: lo.ToPtr(uint8(64)),
 		DNSTimeout:     lo.ToPtr(time.Duration(0)),
 		TCPTimeout:     lo.ToPtr(time.Duration(0)),
-		UDPIdleTimeout:     lo.ToPtr(time.Duration(0)),
+		UDPIdleTimeout: lo.ToPtr(time.Duration(0)),
 	}
 
 	// HTTPS Config
@@ -108,7 +106,6 @@ func TestCreateProxy_WithPolicy(t *testing.T) {
 
 	// Policy Config with one override
 	cfg.Policy = &config.PolicyOptions{
-		Auto: lo.ToPtr(false),
 		Overrides: []config.Rule{
 			{
 				Name: lo.ToPtr("test-rule"),

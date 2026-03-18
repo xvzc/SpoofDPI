@@ -56,10 +56,11 @@ nav:
   - 'User Guide':
     - 'Overview': user-guide/overview.md
     - 'Options':
-      - 'General': user-guide/general.md
-      - 'Server': user-guide/server.md
+      - 'App': user-guide/app.md
+      - 'Connection': user-guide/connection.md
       - 'DNS': user-guide/dns.md
       - 'HTTPS': user-guide/https.md
+      - 'UDP': user-guide/udp.md
       - 'Policy': user-guide/policy.md
     - 'Configuration Examples': user-guide/examples.md
     # - 'Geographical Recipes': 

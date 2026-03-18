@@ -160,7 +160,7 @@ func TestConnOptions_UnmarshalTOML(t *testing.T) {
 				"default-fake-ttl": int64(64),
 				"dns-timeout":      int64(1000),
 				"tcp-timeout":      int64(1000),
-				"udp-idle-timeout":      int64(1000),
+				"udp-idle-timeout": int64(1000),
 			},
 			wantErr: false,
 			assert: func(t *testing.T, o ConnOptions) {
@@ -212,7 +212,7 @@ func TestConnOptions_Clone(t *testing.T) {
 				DefaultFakeTTL: lo.ToPtr(uint8(64)),
 				DNSTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
 				TCPTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
-				UDPIdleTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
+				UDPIdleTimeout: lo.ToPtr(time.Duration(1000) * time.Millisecond),
 			},
 			assert: func(t *testing.T, input *ConnOptions, output *ConnOptions) {
 				assert.NotNil(t, output)
@@ -262,7 +262,7 @@ func TestConnOptions_Merge(t *testing.T) {
 				DefaultFakeTTL: lo.ToPtr(uint8(64)),
 				DNSTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
 				TCPTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
-				UDPIdleTimeout:     lo.ToPtr(time.Duration(1000) * time.Millisecond),
+				UDPIdleTimeout: lo.ToPtr(time.Duration(1000) * time.Millisecond),
 			},
 			override: &ConnOptions{
 				DefaultFakeTTL: lo.ToPtr(uint8(128)),
@@ -577,7 +577,6 @@ func TestPolicyOptions_UnmarshalTOML(t *testing.T) {
 		{
 			name: "valid policy options",
 			input: map[string]any{
-				"auto": true,
 				"overrides": []map[string]any{
 					{
 						"name": "rule1",
@@ -589,7 +588,6 @@ func TestPolicyOptions_UnmarshalTOML(t *testing.T) {
 			},
 			wantErr: false,
 			assert: func(t *testing.T, o PolicyOptions) {
-				assert.True(t, *o.Auto)
 				assert.Len(t, o.Overrides, 1)
 				assert.Equal(t, "rule1", *o.Overrides[0].Name)
 			},
@@ -633,7 +631,6 @@ func TestPolicyOptions_Clone(t *testing.T) {
 		{
 			name: "non-nil receiver",
 			input: &PolicyOptions{
-				Auto: lo.ToPtr(true),
 				Overrides: []Rule{
 					{
 						Name:  lo.ToPtr("rule1"),
@@ -643,7 +640,6 @@ func TestPolicyOptions_Clone(t *testing.T) {
 			},
 			assert: func(t *testing.T, input *PolicyOptions, output *PolicyOptions) {
 				assert.NotNil(t, output)
-				assert.True(t, *output.Auto)
 				assert.Len(t, output.Overrides, 1)
 				assert.NotSame(t, input, output)
 				// Deep copy check for slice
@@ -670,31 +666,28 @@ func TestPolicyOptions_Merge(t *testing.T) {
 		{
 			name:     "nil receiver",
 			base:     nil,
-			override: &PolicyOptions{Auto: lo.ToPtr(true)},
+			override: &PolicyOptions{Overrides: []Rule{{Name: lo.ToPtr("rule1")}}},
 			assert: func(t *testing.T, output *PolicyOptions) {
-				assert.True(t, *output.Auto)
+				assert.Len(t, output.Overrides, 1)
 			},
 		},
 		{
 			name:     "nil override",
-			base:     &PolicyOptions{Auto: lo.ToPtr(false)},
+			base:     &PolicyOptions{Overrides: []Rule{{Name: lo.ToPtr("rule1")}}},
 			override: nil,
 			assert: func(t *testing.T, output *PolicyOptions) {
-				assert.False(t, *output.Auto)
+				assert.Len(t, output.Overrides, 1)
 			},
 		},
 		{
 			name: "merge values",
 			base: &PolicyOptions{
-				Auto:      lo.ToPtr(false),
 				Overrides: []Rule{{Name: lo.ToPtr("rule1")}},
 			},
 			override: &PolicyOptions{
-				Auto:      lo.ToPtr(true),
 				Overrides: []Rule{{Name: lo.ToPtr("rule2")}},
 			},
 			assert: func(t *testing.T, output *PolicyOptions) {
-				assert.True(t, *output.Auto)
 				assert.Len(t, output.Overrides, 1)
 				assert.Equal(t, "rule2", *output.Overrides[0].Name)
 			},

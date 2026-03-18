@@ -217,27 +217,4 @@ func (p *HTTPProxy) handleNewConnection(ctx context.Context, conn net.Conn) {
 	}
 
 	logger.Warn().Err(handleErr).Msg("error handling request")
-	if !errors.Is(handleErr, netutil.ErrBlocked) { // Early exit if not blocked
-		return
-	}
-
-	// ┌─────────────┐
-	// │ AUTO config │
-	// └─────────────┘
-	if bestMatch != nil && logger.GetLevel() == zerolog.TraceLevel {
-		logger.Info().Msg("skipping auto-config (duplicate policy)")
-		return
-	}
-
-	// Perform auto config if enabled and RuleTemplate is not nil
-	if *p.policyOpts.Auto && p.policyOpts.Template != nil {
-		newRule := p.policyOpts.Template.Clone()
-		newRule.Match = &config.MatchAttrs{Domains: []string{host}}
-
-		if err := p.ruleMatcher.Add(newRule); err != nil {
-			logger.Info().Err(err).Msg("failed to add config automatically")
-		} else {
-			logger.Info().Msg("automatically added to config")
-		}
-	}
 }

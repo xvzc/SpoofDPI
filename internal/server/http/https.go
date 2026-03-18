@@ -161,9 +161,5 @@ func (h *HTTPSHandler) sendClientHello(
 	msg *proto.TLSMessage,
 	opts *config.HTTPSOptions,
 ) (int, error) {
-	if lo.FromPtr(opts.Skip) {
-		return rConn.Write(msg.Raw())
-	}
-
 	return h.desyncer.Desync(ctx, h.logger, rConn, msg, opts)
 }

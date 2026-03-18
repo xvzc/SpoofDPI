@@ -343,19 +343,6 @@ func CreateCommand(
 			},
 
 			&cli.BoolFlag{
-				Name: "policy-auto",
-				Usage: fmt.Sprintf(`
-				Automatically detect the blocked sites and add policies (default: %v)`,
-					*defaultCfg.Policy.Auto,
-				),
-				OnlyOnce: true,
-				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.Policy.Auto = lo.ToPtr(v)
-					return nil
-				},
-			},
-
-			&cli.BoolFlag{
 				Name: "silent",
 				Usage: fmt.Sprintf(`
 				Do not show the banner at start up (default: %v)`,

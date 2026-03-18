@@ -223,39 +223,6 @@ func (p *SOCKS5Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 	}
 
 	logger.Error().Err(err).Msg("failed to handle")
-	if errors.Is(err, netutil.ErrBlocked) {
-		p.handleAutoConfig(ctx, req, addrs, bestMatch)
-	}
-}
-
-func (p *SOCKS5Proxy) handleAutoConfig(
-	ctx context.Context,
-	req *proto.SOCKS5Request,
-	addrs []net.IP,
-	matchedRule *config.Rule,
-) {
-	logger := zerolog.Ctx(ctx)
-
-	if matchedRule != nil {
-		logger.Trace().Msg("skipping auto-policy for this request (duplicate policy)")
-		return
-	}
-
-	if *p.policyOpts.Auto && p.policyOpts.Template != nil {
-		newRule := p.policyOpts.Template.Clone()
-		targetDomain := req.FQDN // req.Domain -> req.FQDN
-		if targetDomain == "" && len(addrs) > 0 {
-			targetDomain = addrs[0].String()
-		}
-
-		newRule.Match = &config.MatchAttrs{Domains: []string{targetDomain}}
-
-		if err := p.ruleMatcher.Add(newRule); err != nil {
-			logger.Info().Err(err).Msg("failed to add config automatically")
-		} else {
-			logger.Info().Msg("automatically added to config")
-		}
-	}
 }
 
 func (p *SOCKS5Proxy) negotiate(logger zerolog.Logger, conn net.Conn) error {

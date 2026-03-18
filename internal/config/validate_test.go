@@ -305,3 +305,31 @@ func TestCheckRule(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckLogLevel(t *testing.T) {
+	tcs := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"valid info", "info", false},
+		{"valid debug", "debug", false},
+		{"valid warn", "warn", false},
+		{"valid error", "error", false},
+		{"valid trace", "trace", false},
+		{"valid disabled", "disabled", false},
+		{"invalid unknown", "unknown", true},
+		{"invalid empty", "", true},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkLogLevel(tc.input)
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
