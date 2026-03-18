@@ -104,7 +104,7 @@ silent = true
 
 ---
 
-## `network-config`
+## `auto-configure-network`
 
 `type: boolean`
 
@@ -119,13 +119,13 @@ Specifies whether to automatically set up the system-wide proxy configuration. `
 
 **Command-Line Flag**
 ```console
-$ spoofdpi --network-config
+$ spoofdpi --auto-configure-network
 ```
 
 **TOML Config**
 ```toml
 [app]
-network-config = true
+auto-configure-network = true
 ```
 
 ---
