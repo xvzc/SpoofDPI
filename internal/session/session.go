@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"math/rand/v2"
-	"unsafe"
 )
 
 // We define unexported key types to prevent key collisions with other packages.
@@ -88,5 +87,6 @@ func generateTraceID() string {
 		b[i] = r + 0x30
 	}
 
-	return unsafe.String(unsafe.SliceData(b), 16)
+	return string(b)
+	// return unsafe.String(unsafe.SliceData(b), 16)
 }
