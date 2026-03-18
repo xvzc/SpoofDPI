@@ -1,18 +1,14 @@
-//go:build !linux && !darwin && !freebsd
-
 package netutil
 
-import (
-	"fmt"
-	"net"
-)
-
-// bindToInterface is a no-op on unsupported platforms.
-func bindToInterface(dialer *net.Dialer, iface *net.Interface, targetIP net.IP) error {
-	return nil
-}
-
-// getDefaultGateway is not supported on this platform.
-func getDefaultGateway() (string, error) {
-	return "", fmt.Errorf("getDefaultGateway not supported on this platform")
+func isIPv4Mapped(ip [16]byte) bool {
+	// IPv4-mapped IPv6 address has the prefix 0:0:0:0:0:FFFF
+	for i := 0; i < 10; i++ {
+		if ip[i] != 0 {
+			return false
+		}
+	}
+	if ip[10] != 0xff || ip[11] != 0xff {
+		return false
+	}
+	return true
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/logging"
+	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/packet"
 )
 
@@ -41,8 +42,8 @@ func (d *UDPDesyncer) Desync(
 		return 0, nil
 	}
 
-	dstIP := rConn.RemoteAddr().(*net.UDPAddr).IP.String()
-	oTTL := d.sniffer.GetOptimalTTL(dstIP)
+	dstIP := rConn.RemoteAddr().(*net.UDPAddr).IP
+	oTTL := d.sniffer.GetOptimalTTL(netutil.NewIPKey(dstIP))
 
 	var totalSent int
 	for range *opts.FakeCount {

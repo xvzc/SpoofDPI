@@ -79,7 +79,7 @@ func (uw *UDPWriter) WriteCraftedPacket(
 			srcMAC,
 			dstMAC,
 			srcUDP.IP,
-			srcUDP.IP,
+			dstUDP.IP,
 			srcPort,
 			dstPort,
 			ttl,

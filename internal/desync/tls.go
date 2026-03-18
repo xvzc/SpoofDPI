@@ -53,7 +53,9 @@ func (d *TLSDesyncer) Desync(
 	}
 
 	if d.sniffer != nil && d.writer != nil && lo.FromPtr(httpsOpts.FakeCount) > 0 {
-		oTTL := d.sniffer.GetOptimalTTL(conn.RemoteAddr().(*net.TCPAddr).IP.String())
+		oTTL := d.sniffer.GetOptimalTTL(
+			netutil.NewIPKey(conn.RemoteAddr().(*net.TCPAddr).IP),
+		)
 		n, err := d.sendFakePackets(ctx, logger, conn, oTTL, httpsOpts)
 		if err != nil {
 			logger.Warn().Err(err).Msg("failed to send fake packets")

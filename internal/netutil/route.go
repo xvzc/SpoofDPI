@@ -3,59 +3,12 @@ package netutil
 import (
 	"fmt"
 	"net"
-	"strconv"
-	"time"
 )
-
-type Destination struct {
-	Domain  string
-	Addrs   []net.IP
-	Port    int
-	Timeout time.Duration
-	Iface   *net.Interface
-	Gateway string
-}
-
-func (d *Destination) String() string {
-	return net.JoinHostPort(d.Domain, strconv.Itoa(d.Port))
-}
-
-func ValidateDestination(
-	dstAddrs []net.IP,
-	dstPort int,
-	listenAddr *net.TCPAddr,
-) (bool, error) {
-	if dstPort != int(listenAddr.Port) {
-		return true, nil
-	}
-
-	var err error
-	var ifAddrs []net.Addr
-	ifAddrs, err = net.InterfaceAddrs()
-
-	for _, dstAddr := range dstAddrs {
-		ip := dstAddr
-		if ip.IsLoopback() {
-			return false, fmt.Errorf("loopback addr detected %v", ip.String())
-		}
-
-		for _, addr := range ifAddrs {
-			if ipnet, ok := addr.(*net.IPNet); ok {
-				if ipnet.IP.Equal(ip) {
-					return false, fmt.Errorf("interface addr detected %v", ipnet.String())
-				}
-			}
-		}
-	}
-
-	return true, err
-}
 
 // FindSafeSubnet scans the 10.0.0.0/8 range to find an unused /30 subnet
 func FindSafeSubnet() (string, string, error) {
-	/* Retrieve all active interface addresses to prevent CIDR overlapping.
-	   Checking against existing networks is faster than sending probe packets.
-	*/
+	// Retrieve all active interface addresses to prevent CIDR overlapping.
+	// Checking against existing networks is faster than sending probe packets.
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return "", "", err
@@ -68,9 +21,8 @@ func FindSafeSubnet() (string, string, error) {
 		}
 	}
 
-	/* Iterate through the 10.0.0.0/8 private range with a /30 step.
-	   A /30 subnet provides exactly two usable end-point IP addresses.
-	*/
+	// Iterate through the 10.0.0.0/8 private range with a /30 step.
+	// A /30 subnet provides exactly two usable end-point IP addresses.
 	for i := 0; i < 256; i++ {
 		for j := 0; j < 256; j++ {
 			// Construct candidate IP pair: 10.i.j.1 and 10.i.j.2

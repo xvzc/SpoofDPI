@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/cache"
 	"github.com/xvzc/SpoofDPI/internal/logging"
+	"github.com/xvzc/SpoofDPI/internal/netutil"
 )
 
 var _ Sniffer = (*UDPSniffer)(nil)
@@ -16,7 +17,7 @@ var _ Sniffer = (*UDPSniffer)(nil)
 type UDPSniffer struct {
 	logger zerolog.Logger
 
-	nhopCache  cache.Cache
+	nhopCache  cache.Cache[netutil.IPKey]
 	defaultTTL uint8
 
 	handle Handle
@@ -24,7 +25,7 @@ type UDPSniffer struct {
 
 func NewUDPSniffer(
 	logger zerolog.Logger,
-	cache cache.Cache,
+	cache cache.Cache[netutil.IPKey],
 	handle Handle,
 	defaultTTL uint8,
 ) *UDPSniffer {
@@ -38,7 +39,7 @@ func NewUDPSniffer(
 
 // --- HopTracker Methods ---
 
-func (us *UDPSniffer) Cache() cache.Cache {
+func (us *UDPSniffer) Cache() cache.Cache[netutil.IPKey] {
 	return us.nhopCache
 }
 
@@ -63,15 +64,19 @@ func (us *UDPSniffer) StartCapturing() {
 // Addresses that are already being tracked are ignored.
 func (us *UDPSniffer) RegisterUntracked(addrs []net.IP) {
 	for _, v := range addrs {
-		us.nhopCache.Set(v.String(), us.defaultTTL, cache.Options().WithSkipExisting(true))
+		us.nhopCache.Store(
+			netutil.NewIPKey(v),
+			us.defaultTTL,
+			cache.Options().WithSkipExisting(true),
+		)
 	}
 }
 
 // GetOptimalTTL retrieves the estimated hop count for a given key from the cache.
 // It returns the hop count and true if found, or 0 and false if not found.
-func (us *UDPSniffer) GetOptimalTTL(key string) uint8 {
+func (us *UDPSniffer) GetOptimalTTL(key netutil.IPKey) uint8 {
 	hopCount := uint8(255)
-	if oTTL, ok := us.nhopCache.Get(key); ok {
+	if oTTL, ok := us.nhopCache.Fetch(key); ok {
 		hopCount = oTTL.(uint8)
 	}
 
@@ -87,7 +92,7 @@ func (us *UDPSniffer) processPacket(ctx context.Context, p gopacket.Packet) {
 		return
 	}
 
-	var srcIP string
+	var srcIP []byte
 	var ttlLeft uint8
 
 	// Handle IPv4
@@ -103,27 +108,27 @@ func (us *UDPSniffer) processPacket(ctx context.Context, p gopacket.Packet) {
 			return
 		}
 
-		srcIP = ip.SrcIP.String()
+		srcIP = ip.SrcIP
 		ttlLeft = ip.TTL
 	} else if ipLayer := p.Layer(layers.LayerTypeIPv6); ipLayer != nil {
 		// Handle IPv6
 		ip, _ := ipLayer.(*layers.IPv6)
-		srcIP = ip.SrcIP.String()
+		srcIP = ip.SrcIP
 		ttlLeft = ip.HopLimit
 	} else {
 		return // No IP layer found
 	}
 
-	key := srcIP
+	key := netutil.NewIPKey(srcIP)
 	// Calculate hop count from the TTL
 	nhops := estimateHops(ttlLeft)
 
-	stored, exists := us.nhopCache.Get(key)
+	stored, exists := us.nhopCache.Fetch(key)
 
-	if us.nhopCache.Set(key, nhops, nil) {
+	if us.nhopCache.Store(key, nhops, nil) {
 		if !exists || stored != nhops {
 			logger.Trace().
-				Str("from", key).
+				Str("from", key.String()).
 				Uint8("nhops", nhops).
 				Uint8("ttlLeft", ttlLeft).
 				Msgf("ttl(udp) update")

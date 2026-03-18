@@ -15,13 +15,13 @@ import (
 type CacheResolver struct {
 	logger zerolog.Logger
 
-	ttlCache cache.Cache // Owns the cache
+	ttlCache cache.Cache[string] // Owns the cache
 }
 
 // NewCacheResolver wraps a "worker" resolver with a cache.
 func NewCacheResolver(
 	logger zerolog.Logger,
-	cache cache.Cache,
+	cache cache.Cache[string],
 ) *CacheResolver {
 	return &CacheResolver{
 		logger:   logger,
@@ -53,7 +53,7 @@ func (cr *CacheResolver) Resolve(
 	// the cache might return the wrong one.
 	// For now, assuming simplistic cache key = domain, but awareness of potential issue.
 	// Ideally: key = domain + qtypes + spec-related-things
-	if item, ok := cr.ttlCache.Get(domain); ok {
+	if item, ok := cr.ttlCache.Fetch(domain); ok {
 		logger.Debug().Str("domain", domain).Msgf("hit")
 		return item.(*RecordSet).Clone(), nil
 	}
@@ -81,7 +81,7 @@ func (cr *CacheResolver) Resolve(
 		Uint32("ttl", rSet.TTL).
 		Msg("set")
 
-	_ = cr.ttlCache.Set(
+	_ = cr.ttlCache.Store(
 		domain,
 		rSet,
 		cache.Options().WithTTL(time.Duration(rSet.TTL)*time.Second),

@@ -53,7 +53,7 @@ func DialFastest(
 
 				// If Iface is specified, bind to the interface
 				if dst.Iface != nil {
-					if err := bindToInterface(dialer, dst.Iface, ip); err != nil {
+					if err := bindToInterface(network, dialer, dst.Iface, ip); err != nil {
 						select {
 						case results <- dialResult{conn: nil, err: err}:
 						case <-ctx.Done():

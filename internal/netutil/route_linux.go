@@ -12,7 +12,12 @@ import (
 // bindToInterface sets the dialer's LocalAddr to use the interface's IP as the source address.
 // On Linux, we only set LocalAddr because SO_BINDTODEVICE can cause issues with
 // socket lookup for incoming packets.
-func bindToInterface(dialer *net.Dialer, iface *net.Interface, targetIP net.IP) error {
+func bindToInterface(
+	network string,
+	dialer *net.Dialer,
+	iface *net.Interface,
+	targetIP net.IP,
+) error {
 	if iface == nil {
 		return nil
 	}
@@ -27,10 +32,22 @@ func bindToInterface(dialer *net.Dialer, iface *net.Interface, targetIP net.IP) 
 		if ipnet, ok := addr.(*net.IPNet); ok {
 			// Match IP version: use IPv4 source for IPv4 target, IPv6 for IPv6
 			if targetIP.To4() != nil && ipnet.IP.To4() != nil && !ipnet.IP.IsLoopback() {
-				dialer.LocalAddr = &net.TCPAddr{IP: ipnet.IP}
+				if strings.HasPrefix(network, "tcp") {
+					dialer.LocalAddr = &net.TCPAddr{IP: ipnet.IP}
+				} else if strings.HasPrefix(network, "udp") {
+					dialer.LocalAddr = &net.UDPAddr{IP: ipnet.IP}
+				} else {
+					dialer.LocalAddr = &net.IPAddr{IP: ipnet.IP}
+				}
 				return nil
 			} else if targetIP.To4() == nil && ipnet.IP.To4() == nil && !ipnet.IP.IsLoopback() {
-				dialer.LocalAddr = &net.TCPAddr{IP: ipnet.IP}
+				if strings.HasPrefix(network, "tcp") {
+					dialer.LocalAddr = &net.TCPAddr{IP: ipnet.IP}
+				} else if strings.HasPrefix(network, "udp") {
+					dialer.LocalAddr = &net.UDPAddr{IP: ipnet.IP}
+				} else {
+					dialer.LocalAddr = &net.IPAddr{IP: ipnet.IP}
+				}
 				return nil
 			}
 		}

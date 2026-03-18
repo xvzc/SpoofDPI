@@ -14,7 +14,12 @@ import (
 
 // bindToInterface sets the dialer's Control function to bind the socket
 // to a specific network interface using IP_BOUND_IF on BSD systems.
-func bindToInterface(dialer *net.Dialer, iface *net.Interface, targetIP net.IP) error {
+func bindToInterface(
+	network string,
+	dialer *net.Dialer,
+	iface *net.Interface,
+	targetIP net.IP,
+) error {
 	if iface == nil {
 		return nil
 	}

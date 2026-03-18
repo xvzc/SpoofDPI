@@ -18,7 +18,6 @@ type UDPHandler struct {
 	defaultUDPOpts  *config.UDPOptions
 	defaultConnOpts *config.ConnOptions
 	desyncer        *desync.UDPDesyncer
-	pool            *netutil.ConnPool
 	iface           string
 	gateway         string
 }
@@ -28,14 +27,12 @@ func NewUDPHandler(
 	desyncer *desync.UDPDesyncer,
 	defaultUDPOpts *config.UDPOptions,
 	defaultConnOpts *config.ConnOptions,
-	pool *netutil.ConnPool,
 ) *UDPHandler {
 	return &UDPHandler{
 		logger:          logger,
 		desyncer:        desyncer,
 		defaultUDPOpts:  defaultUDPOpts,
 		defaultConnOpts: defaultConnOpts,
-		pool:            pool,
 	}
 }
 
@@ -79,27 +76,26 @@ func (h *UDPHandler) Handle(ctx context.Context, lConn net.Conn, rule *config.Ru
 		connOpts = connOpts.Merge(rule.Conn)
 	}
 
-	// Key for connection pool
-	key := lConn.RemoteAddr().String() + ">" + lConn.LocalAddr().String()
-
 	// Dial remote connection
 	rawConn, err := netutil.DialFastest(ctx, "udp", dst)
 	if err != nil {
+		logger.Error().Msgf("error dialing to %s", dst.String())
 		return
 	}
 
-	// Add to pool (pool handles LRU eviction and deadline)
-	rConn := h.pool.Add(key, rawConn)
+	timeout := *connOpts.UDPIdleTimeout
+
+	// Wrap rConn with IdleTimeoutConn
+	rConnWrapped := netutil.NewIdleTimeoutConn(rawConn, timeout)
 
 	// Wrap lConn with IdleTimeoutConn as well
-	timeout := *connOpts.UDPIdleTimeout
-	lConnWrapped := &netutil.IdleTimeoutConn{Conn: lConn, Timeout: timeout}
+	lConnWrapped := netutil.NewIdleTimeoutConn(lConn, timeout)
 
 	// Desync
-	_, _ = h.desyncer.Desync(ctx, lConnWrapped, rConn, udpOpts)
+	_, _ = h.desyncer.Desync(ctx, lConnWrapped, rConnWrapped, udpOpts)
 
 	logger.Debug().
-		Msgf("new remote conn (%s -> %s)", lConn.RemoteAddr(), rConn.RemoteAddr())
+		Msgf("new remote conn (%s -> %s)", lConn.RemoteAddr(), rConnWrapped.RemoteAddr())
 
 	resCh := make(chan netutil.TransferResult, 2)
 
@@ -107,15 +103,15 @@ func (h *UDPHandler) Handle(ctx context.Context, lConn net.Conn, rule *config.Ru
 	defer cancel()
 
 	startedAt := time.Now()
-	go netutil.TunnelConns(ctx, resCh, lConnWrapped, rConn, netutil.TunnelDirOut)
-	go netutil.TunnelConns(ctx, resCh, rConn, lConnWrapped, netutil.TunnelDirIn)
+	go netutil.TunnelConns(ctx, resCh, lConnWrapped, rConnWrapped, netutil.TunnelDirOut)
+	go netutil.TunnelConns(ctx, resCh, rConnWrapped, lConnWrapped, netutil.TunnelDirIn)
 
 	err = netutil.WaitAndLogTunnel(
 		ctx,
 		logger,
 		resCh,
 		startedAt,
-		netutil.DescribeRoute(lConnWrapped, rConn),
+		netutil.DescribeRoute(lConnWrapped, rConnWrapped),
 		nil,
 	)
 	if err != nil {

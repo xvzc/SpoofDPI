@@ -17,14 +17,14 @@ import (
 
 type UdpAssociateHandler struct {
 	logger         zerolog.Logger
-	pool           *netutil.ConnPool
+	pool           *netutil.SessionCache[netutil.NATKey]
 	desyncer       *desync.UDPDesyncer
 	defaultUDPOpts *config.UDPOptions
 }
 
 func NewUdpAssociateHandler(
 	logger zerolog.Logger,
-	pool *netutil.ConnPool,
+	pool *netutil.SessionCache[netutil.NATKey],
 	desyncer *desync.UDPDesyncer,
 	defaultUDPOpts *config.UDPOptions,
 ) *UdpAssociateHandler {
@@ -120,9 +120,6 @@ func (h *UdpAssociateHandler) Handle(
 			continue
 		}
 
-		// Key: Client Addr -> Target Addr
-		key := clientAddr.String() + ">" + targetAddrStr
-
 		// Resolve address to construct Destination
 		uAddr, err := net.ResolveUDPAddr("udp", targetAddrStr)
 		if err != nil {
@@ -133,9 +130,21 @@ func (h *UdpAssociateHandler) Handle(
 			continue
 		}
 
+		// Key: Client Addr -> Target Addr (Zero Allocation Struct)
+		key := netutil.NewNATKey(clientAddr, uAddr)
+
 		dst := &netutil.Destination{
 			Addrs: []net.IP{uAddr.IP},
 			Port:  uAddr.Port,
+		}
+
+		// Check if connection already exists in the pool
+		if conn, ok := h.pool.Fetch(key); ok {
+			// Write payload to target
+			if _, err := conn.Write(payload); err != nil {
+				logger.Warn().Err(err).Msg("failed to write udp to target")
+			}
+			continue
 		}
 
 		rawConn, err := netutil.DialFastest(ctx, "udp", dst)
@@ -145,7 +154,7 @@ func (h *UdpAssociateHandler) Handle(
 		}
 
 		// Add to pool (pool handles LRU eviction and deadline)
-		conn := h.pool.Add(key, rawConn)
+		conn := h.pool.Store(key, rawConn)
 
 		// Apply UDP options from rule if matched
 		udpOpts := h.defaultUDPOpts.Clone()
@@ -159,7 +168,7 @@ func (h *UdpAssociateHandler) Handle(
 		}
 
 		// Start a goroutine to read from the target and forward to the client
-		go func(targetConn *netutil.PooledConn, clientAddr *net.UDPAddr) {
+		go func(targetConn *netutil.IdleTimeoutConn, clientAddr *net.UDPAddr) {
 			respBuf := make([]byte, 65535)
 			for {
 				n, _, err := targetConn.Conn.(*net.UDPConn).ReadFromUDP(respBuf)

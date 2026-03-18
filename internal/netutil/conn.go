@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -227,9 +228,33 @@ func (b *BufferedConn) Peek(n int) ([]byte, error) {
 // This is useful for sessions which should stay alive as long as there is activity.
 type IdleTimeoutConn struct {
 	net.Conn
-	Timeout    time.Duration
-	LastActive time.Time
-	ExpiredAt  time.Time // Calculated expiration time for cleanup
+	Key     any
+	Timeout time.Duration
+
+	lastActivity int64 // UnixNano atomic
+	expiredAt    int64 // UnixNano atomic
+
+	onActivity func()
+	onClose    func()
+}
+
+// NewIdleTimeoutConn wraps a net.Conn and securely initializes its internal atomic deadlines.
+func NewIdleTimeoutConn(conn net.Conn, timeout time.Duration) *IdleTimeoutConn {
+	c := &IdleTimeoutConn{
+		Conn:    conn,
+		Timeout: timeout,
+	}
+
+	now := time.Now()
+	atomic.StoreInt64(&c.lastActivity, now.UnixNano())
+	if timeout > 0 {
+		expTime := now.Add(timeout)
+		atomic.StoreInt64(&c.expiredAt, expTime.UnixNano())
+		_ = c.SetReadDeadline(expTime)
+		_ = c.SetWriteDeadline(expTime)
+	}
+
+	return c
 }
 
 func (c *IdleTimeoutConn) Read(b []byte) (int, error) {
@@ -246,17 +271,48 @@ func (c *IdleTimeoutConn) Write(b []byte) (int, error) {
 // Returns false if the connection was already expired.
 func (c *IdleTimeoutConn) ExtendDeadline() bool {
 	now := time.Now()
+	nowUnix := now.UnixNano()
 
-	// Check if already expired
-	if !c.ExpiredAt.IsZero() && now.After(c.ExpiredAt) {
+	// 1. Check if already expired (Thread-safe atomic read)
+	expUnix := atomic.LoadInt64(&c.expiredAt)
+	if expUnix != 0 && nowUnix > expUnix {
 		return false
 	}
 
-	c.LastActive = now
-	if c.Timeout > 0 {
-		c.ExpiredAt = now.Add(c.Timeout)
-		_ = c.SetReadDeadline(c.ExpiredAt)
-		_ = c.SetWriteDeadline(c.ExpiredAt)
+	// 2. Throttle OnActivity to drastically reduce LRU Cache Lock Contention
+	lastActUnix := atomic.LoadInt64(&c.lastActivity)
+	if nowUnix-lastActUnix > int64(time.Second) {
+		atomic.StoreInt64(&c.lastActivity, nowUnix)
+		if c.onActivity != nil {
+			c.onActivity()
+		}
 	}
+
+	// 3. Throttle SetDeadline overhead (System Call)
+	// Extends only if remaining time is under 70% of timeout
+	if c.Timeout > 0 {
+		if expUnix == 0 || (expUnix-nowUnix) < (c.Timeout.Nanoseconds()*7/10) {
+			newExpUnix := now.Add(c.Timeout).UnixNano()
+			atomic.StoreInt64(&c.expiredAt, newExpUnix)
+
+			newExpTime := time.Unix(0, newExpUnix)
+			_ = c.SetReadDeadline(newExpTime)
+			_ = c.SetWriteDeadline(newExpTime)
+		}
+	}
+
 	return true
+}
+
+// IsExpired safely checks if the connection has surpassed its calculated expiration time.
+func (c *IdleTimeoutConn) IsExpired(now time.Time) bool {
+	expUnix := atomic.LoadInt64(&c.expiredAt)
+	return expUnix != 0 && now.UnixNano() > expUnix
+}
+
+func (c *IdleTimeoutConn) Close() error {
+	if c.onClose != nil {
+		c.onClose()
+	}
+	return c.Conn.Close()
 }

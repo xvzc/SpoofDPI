@@ -167,7 +167,7 @@ func createResolver(logger zerolog.Logger, cfg *config.Config) dns.Resolver {
 
 	cacheResolver := dns.NewCacheResolver(
 		logging.WithScope(logger, "dns"),
-		cache.NewTTLCache(
+		cache.NewTTLCache[string](
 			cache.TTLCacheAttrs{
 				NumOfShards:     64,
 				CleanupInterval: time.Duration(3 * time.Minute),
@@ -245,7 +245,7 @@ func createPacketObjects(
 		Str("mac", gatewayMACStr).
 		Msg(" gateway (passive detection)")
 
-	hopCache := cache.NewLRUCache(4096)
+	hopCache := cache.NewLRUCache[netutil.IPKey](4096, nil)
 
 	// TCP Objects
 	tcpSniffer := packet.NewTCPSniffer(
@@ -357,7 +357,7 @@ func createServer(
 		)
 		udpAssociateHandler := socks5.NewUdpAssociateHandler(
 			logging.WithScope(logger, "hnd"),
-			netutil.NewConnPool(4096, 60*time.Second),
+			netutil.NewSessionCache[netutil.NATKey](4096, 60*time.Second),
 			udpDesyncer,
 			cfg.UDP.Clone(),
 		)
@@ -397,7 +397,6 @@ func createServer(
 			udpDesyncer,
 			cfg.UDP.Clone(),
 			cfg.Conn.Clone(),
-			netutil.NewConnPool(4096, 60*time.Second),
 		)
 
 		return tun.NewTunServer(
