@@ -1,8 +1,8 @@
 package netutil
 
 import (
+	"context"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/xvzc/SpoofDPI/internal/cache"
@@ -10,21 +10,17 @@ import (
 
 // SessionCache manages UDP connections with LRU eviction policy and idle timeout.
 type SessionCache[K comparable] struct {
-	storage  cache.Cache[K]
-	timeout  time.Duration
-	stopCh   chan struct{}
-	stopOnce sync.Once
+	storage cache.Cache[K]
+	timeout time.Duration
 }
 
 // NewSessionCache creates a new pool with the specified capacity and timeout.
-// Starts a background goroutine for expired connection cleanup.
 func NewSessionCache[K comparable](
 	capacity int,
 	timeout time.Duration,
 ) *SessionCache[K] {
 	p := &SessionCache[K]{
 		timeout: timeout,
-		stopCh:  make(chan struct{}),
 	}
 
 	onInvalidate := func(k K, v any) {
@@ -35,13 +31,31 @@ func NewSessionCache[K comparable](
 
 	p.storage = cache.NewLRUCache(capacity, onInvalidate)
 
+	return p
+}
+
+// RunCleanupLoop runs the background cleanup goroutine.
+// It exits when appctx is cancelled, closing all remaining cached connections.
+func (p *SessionCache[K]) RunCleanupLoop(appctx context.Context) {
 	// Cleanup interval: half of timeout, min 10s, max 60s
-	cleanupInterval := timeout / 2
+	cleanupInterval := p.timeout / 2
 	cleanupInterval = max(cleanupInterval, 10*time.Second)
 	cleanupInterval = min(cleanupInterval, 60*time.Second)
 
-	go p.cleanupLoop(cleanupInterval)
-	return p
+	go func() {
+		ticker := time.NewTicker(cleanupInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-appctx.Done():
+				p.CloseAll()
+				return
+			case <-ticker.C:
+				p.evictExpired()
+			}
+		}
+	}()
 }
 
 // Store adds a connection to the cache and returns the wrapped connection.
@@ -87,13 +101,6 @@ func (p *SessionCache[K]) Size() int {
 	return p.storage.Size()
 }
 
-// Stop stops the background cleanup goroutine.
-func (p *SessionCache[K]) Stop() {
-	p.stopOnce.Do(func() {
-		close(p.stopCh)
-	})
-}
-
 // CloseAll closes all connections in the pool.
 func (p *SessionCache[K]) CloseAll() {
 	var toRemove []K
@@ -103,20 +110,6 @@ func (p *SessionCache[K]) CloseAll() {
 	})
 	for _, k := range toRemove {
 		p.Evict(k) // safely removes without deadlocking
-	}
-}
-
-func (p *SessionCache[K]) cleanupLoop(interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-p.stopCh:
-			return
-		case <-ticker.C:
-			p.evictExpired()
-		}
 	}
 }
 

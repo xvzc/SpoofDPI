@@ -34,21 +34,25 @@ var (
 
 func main() {
 	cmd := config.CreateCommand(runApp, version, commit, build)
-	ctx := session.WithNewTraceID(context.Background())
-	if err := cmd.Run(ctx, os.Args); err != nil {
+	appctx, cancel := signal.NotifyContext(
+		session.WithNewTraceID(context.Background()),
+		syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP,
+	)
+	defer cancel()
+	if err := cmd.Run(appctx, os.Args); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func runApp(ctx context.Context, configDir string, cfg *config.Config) {
+func runApp(appctx context.Context, configDir string, cfg *config.Config) {
 	if !*cfg.App.Silent {
 		printBanner()
 	}
 
-	logging.SetGlobalLogger(ctx, *cfg.App.LogLevel)
+	logging.SetGlobalLogger(appctx, *cfg.App.LogLevel)
 
-	logger := log.Logger.With().Ctx(ctx).Logger()
+	logger := log.Logger.With().Ctx(appctx).Logger()
 	logger.Info().Str("version", version).Msg("started spoofdpi")
 	if configDir != "" {
 		logger.Info().
@@ -58,7 +62,7 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 
 	resolver := createResolver(logger, cfg)
 
-	srv, err := createServer(logger, cfg, resolver)
+	srv, err := createServer(appctx, logger, cfg, resolver)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("failed to create server")
 	}
@@ -66,7 +70,7 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 	// Start server
 	ready := make(chan struct{})
 	go func() {
-		if err := srv.Start(ctx, ready); err != nil {
+		if err := srv.ListenAndServe(appctx, ready); err != nil {
 			logger.Fatal().Err(err).Msgf("failed to start server: %T", srv)
 		}
 	}()
@@ -124,25 +128,7 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 
 	logger.Info().Msgf("server started on %s", srv.Addr())
 
-	sigs := make(chan os.Signal, 1)
-	done := make(chan bool, 1)
-
-	signal.Notify(
-		sigs,
-		syscall.SIGINT,
-		syscall.SIGTERM,
-		syscall.SIGQUIT,
-		syscall.SIGHUP)
-
-	go func() {
-		<-sigs
-		done <- true
-	}()
-
-	<-done
-
-	// Graceful shutdown
-	_ = srv.Stop()
+	<-appctx.Done()
 }
 
 func createResolver(logger zerolog.Logger, cfg *config.Config) dns.Resolver {
@@ -283,6 +269,7 @@ func createPacketObjects(
 }
 
 func createServer(
+	appctx context.Context,
 	logger zerolog.Logger,
 	cfg *config.Config,
 	resolver dns.Resolver,
@@ -355,9 +342,11 @@ func createServer(
 			udpWriter,
 			udpSniffer,
 		)
+		udpPool := netutil.NewSessionCache[netutil.NATKey](4096, 60*time.Second)
+		udpPool.RunCleanupLoop(appctx)
 		udpAssociateHandler := socks5.NewUdpAssociateHandler(
 			logging.WithScope(logger, "hnd"),
-			netutil.NewSessionCache[netutil.NATKey](4096, 60*time.Second),
+			udpPool,
 			udpDesyncer,
 			cfg.UDP.Clone(),
 		)

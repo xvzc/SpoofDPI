@@ -62,25 +62,19 @@ func NewTunServer(
 	}
 }
 
-func (s *TunServer) Start(ctx context.Context, ready chan<- struct{}) error {
+func (s *TunServer) ListenAndServe(appctx context.Context, ready chan<- struct{}) error {
 	iface, err := NewTunDevice()
 	if err != nil {
 		return fmt.Errorf("failed to create tun device: %w", err)
 	}
 	s.iface = iface
+	defer iface.Close()
 
 	if ready != nil {
 		close(ready)
 	}
 
-	return s.handle(ctx, iface)
-}
-
-func (s *TunServer) Stop() error {
-	if s.iface != nil {
-		return s.iface.Close()
-	}
-	return nil
+	return s.handle(appctx, iface)
 }
 
 func (s *TunServer) SetNetworkConfig() error {
@@ -187,8 +181,8 @@ func (s *TunServer) matchRuleByAddr(addr net.Addr) *config.Rule {
 	return s.matcher.Search(selector)
 }
 
-func (s *TunServer) handle(ctx context.Context, iface *water.Interface) error {
-	logger := logging.WithLocalScope(ctx, s.logger, "tun")
+func (s *TunServer) handle(appctx context.Context, iface *water.Interface) error {
+	logger := logging.WithLocalScope(appctx, s.logger, "tun")
 
 	// 1. Create gVisor stack
 	stk := stack.New(stack.Options{
@@ -263,15 +257,15 @@ func (s *TunServer) handle(ctx context.Context, iface *water.Interface) error {
 	stk.SetTransportProtocolHandler(udp.ProtocolNumber, udpFwd.HandlePacket)
 
 	// 6. Start packet pump
-	go s.tunToStack(ctx, logger, iface, ep)
-	go s.stackToTun(ctx, logger, iface, ep)
+	go s.tunToStack(appctx, logger, iface, ep)
+	go s.stackToTun(appctx, logger, iface, ep)
 
-	<-ctx.Done()
+	<-appctx.Done()
 	return nil
 }
 
 func (s *TunServer) tunToStack(
-	ctx context.Context,
+	appctx context.Context,
 	logger zerolog.Logger,
 	iface *water.Interface,
 	ep *channel.Endpoint,
@@ -285,7 +279,7 @@ func (s *TunServer) tunToStack(
 			}
 
 			select {
-			case <-ctx.Done():
+			case <-appctx.Done():
 				return
 			default:
 				if err != io.EOF {
@@ -340,7 +334,7 @@ func (n *notifier) WriteNotify() {
 }
 
 func (s *TunServer) stackToTun(
-	ctx context.Context,
+	appctx context.Context,
 	logger zerolog.Logger,
 	iface *water.Interface,
 	ep *channel.Endpoint,
@@ -351,7 +345,7 @@ func (s *TunServer) stackToTun(
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-appctx.Done():
 			return
 		default:
 		}
@@ -361,7 +355,7 @@ func (s *TunServer) stackToTun(
 			select {
 			case <-ch:
 				continue
-			case <-ctx.Done():
+			case <-appctx.Done():
 				return
 			}
 		}

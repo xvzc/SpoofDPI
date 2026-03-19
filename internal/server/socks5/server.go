@@ -34,8 +34,6 @@ type SOCKS5Proxy struct {
 	appOpts    *config.AppOptions
 	connOpts   *config.ConnOptions
 	policyOpts *config.PolicyOptions
-
-	listener net.Listener
 }
 
 func NewSOCKS5Proxy(
@@ -62,7 +60,7 @@ func NewSOCKS5Proxy(
 	}
 }
 
-func (p *SOCKS5Proxy) Start(ctx context.Context, ready chan<- struct{}) error {
+func (p *SOCKS5Proxy) ListenAndServe(appctx context.Context, ready chan<- struct{}) error {
 	listener, err := net.ListenTCP("tcp", p.appOpts.ListenAddr)
 	if err != nil {
 		return fmt.Errorf(
@@ -71,7 +69,11 @@ func (p *SOCKS5Proxy) Start(ctx context.Context, ready chan<- struct{}) error {
 			err,
 		)
 	}
-	p.listener = listener
+
+	go func() {
+		<-appctx.Done()
+		listener.Close()
+	}()
 
 	if ready != nil {
 		close(ready)
@@ -89,15 +91,8 @@ func (p *SOCKS5Proxy) Start(ctx context.Context, ready chan<- struct{}) error {
 			continue
 		}
 
-		go p.handleConnection(session.WithNewTraceID(ctx), conn)
+		go p.handleConnection(session.WithNewTraceID(appctx), conn)
 	}
-}
-
-func (p *SOCKS5Proxy) Stop() error {
-	if p.listener != nil {
-		return p.listener.Close()
-	}
-	return nil
 }
 
 func (p *SOCKS5Proxy) SetNetworkConfig() error {

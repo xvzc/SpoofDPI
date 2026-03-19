@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net"
 	"testing"
 	"time"
@@ -77,7 +78,7 @@ func TestCreateProxy_NoPcap(t *testing.T) {
 	logger := zerolog.Nop()
 	resolver := createResolver(logger, cfg)
 
-	p, err := createServer(logger, cfg, resolver)
+	p, err := createServer(context.Background(), logger, cfg, resolver)
 	require.NoError(t, err)
 	assert.NotNil(t, p)
 }
@@ -134,7 +135,7 @@ func TestCreateProxy_WithPolicy(t *testing.T) {
 	logger := zerolog.Nop()
 	resolver := createResolver(logger, cfg)
 
-	p, err := createServer(logger, cfg, resolver)
+	p, err := createServer(context.Background(), logger, cfg, resolver)
 	require.NoError(t, err)
 	assert.NotNil(t, p)
 }

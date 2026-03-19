@@ -90,7 +90,7 @@ func (h *UdpAssociateHandler) Handle(
 
 	for {
 		// Wait for data
-		n, addr, err := lNewConn.ReadFromUDP(buf)
+		n, lAddr, err := lNewConn.ReadFromUDP(buf)
 		if err != nil {
 			// Normal closure check
 			select {
@@ -105,37 +105,37 @@ func (h *UdpAssociateHandler) Handle(
 		}
 
 		// Security: Only accept UDP packets from the same IP that established the TCP connection
-		if !addr.IP.Equal(tcpRemoteIP) {
+		if !lAddr.IP.Equal(tcpRemoteIP) {
 			logger.Debug().
 				Str("expected", tcpRemoteIP.String()).
-				Str("actual", addr.IP.String()).
+				Str("actual", lAddr.IP.String()).
 				Msg("dropped udp packet from unexpected ip")
 			continue
 		}
 
 		// Outbound: Client -> Proxy -> Target
-		targetAddrStr, payload, err := parseUDPHeader(buf[:n])
+		dstUDPAddrStr, payload, err := parseUDPHeader(buf[:n])
 		if err != nil {
 			logger.Warn().Err(err).Msg("failed to parse socks5 udp header")
 			continue
 		}
 
 		// Resolve address to construct Destination
-		uAddr, err := net.ResolveUDPAddr("udp", targetAddrStr)
+		dstUDPAddr, err := net.ResolveUDPAddr("udp", dstUDPAddrStr)
 		if err != nil {
 			logger.Warn().
 				Err(err).
-				Str("addr", targetAddrStr).
+				Str("addr", dstUDPAddrStr).
 				Msg("failed to resolve udp target")
 			continue
 		}
 
 		// Key: Client Addr -> Target Addr (Zero Allocation Struct)
-		key := netutil.NewNATKey(addr, uAddr)
+		key := netutil.NewNATKey(lAddr, dstUDPAddr)
 
 		dst := &netutil.Destination{
-			Addrs: []net.IP{uAddr.IP},
-			Port:  uAddr.Port,
+			Addrs: []net.IP{dstUDPAddr.IP},
+			Port:  dstUDPAddr.Port,
 		}
 
 		// Check if connection already exists in the pool
@@ -147,14 +147,15 @@ func (h *UdpAssociateHandler) Handle(
 			continue
 		}
 
-		rawConn, err := netutil.DialFastest(ctx, "udp", dst)
+		rConnRaw, err := netutil.DialFastest(ctx, "udp", dst)
 		if err != nil {
-			logger.Warn().Err(err).Str("addr", targetAddrStr).Msg("failed to dial udp target")
+			logger.Warn().Err(err).Str("addr", dstUDPAddrStr).Msg("failed to dial udp target")
 			continue
 		}
 
 		// Add to pool (pool handles LRU eviction and deadline)
-		conn := h.pool.Store(key, rawConn)
+		// returns IdleTimeoutConn with the actual net.Conn inside
+		rConn := h.pool.Store(key, rConnRaw)
 
 		// Apply UDP options from rule if matched
 		udpOpts := h.defaultUDPOpts.Clone()
@@ -164,14 +165,14 @@ func (h *UdpAssociateHandler) Handle(
 
 		// Send fake packets before real payload (UDP desync)
 		if h.desyncer != nil {
-			_, _ = h.desyncer.Desync(ctx, lNewConn, conn.Conn, udpOpts)
+			_, _ = h.desyncer.Desync(ctx, lNewConn, rConn.Conn, udpOpts)
 		}
 
 		// Start a goroutine to read from the target and forward to the client
-		go func(targetConn *netutil.IdleTimeoutConn, clientAddr *net.UDPAddr) {
+		go func(rConn *netutil.IdleTimeoutConn, lAddr *net.UDPAddr) {
 			respBuf := make([]byte, 65535)
 			for {
-				n, _, err := targetConn.Conn.(*net.UDPConn).ReadFromUDP(respBuf)
+				n, _, err := rConn.Conn.(*net.UDPConn).ReadFromUDP(respBuf)
 				if err != nil {
 					// Connection closed or network issues
 					return
@@ -179,21 +180,21 @@ func (h *UdpAssociateHandler) Handle(
 
 				// Inbound: Target -> Proxy -> Client
 				// Wrap with SOCKS5 Header
-				remoteAddr := targetConn.Conn.(*net.UDPConn).RemoteAddr().(*net.UDPAddr)
+				remoteAddr := rConn.Conn.(*net.UDPConn).RemoteAddr().(*net.UDPAddr)
 				header := createUDPHeaderFromAddr(remoteAddr)
 				response := append(header, respBuf[:n]...)
 
-				if _, err := lNewConn.WriteToUDP(response, clientAddr); err != nil {
+				if _, err := lNewConn.WriteToUDP(response, lAddr); err != nil {
 					// If we can't write back to the client, it might be gone or network issue.
 					// Exit this goroutine to avoid busy looping.
 					logger.Warn().Err(err).Msg("failed to write udp to client")
 					return
 				}
 			}
-		}(conn, clientAddr)
+		}(rConn, lAddr)
 
 		// Write payload to target
-		if _, err := conn.Write(payload); err != nil {
+		if _, err := rConn.Write(payload); err != nil {
 			logger.Warn().Err(err).Msg("failed to write udp to target")
 		}
 	}
