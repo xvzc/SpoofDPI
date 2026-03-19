@@ -106,8 +106,12 @@ func (c *LRUCache[K]) Store(key K, value any, opts *options) bool {
 		return false
 	}
 
-	if ok {
+	if ok { // Key already exists
 		entry := element.Value.(*lruEntry[K])
+		if c.onInvalidate != nil {
+			// Invoke onInvalidate to ensure associated resources are properly released.
+			c.onInvalidate(entry.key, entry.value)
+		}
 		entry.value = value
 
 		c.list.MoveToFront(element)
