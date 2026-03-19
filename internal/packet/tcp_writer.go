@@ -173,12 +173,14 @@ func (tw *TCPWriter) createIPv6Layers(
 ) ([]gopacket.SerializableLayer, error) {
 	var packetLayers []gopacket.SerializableLayer
 
-	eth := &layers.Ethernet{
-		SrcMAC:       srcMAC,
-		DstMAC:       dstMAC,
-		EthernetType: layers.EthernetTypeIPv6,
+	if srcMAC != nil {
+		eth := &layers.Ethernet{
+			SrcMAC:       srcMAC,
+			DstMAC:       dstMAC,
+			EthernetType: layers.EthernetTypeIPv6,
+		}
+		packetLayers = append(packetLayers, eth)
 	}
-	packetLayers = append(packetLayers, eth)
 
 	ipLayer := &layers.IPv6{
 		Version:    6,

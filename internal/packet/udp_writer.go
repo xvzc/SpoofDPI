@@ -123,7 +123,7 @@ func (uw *UDPWriter) createIPv4Layers(
 ) ([]gopacket.SerializableLayer, error) {
 	var packetLayers []gopacket.SerializableLayer
 
-	if srcMAC != nil {
+	if srcMAC != nil && dstMAC != nil {
 		eth := &layers.Ethernet{
 			SrcMAC:       srcMAC,
 			DstMAC:       dstMAC,
@@ -167,12 +167,14 @@ func (uw *UDPWriter) createIPv6Layers(
 ) ([]gopacket.SerializableLayer, error) {
 	var packetLayers []gopacket.SerializableLayer
 
-	eth := &layers.Ethernet{
-		SrcMAC:       srcMAC,
-		DstMAC:       dstMAC,
-		EthernetType: layers.EthernetTypeIPv6,
+	if srcMAC != nil && dstMAC != nil {
+		eth := &layers.Ethernet{
+			SrcMAC:       srcMAC,
+			DstMAC:       dstMAC,
+			EthernetType: layers.EthernetTypeIPv6,
+		}
+		packetLayers = append(packetLayers, eth)
 	}
-	packetLayers = append(packetLayers, eth)
 
 	ipLayer := &layers.IPv6{
 		Version:    6,
