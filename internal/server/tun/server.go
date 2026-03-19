@@ -41,9 +41,9 @@ type TunServer struct {
 	tcpHandler *TCPHandler
 	udpHandler *UDPHandler
 
-	iface          *water.Interface
-	defaultIface   string
-	defaultGateway string
+	tunDevice *water.Interface
+	iface     string
+	gateway   string
 }
 
 func NewTunServer(
@@ -52,6 +52,8 @@ func NewTunServer(
 	matcher matcher.RuleMatcher,
 	tcpHandler *TCPHandler,
 	udpHandler *UDPHandler,
+	iface string,
+	gateway string,
 ) server.Server {
 	return &TunServer{
 		logger:     logger,
@@ -59,51 +61,44 @@ func NewTunServer(
 		matcher:    matcher,
 		tcpHandler: tcpHandler,
 		udpHandler: udpHandler,
+		iface:      iface,
+		gateway:    gateway,
 	}
 }
 
-func (s *TunServer) ListenAndServe(appctx context.Context, ready chan<- struct{}) error {
-	iface, err := NewTunDevice()
+func (s *TunServer) ListenAndServe(
+	appctx context.Context,
+	ready chan<- struct{},
+) error {
+	var err error
+	s.tunDevice, err = NewTunDevice()
 	if err != nil {
 		return fmt.Errorf("failed to create tun device: %w", err)
 	}
-	s.iface = iface
-	defer iface.Close()
+
+	go func() {
+		<-appctx.Done()
+		_ = s.tunDevice.Close()
+	}()
 
 	if ready != nil {
 		close(ready)
 	}
 
-	return s.handle(appctx, iface)
+	return s.handle(appctx)
 }
 
 func (s *TunServer) SetNetworkConfig() error {
-	if s.iface == nil {
+	if s.tunDevice == nil {
 		return fmt.Errorf("tun device not initialized")
 	}
-
-	// Find default interface and gateway before modifying routes
-	defaultIface, defaultGateway, err := netutil.GetDefaultInterfaceAndGateway()
-	if err != nil {
-		return fmt.Errorf("failed to get default interface: %w", err)
-	}
-	s.logger.Info().
-		Str("interface", defaultIface).
-		Str("gateway", defaultGateway).
-		Msg("determined default interface and gateway")
-	s.defaultIface = defaultIface
-	s.defaultGateway = defaultGateway
-
-	// Update handlers with network info
-	s.tcpHandler.SetNetworkInfo(defaultIface, defaultGateway)
-	s.udpHandler.SetNetworkInfo(defaultIface, defaultGateway)
 
 	local, remote, err := netutil.FindSafeSubnet()
 	if err != nil {
 		return fmt.Errorf("failed to find safe subnet: %w", err)
 	}
 
-	if err := SetInterfaceAddress(s.iface.Name(), local, remote); err != nil {
+	if err := SetInterfaceAddress(s.tunDevice.Name(), local, remote); err != nil {
 		return fmt.Errorf("failed to set interface address: %w", err)
 	}
 
@@ -118,38 +113,38 @@ func (s *TunServer) SetNetworkConfig() error {
 		localIP[15]&0xFC,
 	) // Mask with /30
 
-	err = SetRoute(s.iface.Name(), []string{networkAddr.String() + "/30"})
+	err = SetRoute(s.tunDevice.Name(), []string{networkAddr.String() + "/30"})
 	if err != nil {
 		return fmt.Errorf("failed to set local route: %w", err)
 	}
 
 	// Add a host route to the gateway via the physical interface
 	// This ensures SpoofDPI's outbound traffic goes through en0, not utun8
-	if err := SetGatewayRoute(defaultGateway, defaultIface); err != nil {
-		s.logger.Warn().Err(err).Msg("failed to set gateway route")
+	if err := SetGatewayRoute(s.gateway, s.iface); err != nil {
+		s.logger.Error().Err(err).Msg("failed to set gateway route")
 	}
 
-	return SetRoute(s.iface.Name(), []string{"0.0.0.0/0"}) // Default Route
+	return SetRoute(s.tunDevice.Name(), []string{"0.0.0.0/0"}) // Default Route
 }
 
 func (s *TunServer) UnsetNetworkConfig() error {
-	if s.iface == nil {
+	if s.tunDevice == nil {
 		return nil
 	}
 
 	// Remove the gateway route
-	if s.defaultGateway != "" && s.defaultIface != "" {
-		if err := UnsetGatewayRoute(s.defaultGateway, s.defaultIface); err != nil {
+	if s.gateway != "" && s.iface != "" {
+		if err := UnsetGatewayRoute(s.gateway, s.iface); err != nil {
 			s.logger.Warn().Err(err).Msg("failed to unset gateway route")
 		}
 	}
 
-	return UnsetRoute(s.iface.Name(), []string{"0.0.0.0/0"}) // Default Route
+	return UnsetRoute(s.tunDevice.Name(), []string{"0.0.0.0/0"}) // Default Route
 }
 
 func (s *TunServer) Addr() string {
-	if s.iface != nil {
-		return s.iface.Name()
+	if s.tunDevice != nil {
+		return s.tunDevice.Name()
 	}
 	return "tun"
 }
@@ -181,7 +176,7 @@ func (s *TunServer) matchRuleByAddr(addr net.Addr) *config.Rule {
 	return s.matcher.Search(selector)
 }
 
-func (s *TunServer) handle(appctx context.Context, iface *water.Interface) error {
+func (s *TunServer) handle(appctx context.Context) error {
 	logger := logging.WithLocalScope(appctx, s.logger, "tun")
 
 	// 1. Create gVisor stack
@@ -257,22 +252,20 @@ func (s *TunServer) handle(appctx context.Context, iface *water.Interface) error
 	stk.SetTransportProtocolHandler(udp.ProtocolNumber, udpFwd.HandlePacket)
 
 	// 6. Start packet pump
-	go s.tunToStack(appctx, logger, iface, ep)
-	go s.stackToTun(appctx, logger, iface, ep)
+	go s.tunToStack(appctx, logger, ep)
+	s.stackToTun(appctx, logger, ep)
 
-	<-appctx.Done()
 	return nil
 }
 
 func (s *TunServer) tunToStack(
 	appctx context.Context,
 	logger zerolog.Logger,
-	iface *water.Interface,
 	ep *channel.Endpoint,
 ) {
 	buf := make([]byte, 2000)
 	for {
-		n, err := iface.Read(buf)
+		n, err := s.tunDevice.Read(buf)
 		if err != nil {
 			if errors.Is(err, fs.ErrClosed) || errors.Is(err, os.ErrClosed) {
 				return
@@ -336,7 +329,6 @@ func (n *notifier) WriteNotify() {
 func (s *TunServer) stackToTun(
 	appctx context.Context,
 	logger zerolog.Logger,
-	iface *water.Interface,
 	ep *channel.Endpoint,
 ) {
 	ch := make(chan struct{}, 1)
@@ -362,7 +354,7 @@ func (s *TunServer) stackToTun(
 
 		views := pkt.ToView().AsSlice()
 		if len(views) > 0 {
-			_, _ = iface.Write(views)
+			_, _ = s.tunDevice.Write(views)
 		}
 		pkt.DecRef()
 	}

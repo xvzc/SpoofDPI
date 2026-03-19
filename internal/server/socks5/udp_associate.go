@@ -82,7 +82,7 @@ func (h *UdpAssociateHandler) Handle(
 	go func() {
 		_, _ = io.Copy(io.Discard, lConn) // Block until TCP closes
 		close(done)                       // Close the channel to signal UDP handler to exit
-		lNewConn.Close()                  // Force ReadFromUDP to unblock and avoid goroutine leak
+		_ = lNewConn.Close()              // Force ReadFromUDP to unblock and avoid goroutine leak
 	}()
 
 	buf := make([]byte, 65535)

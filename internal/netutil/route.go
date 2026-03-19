@@ -94,9 +94,3 @@ func GetDefaultInterfaceAndGateway() (string, string, error) {
 
 	return ifaceName, gateway, nil
 }
-
-// GetDefaultInterface returns the name of the default network interface
-func GetDefaultInterface() (string, error) {
-	ifaceName, _, err := GetDefaultInterfaceAndGateway()
-	return ifaceName, err
-}

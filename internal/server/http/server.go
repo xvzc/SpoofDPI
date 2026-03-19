@@ -55,7 +55,10 @@ func NewHTTPProxy(
 	}
 }
 
-func (p *HTTPProxy) ListenAndServe(appctx context.Context, ready chan<- struct{}) error {
+func (p *HTTPProxy) ListenAndServe(
+	appctx context.Context,
+	ready chan<- struct{},
+) error {
 	listener, err := net.ListenTCP("tcp", p.appOpts.ListenAddr)
 	if err != nil {
 		return fmt.Errorf(
@@ -68,7 +71,7 @@ func (p *HTTPProxy) ListenAndServe(appctx context.Context, ready chan<- struct{}
 
 	go func() {
 		<-appctx.Done()
-		listener.Close()
+		_ = listener.Close()
 	}()
 
 	if ready != nil {

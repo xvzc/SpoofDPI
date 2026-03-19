@@ -27,12 +27,16 @@ func NewUDPHandler(
 	desyncer *desync.UDPDesyncer,
 	defaultUDPOpts *config.UDPOptions,
 	defaultConnOpts *config.ConnOptions,
+	iface string,
+	gateway string,
 ) *UDPHandler {
 	return &UDPHandler{
 		logger:          logger,
 		desyncer:        desyncer,
 		defaultUDPOpts:  defaultUDPOpts,
 		defaultConnOpts: defaultConnOpts,
+		iface:           iface,
+		gateway:         gateway,
 	}
 }
 

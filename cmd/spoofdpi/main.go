@@ -75,20 +75,6 @@ func runApp(appctx context.Context, configDir string, cfg *config.Config) {
 		}
 	}()
 
-	<-ready
-
-	// System Proxy Config
-	if *cfg.App.AutoConfigureNetwork {
-		if err := srv.SetNetworkConfig(); err != nil {
-			logger.Fatal().Err(err).Msg("failed to set system network config")
-		}
-		defer func() {
-			if err := srv.UnsetNetworkConfig(); err != nil {
-				logger.Error().Err(err).Msg("failed to unset system network config")
-			}
-		}()
-	}
-
 	logger.Info().Msg("dns info")
 	logger.Info().Msgf(" query type '%s'", cfg.DNS.QType.String())
 	logger.Info().Msgf(" resolvers")
@@ -127,6 +113,20 @@ func runApp(appctx context.Context, configDir string, cfg *config.Config) {
 	logger.Info().Msgf("app-mode; %s", cfg.App.Mode.String())
 
 	logger.Info().Msgf("server started on %s", srv.Addr())
+
+	<-ready
+
+	// System Proxy Config
+	if *cfg.App.AutoConfigureNetwork {
+		if err := srv.SetNetworkConfig(); err != nil {
+			logger.Fatal().Err(err).Msg("failed to set system network config")
+		}
+		defer func() {
+			if err := srv.UnsetNetworkConfig(); err != nil {
+				logger.Error().Err(err).Msg("failed to unset system network config")
+			}
+		}()
+	}
 
 	<-appctx.Done()
 }
@@ -364,6 +364,22 @@ func createServer(
 			cfg.Policy.Clone(),
 		), nil
 	case config.AppModeTUN:
+		// Find default interface and gateway before modifying routes
+		defaultIface, defaultGateway, err := netutil.GetDefaultInterfaceAndGateway()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get default interface: %w", err)
+		}
+		logger.Info().
+			Str("interface", defaultIface).
+			Str("gateway", defaultGateway).
+			Msg("determined default interface and gateway")
+		// s.defaultIface = defaultIface
+		// s.defaultGateway = defaultGateway
+
+		// Update handlers with network info
+		// s.tcpHandler.SetNetworkInfo(defaultIface, defaultGateway)
+		// s.udpHandler.SetNetworkInfo(defaultIface, defaultGateway)
+		//
 		tcpHandler := tun.NewTCPHandler(
 			logging.WithScope(logger, "hnd"),
 			ruleMatcher, // For domain-based TLS matching
@@ -371,8 +387,8 @@ func createServer(
 			cfg.Conn.Clone(),
 			desyncer,
 			tcpSniffer, // For TTL tracking
-			"",         // iface and gateway will be set later
-			"",
+			defaultIface,
+			defaultGateway,
 		)
 
 		udpDesyncer := desync.NewUDPDesyncer(
@@ -386,6 +402,8 @@ func createServer(
 			udpDesyncer,
 			cfg.UDP.Clone(),
 			cfg.Conn.Clone(),
+			defaultIface,
+			defaultGateway,
 		)
 
 		return tun.NewTunServer(
@@ -394,6 +412,8 @@ func createServer(
 			ruleMatcher, // For IP-based matching in server.go
 			tcpHandler,
 			udpHandler,
+			defaultIface,
+			defaultGateway,
 		), nil
 	default:
 		return nil, fmt.Errorf("unknown server mode: %s", *cfg.App.Mode)
