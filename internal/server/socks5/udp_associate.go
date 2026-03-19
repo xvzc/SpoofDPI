@@ -46,21 +46,21 @@ func (h *UdpAssociateHandler) Handle(
 	logger := logging.WithLocalScope(ctx, h.logger, "udp_associate")
 
 	// 1. Listen on a random UDP port
-	lAddrTCP := lConn.LocalAddr().(*net.TCPAddr) // SOCKS5 listens on TCP
-	lNewConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: lAddrTCP.IP, Port: 0})
+	lTCPAddr := lConn.LocalAddr().(*net.TCPAddr) // SOCKS5 listens on TCP
+	lUDPConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: lTCPAddr.IP, Port: 0})
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to create udp listener")
 		_ = proto.SOCKS5FailureResponse().Write(lConn)
 		return err
 	}
-	defer netutil.CloseConns(lNewConn)
+	defer netutil.CloseConns(lUDPConn)
 
 	logger.Debug().
-		Str("addr", lNewConn.LocalAddr().String()).
-		Str("network", lNewConn.LocalAddr().Network()).
+		Str("addr", lUDPConn.LocalAddr().String()).
+		Str("network", lUDPConn.LocalAddr().Network()).
 		Msg("new conn")
 
-	lAddr := lNewConn.LocalAddr().(*net.UDPAddr)
+	lAddr := lUDPConn.LocalAddr().(*net.UDPAddr)
 
 	logger.Debug().
 		Str("bind_addr", lAddr.String()).
@@ -82,15 +82,15 @@ func (h *UdpAssociateHandler) Handle(
 	go func() {
 		_, _ = io.Copy(io.Discard, lConn) // Block until TCP closes
 		close(done)                       // Close the channel to signal UDP handler to exit
-		_ = lNewConn.Close()              // Force ReadFromUDP to unblock and avoid goroutine leak
+		_ = lUDPConn.Close()              // Force ReadFromUDP to unblock and avoid goroutine leak
 	}()
 
 	buf := make([]byte, 65535)
-	tcpRemoteIP := lConn.RemoteAddr().(*net.TCPAddr).IP
+	rTCPAddr := lConn.RemoteAddr().(*net.TCPAddr).IP
 
 	for {
 		// Wait for data
-		n, lAddr, err := lNewConn.ReadFromUDP(buf)
+		n, srcAddr, err := lUDPConn.ReadFromUDP(buf)
 		if err != nil {
 			// Normal closure check
 			select {
@@ -105,57 +105,65 @@ func (h *UdpAssociateHandler) Handle(
 		}
 
 		// Security: Only accept UDP packets from the same IP that established the TCP connection
-		if !lAddr.IP.Equal(tcpRemoteIP) {
+		if !srcAddr.IP.Equal(rTCPAddr) {
 			logger.Debug().
-				Str("expected", tcpRemoteIP.String()).
-				Str("actual", lAddr.IP.String()).
+				Str("expected", rTCPAddr.String()).
+				Str("actual", srcAddr.IP.String()).
 				Msg("dropped udp packet from unexpected ip")
 			continue
 		}
 
 		// Outbound: Client -> Proxy -> Target
-		dstUDPAddrStr, payload, err := parseUDPHeader(buf[:n])
+		dstAddrStr, payload, err := parseUDPHeader(buf[:n])
 		if err != nil {
 			logger.Warn().Err(err).Msg("failed to parse socks5 udp header")
 			continue
 		}
 
 		// Resolve address to construct Destination
-		dstUDPAddr, err := net.ResolveUDPAddr("udp", dstUDPAddrStr)
+		dstAddr, err := net.ResolveUDPAddr("udp", dstAddrStr)
 		if err != nil {
 			logger.Warn().
 				Err(err).
-				Str("addr", dstUDPAddrStr).
+				Str("addr", dstAddrStr).
 				Msg("failed to resolve udp target")
 			continue
 		}
 
 		// Key: Client Addr -> Target Addr (Zero Allocation Struct)
-		key := netutil.NewNATKey(lAddr, dstUDPAddr)
-
-		dst := &netutil.Destination{
-			Addrs: []net.IP{dstUDPAddr.IP},
-			Port:  dstUDPAddr.Port,
-		}
+		key := netutil.NewNATKey(srcAddr.IP, srcAddr.Port, dstAddr.IP, dstAddr.Port)
 
 		// Check if connection already exists in the pool
-		if conn, ok := h.pool.Fetch(key); ok {
+		if cachedConn, ok := h.pool.Fetch(key); ok {
+			logger.Debug().
+				Str("key", fmt.Sprintf("%s > %s", srcAddr.String(), dstAddr.String())).
+				Msg("session cache hit")
+
 			// Write payload to target
-			if _, err := conn.Write(payload); err != nil {
+			if _, err := cachedConn.Write(payload); err != nil {
 				logger.Warn().Err(err).Msg("failed to write udp to target")
 			}
 			continue
+		} else {
+			logger.Debug().
+				Str("key", fmt.Sprintf("%s > %s", srcAddr.String(), dstAddr.String())).
+				Msg("session cache miss")
 		}
 
-		rConnRaw, err := netutil.DialFastest(ctx, "udp", dst)
+		dst := &netutil.Destination{
+			Addrs: []net.IP{dstAddr.IP},
+			Port:  dstAddr.Port,
+		}
+
+		rRawConn, err := netutil.DialFastest(ctx, "udp", dst)
 		if err != nil {
-			logger.Warn().Err(err).Str("addr", dstUDPAddrStr).Msg("failed to dial udp target")
+			logger.Warn().Err(err).Str("addr", dstAddrStr).Msg("failed to dial udp target")
 			continue
 		}
 
 		// Add to pool (pool handles LRU eviction and deadline)
 		// returns IdleTimeoutConn with the actual net.Conn inside
-		rConn := h.pool.Store(key, rConnRaw)
+		rConn := h.pool.Store(key, rRawConn)
 
 		// Apply UDP options from rule if matched
 		udpOpts := h.defaultUDPOpts.Clone()
@@ -165,14 +173,19 @@ func (h *UdpAssociateHandler) Handle(
 
 		// Send fake packets before real payload (UDP desync)
 		if h.desyncer != nil {
-			_, _ = h.desyncer.Desync(ctx, lNewConn, rConn.Conn, udpOpts)
+			_, _ = h.desyncer.Desync(ctx, lUDPConn, rConn.Conn, udpOpts)
 		}
 
-		// Start a goroutine to read from the target and forward to the client
-		go func(rConn *netutil.IdleTimeoutConn, lAddr *net.UDPAddr) {
+		// Start a goroutine to read from the target and forward to the client.
+		// rConn is a connected UDP socket, so all responses come from the single remote.
+		// Using rConn.Read() (via IdleTimeoutConn) properly extends the idle deadline
+		// on each inbound packet, preventing premature timeout on asymmetric flows.
+		// dstAddr is already *net.UDPAddr (resolved above), same as rConn.RemoteAddr().
+		go func(rConn *netutil.IdleTimeoutConn, lAddr *net.UDPAddr, remoteAddr *net.UDPAddr) {
 			respBuf := make([]byte, 65535)
 			for {
-				n, _, err := rConn.Conn.(*net.UDPConn).ReadFromUDP(respBuf)
+				// Read via IdleTimeoutConn so each inbound packet extends the deadline.
+				n, err := rConn.Read(respBuf)
 				if err != nil {
 					// Connection closed or network issues
 					return
@@ -180,18 +193,21 @@ func (h *UdpAssociateHandler) Handle(
 
 				// Inbound: Target -> Proxy -> Client
 				// Wrap with SOCKS5 Header
-				remoteAddr := rConn.Conn.(*net.UDPConn).RemoteAddr().(*net.UDPAddr)
 				header := createUDPHeaderFromAddr(remoteAddr)
 				response := append(header, respBuf[:n]...)
 
-				if _, err := lNewConn.WriteToUDP(response, lAddr); err != nil {
+				if _, err := lUDPConn.WriteToUDP(response, lAddr); err != nil {
 					// If we can't write back to the client, it might be gone or network issue.
 					// Exit this goroutine to avoid busy looping.
 					logger.Warn().Err(err).Msg("failed to write udp to client")
 					return
 				}
 			}
-		}(rConn, lAddr)
+		}(
+			rConn,
+			srcAddr,
+			dstAddr,
+		)
 
 		// Write payload to target
 		if _, err := rConn.Write(payload); err != nil {

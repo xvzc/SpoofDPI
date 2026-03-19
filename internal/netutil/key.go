@@ -59,22 +59,22 @@ func NewIPKey(ip net.IP) IPKey {
 }
 
 // NewNATKey zero-alloc constructs a NATKey from two UDPAddr
-func NewNATKey(src *net.UDPAddr, dst *net.UDPAddr) NATKey {
+func NewNATKey(srcIP net.IP, srcPort int, dstIP net.IP, dstPort int) NATKey {
 	var k NATKey
 
 	// net.IP is a slice. Let's force it to 16 bytes for comparable struct key
-	srcIP16 := src.IP.To16()
+	srcIP16 := srcIP.To16()
 	if srcIP16 != nil {
 		copy(k.SrcIP[:], srcIP16)
 	}
 
-	dstIP16 := dst.IP.To16()
+	dstIP16 := dstIP.To16()
 	if dstIP16 != nil {
 		copy(k.DstIP[:], dstIP16)
 	}
 
-	k.SrcPort = uint16(src.Port)
-	k.DstPort = uint16(dst.Port)
+	k.SrcPort = uint16(srcPort)
+	k.DstPort = uint16(dstPort)
 
 	return k
 }
