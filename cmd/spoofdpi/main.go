@@ -342,7 +342,7 @@ func createServer(
 			udpWriter,
 			udpSniffer,
 		)
-		udpPool := netutil.NewSessionCache[netutil.NATKey](4096, 60*time.Second)
+		udpPool := netutil.NewConnRegistry[netutil.NATKey](4096, 60*time.Second)
 		udpPool.RunCleanupLoop(appctx)
 		udpAssociateHandler := socks5.NewUdpAssociateHandler(
 			logging.WithScope(logger, "hnd"),

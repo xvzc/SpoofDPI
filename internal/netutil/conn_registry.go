@@ -8,18 +8,18 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/cache"
 )
 
-// SessionCache manages UDP connections with LRU eviction policy and idle timeout.
-type SessionCache[K comparable] struct {
+// ConnRegistry manages UDP connections with LRU eviction policy and idle timeout.
+type ConnRegistry[K comparable] struct {
 	storage cache.Cache[K]
 	timeout time.Duration
 }
 
-// NewSessionCache creates a new pool with the specified capacity and timeout.
-func NewSessionCache[K comparable](
+// NewConnRegistry creates a new pool with the specified capacity and timeout.
+func NewConnRegistry[K comparable](
 	capacity int,
 	timeout time.Duration,
-) *SessionCache[K] {
-	p := &SessionCache[K]{
+) *ConnRegistry[K] {
+	p := &ConnRegistry[K]{
 		timeout: timeout,
 	}
 
@@ -36,7 +36,7 @@ func NewSessionCache[K comparable](
 
 // RunCleanupLoop runs the background cleanup goroutine.
 // It exits when appctx is cancelled, closing all remaining cached connections.
-func (p *SessionCache[K]) RunCleanupLoop(appctx context.Context) {
+func (p *ConnRegistry[K]) RunCleanupLoop(appctx context.Context) {
 	// Cleanup interval: half of timeout, min 10s, max 60s
 	cleanupInterval := p.timeout / 2
 	cleanupInterval = max(cleanupInterval, 10*time.Second)
@@ -61,7 +61,7 @@ func (p *SessionCache[K]) RunCleanupLoop(appctx context.Context) {
 // Store adds a connection to the cache and returns the wrapped connection.
 // If the key already exists, the old connection is closed and evicted first.
 // If capacity is full, evicts the least recently used connection.
-func (p *SessionCache[K]) Store(key K, rawConn net.Conn) *IdleTimeoutConn {
+func (p *ConnRegistry[K]) Store(key K, rawConn net.Conn) *IdleTimeoutConn {
 	wrapper := NewIdleTimeoutConn(rawConn, p.timeout)
 	wrapper.Key = key
 
@@ -79,7 +79,7 @@ func (p *SessionCache[K]) Store(key K, rawConn net.Conn) *IdleTimeoutConn {
 }
 
 // Fetch retrieves a connection from the pool, refreshing its LRU status.
-func (p *SessionCache[K]) Fetch(key K) (*IdleTimeoutConn, bool) {
+func (p *ConnRegistry[K]) Fetch(key K) (*IdleTimeoutConn, bool) {
 	if val, ok := p.storage.Fetch(key); ok {
 		return val.(*IdleTimeoutConn), true
 	}
@@ -87,22 +87,22 @@ func (p *SessionCache[K]) Fetch(key K) (*IdleTimeoutConn, bool) {
 }
 
 // Evict closes and removes the connection from the pool.
-func (p *SessionCache[K]) Evict(key K) {
+func (p *ConnRegistry[K]) Evict(key K) {
 	p.storage.Evict(key)
 }
 
 // Has checks if the connection exists in the cache.
-func (p *SessionCache[K]) Has(key K) bool {
+func (p *ConnRegistry[K]) Has(key K) bool {
 	return p.storage.Has(key)
 }
 
 // Size returns the number of connections in the pool.
-func (p *SessionCache[K]) Size() int {
+func (p *ConnRegistry[K]) Size() int {
 	return p.storage.Size()
 }
 
 // CloseAll closes all connections in the pool.
-func (p *SessionCache[K]) CloseAll() {
+func (p *ConnRegistry[K]) CloseAll() {
 	var toRemove []K
 	_ = p.storage.ForEach(func(key K, value any) error {
 		toRemove = append(toRemove, key)
@@ -113,7 +113,7 @@ func (p *SessionCache[K]) CloseAll() {
 	}
 }
 
-func (p *SessionCache[K]) evictExpired() {
+func (p *ConnRegistry[K]) evictExpired() {
 	now := time.Now()
 	var toRemove []K
 	_ = p.storage.ForEach(func(key K, value any) error {

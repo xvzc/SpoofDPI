@@ -17,14 +17,14 @@ import (
 
 type UdpAssociateHandler struct {
 	logger         zerolog.Logger
-	pool           *netutil.SessionCache[netutil.NATKey]
+	pool           *netutil.ConnRegistry[netutil.NATKey]
 	desyncer       *desync.UDPDesyncer
 	defaultUDPOpts *config.UDPOptions
 }
 
 func NewUdpAssociateHandler(
 	logger zerolog.Logger,
-	pool *netutil.SessionCache[netutil.NATKey],
+	pool *netutil.ConnRegistry[netutil.NATKey],
 	desyncer *desync.UDPDesyncer,
 	defaultUDPOpts *config.UDPOptions,
 ) *UdpAssociateHandler {
