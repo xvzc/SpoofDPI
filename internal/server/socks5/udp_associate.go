@@ -181,37 +181,50 @@ func (h *UdpAssociateHandler) Handle(
 		// Using rConn.Read() (via IdleTimeoutConn) properly extends the idle deadline
 		// on each inbound packet, preventing premature timeout on asymmetric flows.
 		// dstAddr is already *net.UDPAddr (resolved above), same as rConn.RemoteAddr().
-		go func(rConn *netutil.IdleTimeoutConn, lAddr *net.UDPAddr, remoteAddr *net.UDPAddr) {
-			respBuf := make([]byte, 65535)
-			for {
-				// Read via IdleTimeoutConn so each inbound packet extends the deadline.
-				n, err := rConn.Read(respBuf)
-				if err != nil {
-					// Connection closed or network issues
-					return
-				}
-
-				// Inbound: Target -> Proxy -> Client
-				// Wrap with SOCKS5 Header
-				header := createUDPHeaderFromAddr(remoteAddr)
-				response := append(header, respBuf[:n]...)
-
-				if _, err := lUDPConn.WriteToUDP(response, lAddr); err != nil {
-					// If we can't write back to the client, it might be gone or network issue.
-					// Exit this goroutine to avoid busy looping.
-					logger.Warn().Err(err).Msg("failed to write udp to client")
-					return
-				}
-			}
-		}(
+		go h.relayInboundUDP(
+			logger,
+			lUDPConn,
 			rConn,
 			srcAddr,
 			dstAddr,
+			key,
 		)
 
 		// Write payload to target
 		if _, err := rConn.Write(payload); err != nil {
 			logger.Warn().Err(err).Msg("failed to write udp to target")
+		}
+	}
+}
+
+func (h *UdpAssociateHandler) relayInboundUDP(
+	logger zerolog.Logger,
+	lUDPConn *net.UDPConn,
+	rConn *netutil.IdleTimeoutConn,
+	clientAddr *net.UDPAddr,
+	targetAddr *net.UDPAddr,
+	key netutil.NATKey,
+) {
+	respBuf := make([]byte, 65535)
+	for {
+		// Read via IdleTimeoutConn so each inbound packet extends the deadline.
+		n, err := rConn.Read(respBuf)
+		if err != nil {
+			// Connection closed or network issues
+			h.pool.Evict(key)
+			return
+		}
+
+		// Inbound: Target -> Proxy -> Client
+		// Wrap with SOCKS5 Header
+		header := createUDPHeaderFromAddr(targetAddr)
+		response := append(header, respBuf[:n]...)
+
+		if _, err := lUDPConn.WriteToUDP(response, clientAddr); err != nil {
+			// If we can't write back to the client, it might be gone or network issue.
+			// Exit this goroutine to avoid busy looping.
+			logger.Warn().Err(err).Msg("failed to write udp to client")
+			return
 		}
 	}
 }
