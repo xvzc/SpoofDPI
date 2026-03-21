@@ -33,7 +33,7 @@ func setSystemProxy(logger zerolog.Logger, port uint16) (func() error, error) {
     return "PROXY 127.0.0.1:%s; DIRECT";
 }`, portStr)
 
-	pacURL, pacListener, err := netutil.RunPACServer(pacContent)
+	pacURL, pacServer, err := netutil.RunPACServer(pacContent)
 	if err != nil {
 		return nil, fmt.Errorf("error creating pac server: %w", err)
 	}
@@ -41,18 +41,18 @@ func setSystemProxy(logger zerolog.Logger, port uint16) (func() error, error) {
 	// Enable Auto Proxy Configuration
 	// networksetup -setautoproxyurl <networkservice> <url>
 	if err := networkSetup("-setautoproxyurl", network, pacURL); err != nil {
-		_ = pacListener.Close()
+		_ = pacServer.Close()
 		return nil, fmt.Errorf("setting autoproxyurl: %w", err)
 	}
 
 	// networksetup -setproxyautodiscovery <networkservice> <on off>
 	if err := networkSetup("-setproxyautodiscovery", network, "on"); err != nil {
-		_ = pacListener.Close()
+		_ = pacServer.Close()
 		return nil, fmt.Errorf("setting proxyautodiscovery: %w", err)
 	}
 
 	unset := func() error {
-		_ = pacListener.Close()
+		_ = pacServer.Close()
 
 		// Disable Auto Proxy Configuration
 		if err := networkSetup("-setautoproxystate", network, "off"); err != nil {

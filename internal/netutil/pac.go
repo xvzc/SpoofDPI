@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-func RunPACServer(content string) (string, net.Listener, error) {
+func RunPACServer(content string) (string, *http.Server, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return "", nil, err
@@ -30,5 +30,5 @@ func RunPACServer(content string) (string, net.Listener, error) {
 	addr := listener.Addr().(*net.TCPAddr)
 	url := fmt.Sprintf("http://127.0.0.1:%d/proxy.pac", addr.Port)
 
-	return url, listener, nil
+	return url, server, nil
 }
