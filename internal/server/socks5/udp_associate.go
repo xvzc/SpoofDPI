@@ -181,14 +181,7 @@ func (h *UdpAssociateHandler) Handle(
 		// Using rConn.Read() (via IdleTimeoutConn) properly extends the idle deadline
 		// on each inbound packet, preventing premature timeout on asymmetric flows.
 		// dstAddr is already *net.UDPAddr (resolved above), same as rConn.RemoteAddr().
-		go h.relayInboundUDP(
-			logger,
-			lUDPConn,
-			rConn,
-			srcAddr,
-			dstAddr,
-			key,
-		)
+		go h.relayInboundUDP(logger, lUDPConn, rConn, srcAddr, dstAddr, key)
 
 		// Write payload to target
 		if _, err := rConn.Write(payload); err != nil {
