@@ -61,7 +61,7 @@ func setSystemProxy(logger zerolog.Logger, port uint16) (func() error, error) {
 		if err := networkSetup("-setproxyautodiscovery", network, "off"); err != nil {
 			return fmt.Errorf("unsetting proxyautodiscovery: %w", err)
 		}
-		
+
 		return nil
 	}
 
