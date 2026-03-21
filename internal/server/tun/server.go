@@ -71,7 +71,7 @@ func (s *TunServer) ListenAndServe(
 	ready chan<- struct{},
 ) error {
 	var err error
-	s.tunDevice, err = NewTunDevice()
+	s.tunDevice, err = newTunDevice()
 	if err != nil {
 		return fmt.Errorf("failed to create tun device: %w", err)
 	}
@@ -88,18 +88,18 @@ func (s *TunServer) ListenAndServe(
 	return s.handle(appctx)
 }
 
-func (s *TunServer) SetNetworkConfig() error {
+func (s *TunServer) SetNetworkConfig() (func() error, error) {
 	if s.tunDevice == nil {
-		return fmt.Errorf("tun device not initialized")
+		return nil, fmt.Errorf("tun device not initialized")
 	}
 
 	local, remote, err := netutil.FindSafeSubnet()
 	if err != nil {
-		return fmt.Errorf("failed to find safe subnet: %w", err)
+		return nil, fmt.Errorf("failed to find safe subnet: %w", err)
 	}
 
 	if err := SetInterfaceAddress(s.tunDevice.Name(), local, remote); err != nil {
-		return fmt.Errorf("failed to set interface address: %w", err)
+		return nil, fmt.Errorf("failed to set interface address: %w", err)
 	}
 
 	// Add route for the TUN interface subnet to ensure packets can return
@@ -115,7 +115,7 @@ func (s *TunServer) SetNetworkConfig() error {
 
 	err = SetRoute(s.tunDevice.Name(), []string{networkAddr.String() + "/30"})
 	if err != nil {
-		return fmt.Errorf("failed to set local route: %w", err)
+		return nil, fmt.Errorf("failed to set local route: %w", err)
 	}
 
 	// Add a host route to the gateway via the physical interface
@@ -124,22 +124,27 @@ func (s *TunServer) SetNetworkConfig() error {
 		s.logger.Error().Err(err).Msg("failed to set gateway route")
 	}
 
-	return SetRoute(s.tunDevice.Name(), []string{"0.0.0.0/0"}) // Default Route
-}
-
-func (s *TunServer) UnsetNetworkConfig() error {
-	if s.tunDevice == nil {
-		return nil
+	err = SetRoute(s.tunDevice.Name(), []string{"0.0.0.0/0"}) // Default Route
+	if err != nil {
+		return nil, fmt.Errorf("failed to set default route: %w", err)
 	}
 
-	// Remove the gateway route
-	if s.gateway != "" && s.iface != "" {
-		if err := UnsetGatewayRoute(s.gateway, s.iface); err != nil {
-			s.logger.Warn().Err(err).Msg("failed to unset gateway route")
+	unset := func() error {
+		if s.tunDevice == nil {
+			return nil
 		}
+
+		// Remove the gateway route
+		if s.gateway != "" && s.iface != "" {
+			if err := UnsetGatewayRoute(s.gateway, s.iface); err != nil {
+				s.logger.Warn().Err(err).Msg("failed to unset gateway route")
+			}
+		}
+
+		return UnsetRoute(s.tunDevice.Name(), []string{"0.0.0.0/0"}) // Default Route
 	}
 
-	return UnsetRoute(s.tunDevice.Name(), []string{"0.0.0.0/0"}) // Default Route
+	return unset, nil
 }
 
 func (s *TunServer) Addr() string {
@@ -360,7 +365,7 @@ func (s *TunServer) stackToTun(
 	}
 }
 
-func NewTunDevice() (*water.Interface, error) {
+func newTunDevice() (*water.Interface, error) {
 	config := water.Config{
 		DeviceType: water.TUN,
 	}

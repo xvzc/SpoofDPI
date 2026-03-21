@@ -118,14 +118,17 @@ func runApp(appctx context.Context, configDir string, cfg *config.Config) {
 
 	// System Proxy Config
 	if *cfg.App.AutoConfigureNetwork {
-		if err := srv.SetNetworkConfig(); err != nil {
+		unset, err := srv.SetNetworkConfig()
+		if err != nil {
 			logger.Fatal().Err(err).Msg("failed to set system network config")
 		}
-		defer func() {
-			if err := srv.UnsetNetworkConfig(); err != nil {
-				logger.Error().Err(err).Msg("failed to unset system network config")
-			}
-		}()
+		if unset != nil {
+			defer func() {
+				if err := unset(); err != nil {
+					logger.Error().Err(err).Msg("failed to unset system network config")
+				}
+			}()
+		}
 	}
 
 	<-appctx.Done()

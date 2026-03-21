@@ -95,12 +95,8 @@ func (p *HTTPProxy) ListenAndServe(
 	}
 }
 
-func (p *HTTPProxy) SetNetworkConfig() error {
-	return SetSystemProxy(p.logger, uint16(p.appOpts.ListenAddr.Port))
-}
-
-func (p *HTTPProxy) UnsetNetworkConfig() error {
-	return UnsetSystemProxy(p.logger)
+func (p *HTTPProxy) SetNetworkConfig() (func() error, error) {
+	return setSystemProxy(p.logger, uint16(p.appOpts.ListenAddr.Port))
 }
 
 func (p *HTTPProxy) Addr() string {

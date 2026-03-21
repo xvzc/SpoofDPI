@@ -98,12 +98,8 @@ func (p *SOCKS5Proxy) ListenAndServe(
 	}
 }
 
-func (p *SOCKS5Proxy) SetNetworkConfig() error {
-	return SetSystemProxy(p.logger, uint16(p.appOpts.ListenAddr.Port))
-}
-
-func (p *SOCKS5Proxy) UnsetNetworkConfig() error {
-	return UnsetSystemProxy(p.logger)
+func (p *SOCKS5Proxy) SetNetworkConfig() (func() error, error) {
+	return setSystemProxy(p.logger, uint16(p.appOpts.ListenAddr.Port))
 }
 
 func (p *SOCKS5Proxy) Addr() string {

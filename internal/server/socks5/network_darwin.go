@@ -5,7 +5,6 @@ package socks5
 import (
 	"errors"
 	"fmt"
-	"net"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -23,12 +22,10 @@ const (
 		" -system-proxy=false."
 )
 
-var pacListener net.Listener
-
-func SetSystemProxy(logger zerolog.Logger, port uint16) error {
+func setSystemProxy(logger zerolog.Logger, port uint16) (func() error, error) {
 	network, err := getDefaultNetwork()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	portStr := strconv.Itoa(int(port))
@@ -36,47 +33,39 @@ func SetSystemProxy(logger zerolog.Logger, port uint16) error {
     return "SOCKS5 127.0.0.1:%s; DIRECT";
 }`, portStr)
 
-	pacURL, l, err := netutil.RunPACServer(pacContent)
+	pacURL, pacListener, err := netutil.RunPACServer(pacContent)
 	if err != nil {
-		return fmt.Errorf("error creating pac server: %w", err)
+		return nil, fmt.Errorf("error creating pac server: %w", err)
 	}
-	pacListener = l
 
 	// Enable Auto Proxy Configuration
 	// networksetup -setautoproxyurl <networkservice> <url>
 	if err := networkSetup("-setautoproxyurl", network, pacURL); err != nil {
-		return fmt.Errorf("setting autoproxyurl: %w", err)
+		_ = pacListener.Close()
+		return nil, fmt.Errorf("setting autoproxyurl: %w", err)
 	}
 
 	// networksetup -setproxyautodiscovery <networkservice> <on off>
 	if err := networkSetup("-setproxyautodiscovery", network, "on"); err != nil {
-		return fmt.Errorf("setting proxyautodiscovery: %w", err)
-	}
-
-	return nil
-}
-
-func UnsetSystemProxy(logger zerolog.Logger) error {
-	if pacListener != nil {
 		_ = pacListener.Close()
-		pacListener = nil
+		return nil, fmt.Errorf("setting proxyautodiscovery: %w", err)
 	}
 
-	network, err := getDefaultNetwork()
-	if err != nil {
-		return err
+	unset := func() error {
+		_ = pacListener.Close()
+
+		if err := networkSetup("-setautoproxystate", network, "off"); err != nil {
+			return fmt.Errorf("unsetting autoproxystate: %w", err)
+		}
+
+		if err := networkSetup("-setproxyautodiscovery", network, "off"); err != nil {
+			return fmt.Errorf("unsetting proxyautodiscovery: %w", err)
+		}
+		
+		return nil
 	}
 
-	// Disable Auto Proxy Configuration
-	if err := networkSetup("-setautoproxystate", network, "off"); err != nil {
-		return fmt.Errorf("unsetting autoproxystate: %w", err)
-	}
-
-	if err := networkSetup("-setproxyautodiscovery", network, "off"); err != nil {
-		return fmt.Errorf("unsetting proxyautodiscovery: %w", err)
-	}
-
-	return nil
+	return unset, nil
 }
 
 func getDefaultNetwork() (string, error) {
