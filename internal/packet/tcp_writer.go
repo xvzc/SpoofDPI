@@ -124,7 +124,7 @@ func (tw *TCPWriter) createIPv4Layers(
 ) ([]gopacket.SerializableLayer, error) {
 	var packetLayers []gopacket.SerializableLayer
 
-	if srcMAC != nil {
+	if srcMAC != nil && dstMAC != nil {
 		eth := &layers.Ethernet{
 			SrcMAC:       srcMAC,
 			DstMAC:       dstMAC,
@@ -173,7 +173,7 @@ func (tw *TCPWriter) createIPv6Layers(
 ) ([]gopacket.SerializableLayer, error) {
 	var packetLayers []gopacket.SerializableLayer
 
-	if srcMAC != nil {
+	if srcMAC != nil && dstMAC != nil {
 		eth := &layers.Ethernet{
 			SrcMAC:       srcMAC,
 			DstMAC:       dstMAC,
