@@ -77,21 +77,21 @@ func (h *ConnectHandler) Handle(
 		return netutil.ErrBlocked
 	}
 
+	dst.Timeout = *connOpts.TCPTimeout
+
+	rConn, err := netutil.DialFastest(ctx, "tcp", dst)
+	if err != nil {
+		_ = proto.SOCKS5FailureResponse().Write(lConn)
+		return err
+	}
+	defer netutil.CloseConns(rConn)
+
 	// 3. Send Success Response
 	err = proto.SOCKS5SuccessResponse().Bind(net.IPv4zero).Port(0).Write(lConn)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to write socks5 success reply")
 		return err
 	}
-
-	// logger := logging.WithLocalScope(ctx, h.logger, "connect(tcp)")
-	dst.Timeout = *connOpts.TCPTimeout
-
-	rConn, err := netutil.DialFastest(ctx, "tcp", dst)
-	if err != nil {
-		return err
-	}
-	defer netutil.CloseConns(rConn)
 
 	logger.Debug().Msgf("new remote conn -> %s", rConn.RemoteAddr())
 
