@@ -198,13 +198,14 @@ func (h *UdpAssociateHandler) relayInboundUDP(
 	targetAddr *net.UDPAddr,
 	key netutil.NATKey,
 ) {
+	defer h.pool.Evict(key)
+
 	respBuf := make([]byte, 65535)
 	for {
 		// Read via IdleTimeoutConn so each inbound packet extends the deadline.
 		n, err := rConn.Read(respBuf)
 		if err != nil {
 			// Connection closed or network issues
-			h.pool.Evict(key)
 			return
 		}
 
