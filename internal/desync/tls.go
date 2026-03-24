@@ -8,16 +8,17 @@ import (
 	"net"
 
 	"github.com/rs/zerolog"
+	"github.com/samber/lo"
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/logging"
 	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/packet"
 	"github.com/xvzc/SpoofDPI/internal/proto"
-	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
-type TLSDesyncerAttrs struct {
-	DefaultTTL uint8
+type Segment struct {
+	Packet []byte
+	Lazy   bool
 }
 
 // TLSDesyncer splits the data into chunks and optionally
@@ -25,22 +26,19 @@ type TLSDesyncerAttrs struct {
 type TLSDesyncer struct {
 	writer  packet.Writer
 	sniffer packet.Sniffer
-	attrs   *TLSDesyncerAttrs
 }
 
 func NewTLSDesyncer(
 	writer packet.Writer,
 	sniffer packet.Sniffer,
-	attrs *TLSDesyncerAttrs,
 ) *TLSDesyncer {
 	return &TLSDesyncer{
 		writer:  writer,
 		sniffer: sniffer,
-		attrs:   attrs,
 	}
 }
 
-func (d *TLSDesyncer) Send(
+func (d *TLSDesyncer) Desync(
 	ctx context.Context,
 	logger zerolog.Logger,
 	conn net.Conn,
@@ -49,13 +47,15 @@ func (d *TLSDesyncer) Send(
 ) (int, error) {
 	logger = logging.WithLocalScope(ctx, logger, "tls_desync")
 
-	if ptr.FromPtr(httpsOpts.Skip) {
+	if lo.FromPtr(httpsOpts.Skip) {
 		logger.Trace().Msg("skip desync for this request")
-		return d.sendSegments(conn, [][]byte{msg.Raw()})
+		return d.sendSegments(conn, logger, []Segment{{Packet: msg.Raw()}})
 	}
 
-	if d.sniffer != nil && d.writer != nil && ptr.FromPtr(httpsOpts.FakeCount) > 0 {
-		oTTL := d.sniffer.GetOptimalTTL(conn.RemoteAddr().String())
+	if d.sniffer != nil && d.writer != nil && lo.FromPtr(httpsOpts.FakeCount) > 0 {
+		oTTL := d.sniffer.GetOptimalTTL(
+			netutil.NewIPKey(conn.RemoteAddr().(*net.TCPAddr).IP),
+		)
 		n, err := d.sendFakePackets(ctx, logger, conn, oTTL, httpsOpts)
 		if err != nil {
 			logger.Warn().Err(err).Msg("failed to send fake packets")
@@ -64,38 +64,16 @@ func (d *TLSDesyncer) Send(
 		}
 	}
 
-	segments := split(logger, httpsOpts, msg)
+	segments := split(logger, msg, httpsOpts)
 
-	if ptr.FromPtr(httpsOpts.Disorder) {
-		return d.sendSegmentsDisorder(conn, logger, segments, httpsOpts)
-	}
-
-	return d.sendSegments(conn, segments)
+	return d.sendSegments(conn, logger, segments)
 }
 
 // sendSegments sends the segmented Client Hello sequentially.
-func (d *TLSDesyncer) sendSegments(conn net.Conn, segments [][]byte) (int, error) {
-	total := 0
-	for _, chunk := range segments {
-		n, err := conn.Write(chunk)
-		total += n
-		if err != nil {
-			return total, err
-		}
-	}
-
-	return total, nil
-}
-
-// sendSegmentsDisorder sends the segmented Client Hello out of order.
-// Since performance is prioritized over strict randomness,
-// a single 64-bit pattern is generated and reused cyclically
-// for sequences exceeding 64 chunks.
-func (d *TLSDesyncer) sendSegmentsDisorder(
+func (d *TLSDesyncer) sendSegments(
 	conn net.Conn,
 	logger zerolog.Logger,
-	segments [][]byte,
-	opts *config.HTTPSOptions,
+	segments []Segment,
 ) (int, error) {
 	var isIPv4 bool
 	if tcpAddr, ok := conn.LocalAddr().(*net.TCPAddr); ok {
@@ -110,30 +88,23 @@ func (d *TLSDesyncer) sendSegmentsDisorder(
 		}
 	}
 
-	defer setTTLWrap(d.attrs.DefaultTTL) // Restore the default TTL on return
+	defaultTTL := getDefaultTTL()
 
-	disorderBits := genPatternMask()
-	logger.Debug().
-		Str("bits", fmt.Sprintf("%064b", disorderBits)).
-		Msgf("disorder ready")
-	curBit := uint64(1)
 	total := 0
 	for _, chunk := range segments {
-		if !ttlErrored && disorderBits&curBit == curBit {
+		if !ttlErrored && chunk.Lazy {
 			setTTLWrap(1)
 		}
 
-		n, err := conn.Write(chunk)
+		n, err := conn.Write(chunk.Packet)
+		total += n
 		if err != nil {
 			return total, err
 		}
-		total += n
 
-		if !ttlErrored && disorderBits&curBit == curBit {
-			setTTLWrap(d.attrs.DefaultTTL)
+		if !ttlErrored && chunk.Lazy {
+			setTTLWrap(defaultTTL)
 		}
-
-		curBit = bits.RotateLeft64(curBit, 1)
 	}
 
 	return total, nil
@@ -141,12 +112,12 @@ func (d *TLSDesyncer) sendSegmentsDisorder(
 
 func split(
 	logger zerolog.Logger,
-	attrs *config.HTTPSOptions,
 	msg *proto.TLSMessage,
-) [][]byte {
-	mode := *attrs.SplitMode
+	opts *config.HTTPSOptions,
+) []Segment {
+	mode := *opts.SplitMode
 	raw := msg.Raw()
-	var chunks [][]byte
+	var segments []Segment
 	var err error
 	switch mode {
 	case config.HTTPSSplitModeSNI:
@@ -155,38 +126,42 @@ func split(
 		if err != nil {
 			break
 		}
-		chunks, err = splitSNI(raw, start, end)
+		segments, err = splitSNI(raw, start, end, *opts.Disorder)
 		logger.Trace().Msgf("extracted SNI is '%s'", raw[start:end])
 	case config.HTTPSSplitModeRandom:
 		mask := genPatternMask()
-		chunks, err = splitMask(raw, mask)
+		segments, err = splitMask(raw, mask, *opts.Disorder)
 	case config.HTTPSSplitModeChunk:
-		chunks, err = splitChunks(raw, int(*attrs.ChunkSize))
+		segments, err = splitChunks(raw, int(*opts.ChunkSize), *opts.Disorder)
 	case config.HTTPSSplitModeFirstByte:
-		chunks, err = splitFirstByte(raw)
+		segments, err = splitFirstByte(raw, *opts.Disorder)
+	case config.HTTPSSplitModeCustom:
+		segments, err = applySegmentPlans(msg, opts.CustomSegmentPlans)
 	case config.HTTPSSplitModeNone:
-		chunks = [][]byte{raw}
+		segments = []Segment{{Packet: raw}}
 	default:
 		logger.Debug().Msgf("unsupprted split mode '%s'. proceed without split", mode)
-		chunks = [][]byte{raw}
+		segments = []Segment{{Packet: raw}}
 	}
 
 	logger.Debug().
-		Int("len", len(chunks)).
+		Int("len", len(segments)).
 		Str("mode", mode.String()).
 		Str("kind", msg.Kind()).
+		Bool("disorder", *opts.Disorder).
 		Msg("segments ready")
 
 	if err != nil {
 		logger.Debug().Err(err).
+			Str("kind", msg.Kind()).
 			Msgf("error processing split mode '%s', fallback to 'none'", mode)
-		chunks = [][]byte{raw}
+		segments = []Segment{{Packet: raw}}
 	}
 
-	return chunks
+	return segments
 }
 
-func splitChunks(raw []byte, size int) ([][]byte, error) {
+func splitChunks(raw []byte, size int, disorder bool) ([]Segment, error) {
 	lenRaw := len(raw)
 
 	if lenRaw == 0 {
@@ -198,26 +173,31 @@ func splitChunks(raw []byte, size int) ([][]byte, error) {
 	}
 
 	capacity := (lenRaw + size - 1) / size
-	chunks := make([][]byte, 0, capacity)
+	chunks := make([]Segment, 0, capacity)
 
+	curDisorder := true
 	for len(raw) > 0 {
 		n := min(len(raw), size)
-		chunks = append(chunks, raw[:n])
+		chunks = append(chunks, Segment{Packet: raw[:n], Lazy: curDisorder && disorder})
 		raw = raw[n:]
+		curDisorder = !curDisorder
 	}
 
 	return chunks, nil
 }
 
-func splitFirstByte(raw []byte) ([][]byte, error) {
+func splitFirstByte(raw []byte, disorder bool) ([]Segment, error) {
 	if len(raw) < 2 {
 		return nil, fmt.Errorf("len(raw) is less than 2")
 	}
 
-	return [][]byte{raw[:1], raw[1:]}, nil
+	return []Segment{
+		{Packet: raw[:1], Lazy: disorder && true},
+		{Packet: raw[1:], Lazy: false},
+	}, nil
 }
 
-func splitSNI(raw []byte, start, end int) ([][]byte, error) {
+func splitSNI(raw []byte, start, end int, disorder bool) ([]Segment, error) {
 	lenRaw := len(raw)
 
 	if lenRaw == 0 {
@@ -232,43 +212,66 @@ func splitSNI(raw []byte, start, end int) ([][]byte, error) {
 		return nil, fmt.Errorf("invalid start, end pos (out of range)")
 	}
 
-	segments := make([][]byte, 0, lenRaw)
-	segments = append(segments, raw[:start])
+	curDisorder := true
+	segments := make([]Segment, 0, lenRaw)
+	segments = append(segments, Segment{Packet: raw[:start]})
 	for i := range end - start {
-		segments = append(segments, []byte{raw[start+i]})
+		segments = append(segments, Segment{
+			Packet: []byte{raw[start+i]},
+			Lazy:   curDisorder && disorder,
+		})
+		curDisorder = !curDisorder
 	}
-	segments = append(segments, raw[end:])
 
-	return append([][]byte(nil), segments...), nil
+	segments = append(segments, Segment{
+		Packet: raw[end:],
+		Lazy:   curDisorder && disorder,
+	})
+
+	return segments, nil
 }
 
-func splitMask(raw []byte, mask uint64) ([][]byte, error) {
+func splitMask(raw []byte, mask uint64, disorder bool) ([]Segment, error) {
 	lenRaw := len(raw)
 
 	if lenRaw == 0 {
 		return nil, fmt.Errorf("empty data")
 	}
 
-	segments := make([][]byte, 0, lenRaw)
+	curDisorder := true
+	segments := make([]Segment, 0, lenRaw)
 	start := 0
 	curBit := uint64(1)
 	for i := range lenRaw {
 		if mask&curBit == curBit {
 			if i > start {
-				segments = append(segments, raw[start:i])
+				segments = append(segments, Segment{
+					Packet: raw[start:i],
+					Lazy:   curDisorder && disorder,
+				})
+				curDisorder = !curDisorder
 			}
-			segments = append(segments, raw[i:i+1])
+
+			segments = append(segments, Segment{
+				Packet: raw[i : i+1],
+				Lazy:   curDisorder && disorder,
+			})
+
 			start = i + 1
+			curDisorder = !curDisorder
 		}
 
 		curBit = bits.RotateLeft64(curBit, 1)
 	}
 
 	if lenRaw > start {
-		segments = append(segments, raw[start:lenRaw])
+		segments = append(segments, Segment{
+			Packet: raw[start:lenRaw],
+			Lazy:   curDisorder && disorder,
+		})
 	}
 
-	return append([][]byte(nil), segments...), nil
+	return segments, nil
 }
 
 func (d *TLSDesyncer) String() string {
@@ -283,7 +286,7 @@ func (d *TLSDesyncer) sendFakePackets(
 	opts *config.HTTPSOptions,
 ) (int, error) {
 	var totalSent int
-	segments := split(logger, opts, opts.FakePacket)
+	segments := split(logger, opts.FakePacket, opts)
 
 	for range *(opts.FakeCount) {
 		for _, v := range segments {
@@ -292,7 +295,7 @@ func (d *TLSDesyncer) sendFakePackets(
 				conn.LocalAddr(),
 				conn.RemoteAddr(),
 				oTTL,
-				v,
+				v.Packet,
 			)
 			if err != nil {
 				return totalSent, err
@@ -303,6 +306,67 @@ func (d *TLSDesyncer) sendFakePackets(
 	}
 
 	return totalSent, nil
+}
+
+func applySegmentPlans(
+	msg *proto.TLSMessage,
+	plans []config.SegmentPlan,
+) ([]Segment, error) {
+	raw := msg.Raw()
+	sniStart, _, err := msg.ExtractSNIOffset()
+	if err != nil {
+		return nil, err
+	}
+
+	var segments []Segment
+	prvAt := 0
+
+	for _, s := range plans {
+		base := 0
+		switch s.From {
+		case config.SegmentFromSNI:
+			base = sniStart
+		case config.SegmentFromHead:
+			base = 0
+		}
+
+		curAt := base + s.At
+
+		if s.Noise > 0 {
+			// Random integer in [-noise, noise]
+			noiseVal := rand.IntN(s.Noise*2+1) - s.Noise
+			curAt += noiseVal
+		}
+
+		// Boundary checks
+		if curAt < 0 {
+			curAt = 0
+		}
+		if curAt > len(raw) {
+			curAt = len(raw)
+		}
+
+		// Handle overlap with previous split point
+		if curAt < prvAt {
+			curAt = prvAt
+		}
+
+		segments = append(segments, Segment{
+			Packet: raw[prvAt:curAt],
+			Lazy:   s.Lazy,
+		})
+		prvAt = curAt
+	}
+
+	if prvAt < len(raw) {
+		segments = append(segments, Segment{Packet: raw[prvAt:]})
+	}
+
+	return segments, nil
+}
+
+func getDefaultTTL() uint8 {
+	return 64
 }
 
 // --- Helper Functions (Low-level Syscall) ---

@@ -1,110 +1,85 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
 	"net"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/samber/lo"
 	"github.com/xvzc/SpoofDPI/internal/proto"
-	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
+
+type primitive interface {
+	~bool | ~string |
+		~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr |
+		~float32 | ~float64 |
+		~complex64 | ~complex128
+}
+
+func clonePrimitive[T primitive](x *T) *T {
+	if x == nil {
+		return nil
+	}
+	return lo.ToPtr(lo.FromPtr(x))
+}
 
 // ┌─────────────────┐
 // │ GENERAL OPTIONS │
 // └─────────────────┘
-var _ merger[*GeneralOptions] = (*GeneralOptions)(nil)
+var _ merger[*AppOptions] = (*AppOptions)(nil)
 
-var availableLogLevels = []string{"info", "warn", "trace", "error", "debug"}
-
-type GeneralOptions struct {
-	LogLevel       *zerolog.Level `toml:"log-level"`
-	Silent         *bool          `toml:"silent"`
-	SetSystemProxy *bool          `toml:"system-proxy"`
+var availableLogLevelValues = []string{
+	"info",
+	"warn",
+	"trace",
+	"error",
+	"debug",
+	"disabled",
 }
 
-func (o *GeneralOptions) UnmarshalTOML(data any) (err error) {
+type AppOptions struct {
+	LogLevel             *zerolog.Level `toml:"log-level"`
+	Silent               *bool          `toml:"silent"`
+	AutoConfigureNetwork *bool          `toml:"auto-configure-network"`
+	Mode                 *AppModeType   `toml:"mode"`
+	ListenAddr           *net.TCPAddr   `toml:"listen-addr"`
+}
+
+func (o *AppOptions) UnmarshalTOML(data any) (err error) {
 	m, ok := data.(map[string]any)
 	if !ok {
 		return fmt.Errorf("non-table type general config")
 	}
 
 	o.Silent = findFrom(m, "silent", parseBoolFn(), &err)
-	o.SetSystemProxy = findFrom(m, "system-proxy", parseBoolFn(), &err)
+	o.AutoConfigureNetwork = findFrom(m, "auto-configure-network", parseBoolFn(), &err)
 	if p := findFrom(m, "log-level", parseStringFn(checkLogLevel), &err); isOk(p, err) {
-		o.LogLevel = ptr.FromValue(MustParseLogLevel(*p))
+		o.LogLevel = lo.ToPtr(MustParseLogLevel(*p))
+	}
+	if p := findFrom(m, "mode", parseStringFn(checkAppMode), &err); isOk(p, err) {
+		o.Mode = lo.ToPtr(MustParseServerModeType(*p))
+	}
+	if p := findFrom(m, "listen-addr", parseStringFn(checkHostPort), &err); isOk(p, err) {
+		o.ListenAddr = lo.ToPtr(MustParseTCPAddr(*p))
 	}
 
 	return err
 }
 
-func (o *GeneralOptions) Clone() *GeneralOptions {
+func (o *AppOptions) Clone() *AppOptions {
 	if o == nil {
 		return nil
 	}
 
 	var newLevel *zerolog.Level
 	if o.LogLevel != nil {
-		newLevel = ptr.FromValue(MustParseLogLevel(strings.ToLower(o.LogLevel.String())))
-	}
-
-	return &GeneralOptions{
-		LogLevel:       newLevel,
-		Silent:         ptr.Clone(o.Silent),
-		SetSystemProxy: ptr.Clone(o.SetSystemProxy),
-	}
-}
-
-func (origin *GeneralOptions) Merge(overrides *GeneralOptions) *GeneralOptions {
-	if overrides == nil {
-		return origin.Clone()
-	}
-
-	if origin == nil {
-		return overrides.Clone()
-	}
-
-	return &GeneralOptions{
-		LogLevel:       ptr.CloneOr(overrides.LogLevel, origin.LogLevel),
-		Silent:         ptr.CloneOr(overrides.Silent, origin.Silent),
-		SetSystemProxy: ptr.CloneOr(overrides.SetSystemProxy, origin.SetSystemProxy),
-	}
-}
-
-// ┌────────────────┐
-// │ SERVER OPTIONS │
-// └────────────────┘
-var _ merger[*ServerOptions] = (*ServerOptions)(nil)
-
-type ServerOptions struct {
-	DefaultTTL *uint8         `toml:"default-ttl"`
-	ListenAddr *net.TCPAddr   `toml:"listen-addr"`
-	Timeout    *time.Duration `toml:"timeout"`
-}
-
-func (o *ServerOptions) UnmarshalTOML(data any) (err error) {
-	v, ok := data.(map[string]any)
-	if !ok {
-		return fmt.Errorf("non-table type server config")
-	}
-
-	o.DefaultTTL = findFrom(v, "default-ttl", parseIntFn[uint8](checkUint8NonZero), &err)
-
-	if p := findFrom(v, "listen-addr", parseStringFn(checkHostPort), &err); isOk(p, err) {
-		o.ListenAddr = ptr.FromValue(MustParseTCPAddr(*p))
-	}
-
-	if p := findFrom(v, "timeout", parseIntFn[uint16](checkUint16), &err); isOk(p, err) {
-		o.Timeout = ptr.FromValue(time.Duration(*p) * time.Millisecond)
-	}
-
-	return err
-}
-
-func (o *ServerOptions) Clone() *ServerOptions {
-	if o == nil {
-		return nil
+		newLevel = lo.ToPtr(MustParseLogLevel(strings.ToLower(o.LogLevel.String())))
 	}
 
 	var newAddr *net.TCPAddr
@@ -116,14 +91,16 @@ func (o *ServerOptions) Clone() *ServerOptions {
 		}
 	}
 
-	return &ServerOptions{
-		DefaultTTL: ptr.Clone(o.DefaultTTL),
-		ListenAddr: newAddr,
-		Timeout:    ptr.Clone(o.Timeout),
+	return &AppOptions{
+		LogLevel:             newLevel,
+		Silent:               clonePrimitive(o.Silent),
+		AutoConfigureNetwork: clonePrimitive(o.AutoConfigureNetwork),
+		Mode:                 clonePrimitive(o.Mode),
+		ListenAddr:           newAddr,
 	}
 }
 
-func (origin *ServerOptions) Merge(overrides *ServerOptions) *ServerOptions {
+func (origin *AppOptions) Merge(overrides *AppOptions) *AppOptions {
 	if overrides == nil {
 		return origin.Clone()
 	}
@@ -132,10 +109,121 @@ func (origin *ServerOptions) Merge(overrides *ServerOptions) *ServerOptions {
 		return overrides.Clone()
 	}
 
-	return &ServerOptions{
-		DefaultTTL: ptr.CloneOr(overrides.DefaultTTL, origin.DefaultTTL),
-		ListenAddr: ptr.CloneOr(overrides.ListenAddr, origin.ListenAddr),
-		Timeout:    ptr.CloneOr(overrides.Timeout, origin.Timeout),
+	return &AppOptions{
+		LogLevel: lo.CoalesceOrEmpty(overrides.LogLevel, origin.LogLevel),
+		Silent:   lo.CoalesceOrEmpty(overrides.Silent, origin.Silent),
+		AutoConfigureNetwork: lo.CoalesceOrEmpty(
+			overrides.AutoConfigureNetwork,
+			origin.AutoConfigureNetwork,
+		),
+		Mode:       lo.CoalesceOrEmpty(overrides.Mode, origin.Mode),
+		ListenAddr: lo.CoalesceOrEmpty(overrides.ListenAddr, origin.ListenAddr),
+	}
+}
+
+// ┌──────────────────────┐
+// │ CONNECTION OPTIONS   │
+// └──────────────────────┘
+var _ merger[*ConnOptions] = (*ConnOptions)(nil)
+
+type AppModeType int
+
+const (
+	AppModeHTTP AppModeType = iota
+	AppModeSOCKS5
+	AppModeTUN
+)
+
+var availableAppModeValues = []string{"http", "socks5", "tun"}
+
+func (t AppModeType) String() string {
+	return availableAppModeValues[t]
+}
+
+type ConnOptions struct {
+	DefaultFakeTTL *uint8         `toml:"default-fake-ttl"`
+	DNSTimeout     *time.Duration `toml:"dns-timeout"`
+	TCPTimeout     *time.Duration `toml:"tcp-timeout"`
+	UDPIdleTimeout *time.Duration `toml:"udp-idle-timeout"`
+}
+
+func (o *ConnOptions) UnmarshalTOML(data any) (err error) {
+	v, ok := data.(map[string]any)
+	if !ok {
+		return fmt.Errorf("non-table type connection config")
+	}
+
+	o.DefaultFakeTTL = findFrom(
+		v,
+		"default-fake-ttl",
+		parseIntFn[uint8](checkUint8NonZero),
+		&err,
+	)
+
+	if p := findFrom(
+		v,
+		"dns-timeout",
+		parseIntFn[uint16](checkUint16),
+		&err,
+	); isOk(
+		p,
+		err,
+	) {
+		o.DNSTimeout = lo.ToPtr(time.Duration(*p) * time.Millisecond)
+	}
+	if p := findFrom(
+		v,
+		"tcp-timeout",
+		parseIntFn[uint16](checkUint16),
+		&err,
+	); isOk(
+		p,
+		err,
+	) {
+		o.TCPTimeout = lo.ToPtr(time.Duration(*p) * time.Millisecond)
+	}
+	if p := findFrom(
+		v,
+		"udp-idle-timeout",
+		parseIntFn[uint16](checkUint16),
+		&err,
+	); isOk(
+		p,
+		err,
+	) {
+		o.UDPIdleTimeout = lo.ToPtr(time.Duration(*p) * time.Millisecond)
+	}
+
+	return err
+}
+
+func (o *ConnOptions) Clone() *ConnOptions {
+	if o == nil {
+		return nil
+	}
+
+	return &ConnOptions{
+		DefaultFakeTTL: clonePrimitive(o.DefaultFakeTTL),
+		DNSTimeout:     clonePrimitive(o.DNSTimeout),
+		TCPTimeout:     clonePrimitive(o.TCPTimeout),
+		UDPIdleTimeout: clonePrimitive(o.UDPIdleTimeout),
+	}
+}
+
+func (origin *ConnOptions) Merge(overrides *ConnOptions) *ConnOptions {
+	if overrides == nil {
+		return origin.Clone()
+	}
+
+	if origin == nil {
+		return overrides.Clone()
+	}
+
+	return &ConnOptions{
+		DefaultFakeTTL: lo.CoalesceOrEmpty(overrides.DefaultFakeTTL, origin.DefaultFakeTTL),
+		DNSTimeout:     lo.CoalesceOrEmpty(overrides.DNSTimeout, origin.DNSTimeout),
+		TCPTimeout:     lo.CoalesceOrEmpty(overrides.TCPTimeout, origin.TCPTimeout),
+		UDPIdleTimeout: lo.CoalesceOrEmpty(overrides.UDPIdleTimeout, origin.UDPIdleTimeout),
 	}
 }
 
@@ -150,8 +238,8 @@ type (
 )
 
 var (
-	availableDNSModes   = []string{"udp", "https", "system"}
-	availableDNSQueries = []string{"ipv4", "ipv6", "all"}
+	availableDNSModeValues  = []string{"udp", "https", "system"}
+	availableDNSQueryValues = []string{"ipv4", "ipv6", "all"}
 )
 
 const (
@@ -167,11 +255,11 @@ const (
 )
 
 func (t DNSModeType) String() string {
-	return availableDNSModes[t]
+	return availableDNSModeValues[t]
 }
 
 func (t DNSQueryType) String() string {
-	return availableDNSQueries[t]
+	return availableDNSQueryValues[t]
 }
 
 type DNSOptions struct {
@@ -189,17 +277,17 @@ func (o *DNSOptions) UnmarshalTOML(data any) (err error) {
 	}
 
 	if p := findFrom(m, "mode", parseStringFn(checkDNSMode), &err); isOk(p, err) {
-		o.Mode = ptr.FromValue(MustParseDNSModeType(*p))
+		o.Mode = lo.ToPtr(MustParseDNSModeType(*p))
 	}
 
 	if p := findFrom(m, "addr", parseStringFn(checkHostPort), &err); isOk(p, err) {
-		o.Addr = ptr.FromValue(MustParseTCPAddr(*p))
+		o.Addr = lo.ToPtr(MustParseTCPAddr(*p))
 	}
 
 	o.HTTPSURL = findFrom(m, "https-url", parseStringFn(checkHTTPSEndpoint), &err)
 
 	if p := findFrom(m, "qtype", parseStringFn(checkDNSQueryType), &err); isOk(p, err) {
-		o.QType = ptr.FromValue(MustParseDNSQueryType(*p))
+		o.QType = lo.ToPtr(MustParseDNSQueryType(*p))
 	}
 
 	o.Cache = findFrom(m, "cache", parseBoolFn(), &err)
@@ -222,11 +310,11 @@ func (o *DNSOptions) Clone() *DNSOptions {
 	}
 
 	return &DNSOptions{
-		Mode:     ptr.Clone(o.Mode),
+		Mode:     clonePrimitive(o.Mode),
 		Addr:     newAddr,
-		HTTPSURL: ptr.Clone(o.HTTPSURL),
-		QType:    ptr.Clone(o.QType),
-		Cache:    ptr.Clone(o.Cache),
+		HTTPSURL: clonePrimitive(o.HTTPSURL),
+		QType:    clonePrimitive(o.QType),
+		Cache:    clonePrimitive(o.Cache),
 	}
 }
 
@@ -240,11 +328,11 @@ func (origin *DNSOptions) Merge(overrides *DNSOptions) *DNSOptions {
 	}
 
 	return &DNSOptions{
-		Mode:     ptr.CloneOr(overrides.Mode, origin.Mode),
-		Addr:     ptr.CloneOr(overrides.Addr, origin.Addr),
-		HTTPSURL: ptr.CloneOr(overrides.HTTPSURL, origin.HTTPSURL),
-		QType:    ptr.CloneOr(overrides.QType, origin.QType),
-		Cache:    ptr.CloneOr(overrides.Cache, origin.Cache),
+		Mode:     lo.CoalesceOrEmpty(overrides.Mode, origin.Mode),
+		Addr:     lo.CoalesceOrEmpty(overrides.Addr, origin.Addr),
+		HTTPSURL: lo.CoalesceOrEmpty(overrides.HTTPSURL, origin.HTTPSURL),
+		QType:    lo.CoalesceOrEmpty(overrides.QType, origin.QType),
+		Cache:    lo.CoalesceOrEmpty(overrides.Cache, origin.Cache),
 	}
 }
 
@@ -294,27 +382,100 @@ const FakeClientHello = "" +
 
 type HTTPSSplitModeType int
 
-var availableHTTPSModes = []string{"sni", "random", "chunk", "first-byte", "none"}
+var availableHTTPSModeValues = []string{
+	"sni",
+	"random",
+	"chunk",
+	"first-byte",
+	"custom",
+	"none",
+}
 
 const (
 	HTTPSSplitModeSNI HTTPSSplitModeType = iota
 	HTTPSSplitModeRandom
 	HTTPSSplitModeChunk
 	HTTPSSplitModeFirstByte
+	HTTPSSplitModeCustom
 	HTTPSSplitModeNone
 )
 
 func (k HTTPSSplitModeType) String() string {
-	return availableHTTPSModes[k]
+	return availableHTTPSModeValues[k]
+}
+
+type SegmentFromType int
+
+var availableSegmentFromValues = []string{"head", "sni"}
+
+const (
+	SegmentFromHead SegmentFromType = iota
+	SegmentFromSNI
+)
+
+func (s SegmentFromType) String() string {
+	return availableSegmentFromValues[s]
+}
+
+type SegmentPlan struct {
+	From  SegmentFromType `toml:"from"`
+	At    int             `toml:"at"`
+	Lazy  bool            `toml:"lazy"`
+	Noise int             `toml:"noise"`
+}
+
+func (s *SegmentPlan) UnmarshalTOML(data any) (err error) {
+	m, ok := data.(map[string]any)
+	if !ok {
+		return fmt.Errorf("segment must be table type")
+	}
+
+	if _, ok := m["from"]; !ok {
+		return fmt.Errorf("field 'from' is required")
+	}
+	if p := findFrom(m, "from", parseStringFn(checkSegmentFrom), &err); isOk(p, err) {
+		s.From = mustParseSegmentFromType(*p)
+	}
+
+	if _, ok := m["at"]; !ok {
+		return fmt.Errorf("field 'at' is required")
+	}
+	if p := findFrom(m, "at", parseIntFn[int](nil), &err); isOk(p, err) {
+		s.At = *p
+	}
+
+	if p := findFrom(m, "lazy", parseBoolFn(), &err); isOk(p, err) {
+		s.Lazy = *p
+	}
+
+	if p := findFrom(m, "noise", parseIntFn[int](nil), &err); isOk(p, err) {
+		s.Noise = *p
+	}
+
+	return err
+}
+
+func (s *SegmentPlan) Clone() *SegmentPlan {
+	if s == nil {
+		return nil
+	}
+
+	return &SegmentPlan{
+		From:  s.From,
+		At:    s.At,
+		Lazy:  s.Lazy,
+		Noise: s.Noise,
+	}
 }
 
 type HTTPSOptions struct {
-	Disorder   *bool               `toml:"disorder"    json:"ds,omitempty"`
-	FakeCount  *uint8              `toml:"fake-count"  json:"fc,omitempty"`
-	FakePacket *proto.TLSMessage   `toml:"fake-packet" json:"fp,omitempty"`
-	SplitMode  *HTTPSSplitModeType `toml:"split-mode"  json:"sm,omitempty"`
-	ChunkSize  *uint8              `toml:"chunk-size"  json:"cs,omitempty"`
-	Skip       *bool               `toml:"skip"        json:"sk,omitempty"`
+	Disorder           *bool               `toml:"disorder"        json:"ds,omitempty"`
+	FakeCount          *uint8              `toml:"fake-count"      json:"fc,omitempty"`
+	FakePacket         *proto.TLSMessage   `toml:"fake-packet"     json:"fp,omitempty"`
+	SplitMode          *HTTPSSplitModeType `toml:"split-mode"      json:"sm,omitempty"`
+	ChunkSize          *uint8              `toml:"chunk-size"      json:"cs,omitempty"`
+	Skip               *bool               `toml:"skip"            json:"sk,omitempty"`
+	CustomSegmentPlans []SegmentPlan       `toml:"custom-segments" json:"cseg,omitempty"`
 }
 
 func (o *HTTPSOptions) UnmarshalTOML(data any) (err error) {
@@ -333,16 +494,22 @@ func (o *HTTPSOptions) UnmarshalTOML(data any) (err error) {
 
 	splitModeParser := parseStringFn(checkHTTPSSplitMode)
 	if p := findFrom(m, "split-mode", splitModeParser, &err); isOk(p, err) {
-		o.SplitMode = ptr.FromValue(mustParseHTTPSSplitModeType(*p))
+		o.SplitMode = lo.ToPtr(mustParseHTTPSSplitModeType(*p))
 	}
 
 	o.ChunkSize = findFrom(m, "chunk-size", parseIntFn[uint8](checkUint8NonZero), &err)
 	o.Skip = findFrom(m, "skip", parseBoolFn(), &err)
 	if o.Skip == nil {
-		o.Skip = ptr.FromValue(false)
+		o.Skip = lo.ToPtr(false)
 	}
 
-	return nil
+	o.CustomSegmentPlans = findStructSliceFrom[SegmentPlan](m, "custom-segments", &err)
+	if err == nil && o.SplitMode != nil && *o.SplitMode == HTTPSSplitModeCustom &&
+		len(o.CustomSegmentPlans) == 0 {
+		err = fmt.Errorf("custom-segments must be provided when split-mode is 'custom'")
+	}
+
+	return err
 }
 
 func (o *HTTPSOptions) Clone() *HTTPSOptions {
@@ -355,32 +522,100 @@ func (o *HTTPSOptions) Clone() *HTTPSOptions {
 		fakePacket = proto.NewFakeTLSMessage(o.FakePacket.Raw())
 	}
 
+	var customSegmentPlans []SegmentPlan
+	if o.CustomSegmentPlans != nil {
+		customSegmentPlans = make([]SegmentPlan, 0, len(o.CustomSegmentPlans))
+		for _, s := range o.CustomSegmentPlans {
+			customSegmentPlans = append(customSegmentPlans, *s.Clone())
+		}
+	}
+
 	return &HTTPSOptions{
-		Disorder:   ptr.Clone(o.Disorder),
-		FakeCount:  ptr.Clone(o.FakeCount),
-		FakePacket: fakePacket,
-		SplitMode:  ptr.Clone(o.SplitMode),
-		ChunkSize:  ptr.Clone(o.ChunkSize),
-		Skip:       ptr.Clone(o.Skip),
+		Disorder:           clonePrimitive(o.Disorder),
+		FakeCount:          clonePrimitive(o.FakeCount),
+		FakePacket:         fakePacket,
+		SplitMode:          clonePrimitive(o.SplitMode),
+		ChunkSize:          clonePrimitive(o.ChunkSize),
+		Skip:               clonePrimitive(o.Skip),
+		CustomSegmentPlans: customSegmentPlans,
 	}
 }
 
 func (origin *HTTPSOptions) Merge(overrides *HTTPSOptions) *HTTPSOptions {
 	if overrides == nil {
-		return origin
+		return origin.Clone()
 	}
 
 	if origin == nil {
-		return overrides
+		return overrides.Clone()
 	}
 
 	return &HTTPSOptions{
-		Disorder:   ptr.CloneOr(overrides.Disorder, origin.Disorder),
-		FakeCount:  ptr.CloneOr(overrides.FakeCount, origin.FakeCount),
-		FakePacket: ptr.CloneOr(overrides.FakePacket, origin.FakePacket),
-		SplitMode:  ptr.CloneOr(overrides.SplitMode, origin.SplitMode),
-		ChunkSize:  ptr.CloneOr(overrides.ChunkSize, origin.ChunkSize),
-		Skip:       ptr.CloneOr(overrides.Skip, origin.Skip),
+		Disorder:   lo.CoalesceOrEmpty(overrides.Disorder, origin.Disorder),
+		FakeCount:  lo.CoalesceOrEmpty(overrides.FakeCount, origin.FakeCount),
+		FakePacket: lo.CoalesceOrEmpty(overrides.FakePacket, origin.FakePacket),
+		SplitMode:  lo.CoalesceOrEmpty(overrides.SplitMode, origin.SplitMode),
+		ChunkSize:  lo.CoalesceOrEmpty(overrides.ChunkSize, origin.ChunkSize),
+		Skip:       lo.CoalesceOrEmpty(overrides.Skip, origin.Skip),
+		CustomSegmentPlans: lo.CoalesceSliceOrEmpty(
+			origin.CustomSegmentPlans,
+			overrides.CustomSegmentPlans,
+		),
+	}
+}
+
+// ┌─────────────┐
+// │ UDP OPTIONS │
+// └─────────────┘
+var _ merger[*UDPOptions] = (*UDPOptions)(nil)
+
+type UDPOptions struct {
+	FakeCount  *int   `toml:"fake-count"  json:"fc,omitempty"`
+	FakePacket []byte `toml:"fake-packet" json:"fp,omitempty"`
+}
+
+func (o *UDPOptions) UnmarshalTOML(data any) (err error) {
+	m, ok := data.(map[string]any)
+	if !ok {
+		return fmt.Errorf("'udp' must be table type")
+	}
+
+	o.FakeCount = findFrom(
+		m, "fake-count", parseIntFn[int](int64Range(0, math.MaxInt64)), &err,
+	)
+	o.FakePacket = findSliceFrom(m, "fake-packet", parseByteFn(nil), &err)
+
+	return err
+}
+
+func (o *UDPOptions) Clone() *UDPOptions {
+	if o == nil {
+		return nil
+	}
+
+	return &UDPOptions{
+		FakeCount:  clonePrimitive(o.FakeCount),
+		FakePacket: append([]byte(nil), o.FakePacket...),
+	}
+}
+
+func (origin *UDPOptions) Merge(overrides *UDPOptions) *UDPOptions {
+	if overrides == nil {
+		return origin.Clone()
+	}
+
+	if origin == nil {
+		return overrides.Clone()
+	}
+
+	fakePacket := origin.FakePacket
+	if len(overrides.FakePacket) > 0 {
+		fakePacket = overrides.FakePacket
+	}
+
+	return &UDPOptions{
+		FakeCount:  lo.CoalesceOrEmpty(overrides.FakeCount, origin.FakeCount),
+		FakePacket: fakePacket,
 	}
 }
 
@@ -394,7 +629,6 @@ var (
 )
 
 type PolicyOptions struct {
-	Auto      *bool  `toml:"auto"`
 	Template  *Rule  `toml:"template"`
 	Overrides []Rule `toml:"overries"`
 }
@@ -405,7 +639,6 @@ func (o *PolicyOptions) UnmarshalTOML(data any) (err error) {
 		return fmt.Errorf("non-table type policy config")
 	}
 
-	o.Auto = findFrom(m, "auto", parseBoolFn(), &err)
 	o.Template = findStructFrom[Rule](m, "template", &err)
 	o.Overrides = findStructSliceFrom[Rule](m, "overrides", &err)
 
@@ -423,7 +656,6 @@ func (o *PolicyOptions) Clone() *PolicyOptions {
 	}
 
 	return &PolicyOptions{
-		Auto:      ptr.Clone(o.Auto),
 		Template:  o.Template.Clone(),
 		Overrides: overrides,
 	}
@@ -438,20 +670,10 @@ func (origin *PolicyOptions) Merge(overrides *PolicyOptions) *PolicyOptions {
 		return overrides.Clone()
 	}
 
-	overridesCopy := overrides.Clone()
-
-	merged := origin.Clone()
-	merged.Auto = ptr.CloneOr(overrides.Auto, origin.Auto)
-
-	if overridesCopy.Template != nil {
-		merged.Template = overridesCopy.Template
+	return &PolicyOptions{
+		Template:  lo.CoalesceOrEmpty(overrides.Template.Clone(), origin.Template.Clone()),
+		Overrides: lo.CoalesceSliceOrEmpty(overrides.Overrides, origin.Overrides),
 	}
-
-	if overridesCopy.Overrides != nil {
-		merged.Overrides = append(merged.Overrides, overridesCopy.Overrides...)
-	}
-
-	return merged
 }
 
 type AddrMatch struct {
@@ -467,12 +689,12 @@ func (a *AddrMatch) UnmarshalTOML(data any) (err error) {
 	}
 
 	if p := findFrom(v, "cidr", parseStringFn(checkCIDR), &err); isOk(p, err) {
-		a.CIDR = ptr.FromValue(MustParseCIDR(*p))
+		a.CIDR = lo.ToPtr(MustParseCIDR(*p))
 	}
 
 	if p := findFrom(v, "port", parseStringFn(checkPortRange), &err); isOk(p, err) {
 		portFrom, portTo := MustParsePortRange(*p)
-		a.PortFrom, a.PortTo = ptr.FromValue(portFrom), ptr.FromValue(portTo)
+		a.PortFrom, a.PortTo = lo.ToPtr(portFrom), lo.ToPtr(portTo)
 	}
 
 	return err
@@ -482,10 +704,19 @@ func (a *AddrMatch) Clone() *AddrMatch {
 	if a == nil {
 		return nil
 	}
+
+	var cidr *net.IPNet
+	if a.CIDR != nil {
+		cidr = &net.IPNet{
+			IP:   slices.Clone(a.CIDR.IP),
+			Mask: slices.Clone(a.CIDR.Mask),
+		}
+	}
+
 	return &AddrMatch{
-		CIDR:     ptr.Clone(a.CIDR),
-		PortFrom: ptr.Clone(a.PortFrom),
-		PortTo:   ptr.Clone(a.PortTo),
+		CIDR:     cidr,
+		PortFrom: clonePrimitive(a.PortFrom),
+		PortTo:   clonePrimitive(a.PortTo),
 	}
 }
 
@@ -521,7 +752,7 @@ func (a *MatchAttrs) Clone() *MatchAttrs {
 	}
 
 	return &MatchAttrs{
-		Domains: ptr.CloneSlice(a.Domains),
+		Domains: lo.CoalesceSliceOrEmpty(a.Domains),
 		Addrs:   addrs,
 	}
 }
@@ -533,6 +764,8 @@ type Rule struct {
 	Match    *MatchAttrs   `toml:"match"          json:"mt,omitempty"`
 	DNS      *DNSOptions   `toml:"dns-override"   json:"D,omitempty"`
 	HTTPS    *HTTPSOptions `toml:"https-override" json:"H,omitempty"`
+	UDP      *UDPOptions   `toml:"udp-override"   json:"U,omitempty"`
+	Conn     *ConnOptions  `toml:"conn-override"  json:"C,omitempty"`
 }
 
 func (r *Rule) UnmarshalTOML(data any) (err error) {
@@ -547,6 +780,8 @@ func (r *Rule) UnmarshalTOML(data any) (err error) {
 	r.Match = findStructFrom[MatchAttrs](m, "match", &err)
 	r.DNS = findStructFrom[DNSOptions](m, "dns", &err)
 	r.HTTPS = findStructFrom[HTTPSOptions](m, "https", &err)
+	r.UDP = findStructFrom[UDPOptions](m, "udp", &err)
+	r.Conn = findStructFrom[ConnOptions](m, "connection", &err)
 
 	// if err == nil {
 	// 	err = checkRule(*r)
@@ -560,11 +795,36 @@ func (r *Rule) Clone() *Rule {
 		return nil
 	}
 	return &Rule{
-		Name:     ptr.Clone(r.Name),
-		Priority: ptr.Clone(r.Priority),
-		Block:    ptr.Clone(r.Block),
-		Match:    ptr.Clone(r.Match),
+		Name:     clonePrimitive(r.Name),
+		Priority: clonePrimitive(r.Priority),
+		Block:    clonePrimitive(r.Block),
+		Match:    r.Match.Clone(),
 		DNS:      r.DNS.Clone(),
 		HTTPS:    r.HTTPS.Clone(),
+		UDP:      r.UDP.Clone(),
+		Conn:     r.Conn.Clone(),
 	}
+}
+
+func (r *Rule) JSON() []byte {
+	data := map[string]any{
+		"name":     r.Name,
+		"priority": r.Priority,
+	}
+
+	if r.Match == nil {
+		data["match"] = nil
+	} else {
+		m := map[string]any{}
+		if r.Match.Addrs != nil {
+			m["addr"] = fmt.Sprintf("%v items", len(r.Match.Addrs))
+		}
+		if r.Match.Domains != nil {
+			m["domain"] = fmt.Sprintf("%v items", len(r.Match.Domains))
+		}
+		data["match"] = m
+	}
+
+	bytes, _ := json.Marshal(data)
+	return bytes
 }

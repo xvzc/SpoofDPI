@@ -127,9 +127,8 @@ func (h ctxHook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 
 	// Request-scoped values like trace_id.
 	// Scope is expected to be added at the component's creation time.
-	if traceID, ok := session.TraceIDFrom(ctx); ok {
-		e.Str(traceIDFieldName, traceID)
-	}
+	traceID, _ := session.TraceIDFrom(ctx)
+	e.Str(traceIDFieldName, traceID)
 
 	if domain, ok := session.HostInfoFrom(ctx); ok {
 		e.Str(hostInfoFieldName, domain)
@@ -140,21 +139,21 @@ type joinableError interface {
 	Unwrap() []error
 }
 
-// ErrorUnwrapped tries to unwrap an error and prints each error separately.
+// ErrorErrs tries to unwrap an error and prints each error separately.
 // If the error is not joined, it logs the single error normally.
-func ErrorUnwrapped(logger *zerolog.Logger, msg string, err error) {
-	logUnwrapped(logger, zerolog.ErrorLevel, msg, err)
+func ErrorErrs(logger *zerolog.Logger, err error, msg string) {
+	logErrs(logger, zerolog.ErrorLevel, err, msg)
 }
 
-func WarnUnwrapped(logger *zerolog.Logger, msg string, err error) {
-	logUnwrapped(logger, zerolog.WarnLevel, msg, err)
+func WarnErrs(logger *zerolog.Logger, err error, msg string) {
+	logErrs(logger, zerolog.WarnLevel, err, msg)
 }
 
-func TraceUnwrapped(logger *zerolog.Logger, msg string, err error) {
-	logUnwrapped(logger, zerolog.TraceLevel, msg, err)
+func TraceErrs(logger *zerolog.Logger, err error, msg string) {
+	logErrs(logger, zerolog.TraceLevel, err, msg)
 }
 
-func logUnwrapped(logger *zerolog.Logger, level zerolog.Level, msg string, err error) {
+func logErrs(logger *zerolog.Logger, level zerolog.Level, err error, msg string) {
 	var joinedErrs joinableError
 
 	if errors.As(err, &joinedErrs) {

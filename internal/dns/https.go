@@ -3,8 +3,9 @@ package dns
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
+	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -14,36 +15,52 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/logging"
+	"golang.org/x/net/http2"
 )
 
 var _ Resolver = (*HTTPSResolver)(nil)
 
 type HTTPSResolver struct {
-	logger zerolog.Logger
-
-	client  *http.Client
-	dnsOpts *config.DNSOptions
+	logger          zerolog.Logger
+	client          *http.Client
+	defaultDNSOpts  *config.DNSOptions
+	defaultConnOpts *config.ConnOptions
 }
 
 func NewHTTPSResolver(
 	logger zerolog.Logger,
-	dnsOpts *config.DNSOptions,
+	defaultDNSOpts *config.DNSOptions,
+	defaultConnOpts *config.ConnOptions,
 ) *HTTPSResolver {
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			NextProtos: []string{"h2", "http/1.1"},
+		},
+		DialContext: (&net.Dialer{
+			Timeout:   *defaultConnOpts.DNSTimeout,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		TLSHandshakeTimeout: 9 * time.Second,
+		MaxIdleConnsPerHost: 100,
+		MaxIdleConns:        100,
+		ForceAttemptHTTP2:   true,
+	}
+
+	// Configure HTTP/2 transport explicitly
+	if err := http2.ConfigureTransport(tr); err != nil {
+		logger.Warn().
+			Err(err).
+			Msg("failed to configure http2 expressly, falling back to default / http/1.1")
+	}
+
 	return &HTTPSResolver{
 		logger: logger,
 		client: &http.Client{
-			Timeout: 5 * time.Second,
-			Transport: &http.Transport{
-				DialContext: (&net.Dialer{
-					Timeout:   3 * time.Second,
-					KeepAlive: 30 * time.Second,
-				}).DialContext,
-				TLSHandshakeTimeout: 5 * time.Second,
-				MaxIdleConnsPerHost: 100,
-				MaxIdleConns:        100,
-			},
+			Transport: tr,
+			Timeout:   *defaultConnOpts.DNSTimeout,
 		},
-		dnsOpts: dnsOpts,
+		defaultDNSOpts:  defaultDNSOpts,
+		defaultConnOpts: defaultConnOpts,
 	}
 }
 
@@ -51,7 +68,7 @@ func (dr *HTTPSResolver) Info() []ResolverInfo {
 	return []ResolverInfo{
 		{
 			Name: "https",
-			Dst:  *dr.dnsOpts.HTTPSURL,
+			Dst:  *dr.defaultDNSOpts.HTTPSURL,
 		},
 	}
 }
@@ -62,7 +79,7 @@ func (dr *HTTPSResolver) Resolve(
 	fallback Resolver,
 	rule *config.Rule,
 ) (*RecordSet, error) {
-	opts := dr.dnsOpts.Clone()
+	opts := dr.defaultDNSOpts.Clone()
 	if rule != nil {
 		opts = opts.Merge(rule.DNS)
 	}
@@ -94,55 +111,75 @@ func (dr *HTTPSResolver) exchange(
 		return nil, err
 	}
 
-	url := fmt.Sprintf(
-		"%s?dns=%s",
-		upstream,
-		base64.RawURLEncoding.EncodeToString(pack),
-		// base64.RawStdEncoding.EncodeToString(pack),
-	)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
+	const maxRetries = 2
+	var resp *http.Response
+	var reqErr error
+
+	// Retry loop for transient network errors like unexpected EOF
+	for i := 0; i < maxRetries; i++ {
+		req, err := http.NewRequestWithContext(
+			ctx,
+			http.MethodPost,
+			upstream,
+			bytes.NewReader(pack),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Content-Type", "application/dns-message")
+		req.Header.Set("Accept", "application/dns-message")
+
+		resp, reqErr = dr.client.Do(req)
+		if reqErr == nil {
+			break
+		}
+
+		// Check if error is retryable
+		if i < maxRetries-1 && isRetryableError(reqErr) {
+			continue
+		}
 	}
 
-	req = req.WithContext(ctx)
-	req.Header.Set("Accept", "application/dns-message")
-
-	resp, err := dr.client.Do(req)
-	if err != nil {
-		return nil, err
+	if reqErr != nil {
+		return nil, reqErr
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	buf := bytes.Buffer{}
-	bodyLen, err := buf.ReadFrom(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		logger.Trace().
-			Int64("len", bodyLen).
+			Int("len", len(body)).
 			Int("status", resp.StatusCode).
-			Str("body", buf.String()).
-			Msg("status not ok")
-		return nil, fmt.Errorf("doh status code(%d)", resp.StatusCode)
+			Str("body", string(body)).
+			Msg("doh status not ok")
+		return nil, fmt.Errorf("status code(%d)", resp.StatusCode)
 	}
 
 	resultMsg := new(dns.Msg)
-	err = resultMsg.Unpack(buf.Bytes())
-	if err != nil {
+	if err := resultMsg.Unpack(body); err != nil {
 		return nil, err
 	}
 
-	// Ignore Rcode 3 (NameNotFound) as it's not a critical error.
 	if resultMsg.Rcode != dns.RcodeSuccess && resultMsg.Rcode != dns.RcodeNameError {
 		logger.Trace().
 			Int("rcode", resultMsg.Rcode).
 			Str("msg", resultMsg.String()).
-			Msg("rcode not ok")
-		return nil, fmt.Errorf("doh Rcode(%d)", resultMsg.Rcode)
+			Msg("doh rcode not ok")
+		return nil, fmt.Errorf("Rcode(%d)", resultMsg.Rcode)
 	}
 
 	return resultMsg, nil
+}
+
+// isRetryableError checks for common transient network errors
+func isRetryableError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "unexpected EOF") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "broken pipe")
 }

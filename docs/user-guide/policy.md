@@ -2,51 +2,24 @@
 
 By defining rules within the Policy section, you can granularly control how SpoofDPI handles connections to specific domains or IP addresses. You can define per-domain bypass strategies, DNS settings, or simply block connections.
 
-## `auto`
-
-`type: boolean`
-
-### Description
-
-Automatically detect blocked sites and add them to the bypass list. `(default: false)`
-
-When enabled, SpoofDPI attempts to detect if a connection is being blocked and temporarily applies bypass rules for that destination. These generated rules utilize the configuration defined in `[policy.template]`.
-
-### Usage
-
-**Command-Line Flag**
-```console
-$ spoofdpi --policy-auto
-```
-
-**TOML Config**
-```toml
-[policy]
-auto = true
-```
-
----
-
 ## `template`
 
-The `[policy.template]` section defines the default behavior for rules automatically generated when `auto = true`. If you enable automatic detection, you should configure this template to ensure the generated rules effectively bypass the DPI.
+The `[policy.template]` section defines a base rule configuration. This template can be cloned and customized when programmatically adding rules.
 
 !!! note
     The template configuration is only available via the TOML config file.
 
 ### Structure
 
-The template uses the same `Rule` structure as overrides, but typically only the `https` and `dns` sections are relevant, as the `match` criteria are determined dynamically.
+The template uses the same `Rule` structure as overrides, but typically only the `https` and `dns` sections are relevant.
 
 ### Example
 
 ```toml
 [policy]
-    auto = true
-
-    # This configuration is applied to automatically detected blocked sites
     [policy.template]
         https = { fake-count = 7, disorder = true }
+        dns = { mode = "https" }
 ```
 
 ---

@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"math/rand/v2"
-	"unsafe"
 )
 
 // We define unexported key types to prevent key collisions with other packages.
@@ -34,7 +33,8 @@ func TraceIDFrom(ctx context.Context) (string, bool) {
 	if ok {
 		return traceID, true
 	}
-	return "", false
+
+	return "0000000000000000", false
 }
 
 // WithHostInfo returns a new context carrying the given domain name string.
@@ -87,5 +87,6 @@ func generateTraceID() string {
 		b[i] = r + 0x30
 	}
 
-	return unsafe.String(unsafe.SliceData(b), 16)
+	return string(b)
+	// return unsafe.String(unsafe.SliceData(b), 16)
 }

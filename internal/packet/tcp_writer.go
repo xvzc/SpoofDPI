@@ -124,12 +124,14 @@ func (tw *TCPWriter) createIPv4Layers(
 ) ([]gopacket.SerializableLayer, error) {
 	var packetLayers []gopacket.SerializableLayer
 
-	eth := &layers.Ethernet{
-		SrcMAC:       srcMAC,
-		DstMAC:       dstMAC,
-		EthernetType: layers.EthernetTypeIPv4,
+	if srcMAC != nil && dstMAC != nil {
+		eth := &layers.Ethernet{
+			SrcMAC:       srcMAC,
+			DstMAC:       dstMAC,
+			EthernetType: layers.EthernetTypeIPv4,
+		}
+		packetLayers = append(packetLayers, eth)
 	}
-	packetLayers = append(packetLayers, eth)
 
 	// define ip layer
 	ipLayer := &layers.IPv4{
@@ -171,12 +173,14 @@ func (tw *TCPWriter) createIPv6Layers(
 ) ([]gopacket.SerializableLayer, error) {
 	var packetLayers []gopacket.SerializableLayer
 
-	eth := &layers.Ethernet{
-		SrcMAC:       srcMAC,
-		DstMAC:       dstMAC,
-		EthernetType: layers.EthernetTypeIPv6,
+	if srcMAC != nil && dstMAC != nil {
+		eth := &layers.Ethernet{
+			SrcMAC:       srcMAC,
+			DstMAC:       dstMAC,
+			EthernetType: layers.EthernetTypeIPv6,
+		}
+		packetLayers = append(packetLayers, eth)
 	}
-	packetLayers = append(packetLayers, eth)
 
 	ipLayer := &layers.IPv6{
 		Version:    6,

@@ -3,10 +3,25 @@ package netutil
 import (
 	"fmt"
 	"net"
+	"strconv"
+	"time"
 )
 
+type Destination struct {
+	Domain  string
+	Addrs   []net.IP
+	Port    int
+	Timeout time.Duration
+	Iface   *net.Interface
+	Gateway string
+}
+
+func (d *Destination) String() string {
+	return net.JoinHostPort(d.Domain, strconv.Itoa(d.Port))
+}
+
 func ValidateDestination(
-	dstAddrs []net.IPAddr,
+	dstAddrs []net.IP,
 	dstPort int,
 	listenAddr *net.TCPAddr,
 ) (bool, error) {
@@ -19,7 +34,7 @@ func ValidateDestination(
 	ifAddrs, err = net.InterfaceAddrs()
 
 	for _, dstAddr := range dstAddrs {
-		ip := dstAddr.IP
+		ip := dstAddr
 		if ip.IsLoopback() {
 			return false, fmt.Errorf("loopback addr detected %v", ip.String())
 		}

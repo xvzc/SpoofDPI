@@ -8,18 +8,18 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/samber/lo"
 	"github.com/xvzc/SpoofDPI/internal/config"
 	"github.com/xvzc/SpoofDPI/internal/logging"
-	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
 type RouteResolver struct {
-	logger  zerolog.Logger
-	https   Resolver
-	udp     Resolver
-	system  Resolver
-	cache   Resolver
-	dnsOpts *config.DNSOptions
+	logger         zerolog.Logger
+	https          Resolver
+	udp            Resolver
+	system         Resolver
+	cache          Resolver
+	defaultDNSOpts *config.DNSOptions
 }
 
 func NewRouteResolver(
@@ -28,15 +28,15 @@ func NewRouteResolver(
 	udp Resolver,
 	sys Resolver,
 	cache Resolver,
-	dnsOpts *config.DNSOptions,
+	defaultDNSOpts *config.DNSOptions,
 ) *RouteResolver {
 	return &RouteResolver{
-		logger:  logger,
-		https:   doh,
-		udp:     udp,
-		system:  sys,
-		cache:   cache,
-		dnsOpts: dnsOpts,
+		logger:         logger,
+		https:          doh,
+		udp:            udp,
+		system:         sys,
+		cache:          cache,
+		defaultDNSOpts: defaultDNSOpts,
 	}
 }
 
@@ -55,7 +55,7 @@ func (rr *RouteResolver) Resolve(
 	fallback Resolver,
 	rule *config.Rule,
 ) (*RecordSet, error) {
-	opts := rr.dnsOpts.Clone()
+	opts := rr.defaultDNSOpts.Clone()
 	if rule != nil {
 		opts = opts.Merge(rule.DNS)
 	}
@@ -64,7 +64,7 @@ func (rr *RouteResolver) Resolve(
 
 	// 1. Check for IP address in domain
 	if ip, err := parseIpAddr(domain); err == nil {
-		return &RecordSet{Addrs: []net.IPAddr{*ip}, TTL: 0}, nil
+		return &RecordSet{Addrs: []net.IP{ip}, TTL: 0}, nil
 	}
 
 	// 4. Handle ROUTE rule (or default)
@@ -77,11 +77,10 @@ func (rr *RouteResolver) Resolve(
 	}
 
 	resolverInfo := resolver.Info()[0]
-	logger.Trace().
-		Str("name", resolverInfo.Name).
-		Bool("cache", ptr.FromPtr(opts.Cache)).
+	logger.Debug().Str("mode", resolverInfo.Name).Bool("cache", lo.FromPtr(opts.Cache)).
 		Msgf("ready to resolve")
 
+	t1 := time.Now()
 	var rSet *RecordSet
 	var err error
 	if *opts.Mode != config.DNSModeSystem && *opts.Cache {
@@ -90,7 +89,17 @@ func (rr *RouteResolver) Resolve(
 		rSet, err = resolver.Resolve(ctx, domain, nil, rule)
 	}
 
-	return rSet, err
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debug().
+		Str("domain", domain).
+		Int("len", len(rSet.Addrs)).
+		Str("took", fmt.Sprintf("%.3fms", float64(time.Since(t1).Microseconds())/1000.0)).
+		Msgf("dns lookup ok")
+
+	return rSet, nil
 }
 
 func (rr *RouteResolver) route(attrs *config.DNSOptions) Resolver {
@@ -106,15 +115,11 @@ func (rr *RouteResolver) route(attrs *config.DNSOptions) Resolver {
 	}
 }
 
-func parseIpAddr(addr string) (*net.IPAddr, error) {
+func parseIpAddr(addr string) (net.IP, error) {
 	ip := net.ParseIP(addr)
 	if ip == nil {
 		return nil, fmt.Errorf("%s is not an ip address", addr)
 	}
 
-	ipAddr := &net.IPAddr{
-		IP: ip,
-	}
-
-	return ipAddr, nil
+	return ip, nil
 }

@@ -414,15 +414,17 @@ func TestFindSliceFrom(t *testing.T) {
 func TestFromTomlFile(t *testing.T) {
 	t.Run("full valid config", func(t *testing.T) {
 		tomlContent := `
-			[general]
-				log-level = "debug"
-				silent = true
-				system-proxy = true
-
-			[server]
-				listen-addr = "127.0.0.1:8080"
-				timeout = 1000
-				default-ttl = 100
+					[app]
+					log-level = "debug"
+					silent = true
+					auto-configure-network = true
+					mode = "socks5"
+					listen-addr = "127.0.0.1:8080"
+			[connection]
+				dns-timeout = 1000
+				tcp-timeout = 1000
+				udp-idle-timeout = 1000
+				default-fake-ttl = 100
 
 			[dns]
 				addr = "8.8.8.8:53"
@@ -440,7 +442,6 @@ func TestFromTomlFile(t *testing.T) {
 				skip = true
 
 			[policy]
-				auto = true
 				[[policy.overrides]]
 					name = "test-rule"
 					priority = 100
@@ -482,18 +483,20 @@ func TestFromTomlFile(t *testing.T) {
 			return
 		}
 
-		assert.Equal(t, "127.0.0.1:8080", cfg.Server.ListenAddr.String())
-		assert.Equal(t, time.Duration(1000*time.Millisecond), *cfg.Server.Timeout)
-		assert.Equal(t, zerolog.DebugLevel, *cfg.General.LogLevel)
-		assert.True(t, *cfg.General.Silent)
-		assert.True(t, *cfg.General.SetSystemProxy)
+		assert.Equal(t, "127.0.0.1:8080", cfg.App.ListenAddr.String())
+		assert.Equal(t, time.Duration(1000*time.Millisecond), *cfg.Conn.DNSTimeout)
+		assert.Equal(t, time.Duration(1000*time.Millisecond), *cfg.Conn.TCPTimeout)
+		assert.Equal(t, time.Duration(1000*time.Millisecond), *cfg.Conn.UDPIdleTimeout)
+		assert.Equal(t, zerolog.DebugLevel, *cfg.App.LogLevel)
+		assert.True(t, *cfg.App.Silent)
+		assert.True(t, *cfg.App.AutoConfigureNetwork)
+		assert.Equal(t, AppModeSOCKS5, *cfg.App.Mode)
 		assert.Equal(t, "8.8.8.8:53", cfg.DNS.Addr.String())
 		assert.True(t, *cfg.DNS.Cache)
 		assert.Equal(t, DNSModeHTTPS, *cfg.DNS.Mode)
 		assert.Equal(t, "https://1.1.1.1/dns-query", *cfg.DNS.HTTPSURL)
 		assert.Equal(t, DNSQueryIPv4, *cfg.DNS.QType)
-		assert.Equal(t, uint8(100), *cfg.Server.DefaultTTL)
-		assert.True(t, *cfg.Policy.Auto)
+		assert.Equal(t, uint8(100), *cfg.Conn.DefaultFakeTTL)
 		assert.True(t, *cfg.HTTPS.Disorder)
 		assert.Equal(t, uint8(5), *cfg.HTTPS.FakeCount)
 		assert.Equal(t, []byte{0x01, 0x02, 0x03}, cfg.HTTPS.FakePacket.Raw())

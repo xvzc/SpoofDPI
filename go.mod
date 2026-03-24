@@ -9,21 +9,27 @@ require (
 	github.com/google/gopacket v1.1.19
 	github.com/miekg/dns v1.1.61
 	github.com/rs/zerolog v1.33.0
+	github.com/samber/lo v1.52.0
+	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v3 v3.6.1
+	golang.org/x/net v0.44.0
 	golang.org/x/sys v0.36.0
+	gvisor.dev/gvisor v0.0.0-20251220000015-517913d17844
 )
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/google/btree v1.1.2 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	golang.org/x/mod v0.27.0 // indirect
-	golang.org/x/net v0.43.0 // indirect
+	golang.org/x/mod v0.28.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/tools v0.36.0 // indirect
+	golang.org/x/text v0.29.0 // indirect
+	golang.org/x/time v0.12.0 // indirect
+	golang.org/x/tools v0.37.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

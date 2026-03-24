@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/samber/lo"
 	"github.com/xvzc/SpoofDPI/internal/proto"
-	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
 type merger[T any] interface {
@@ -22,11 +22,12 @@ type cloner[T any] interface {
 var _ merger[*Config] = (*Config)(nil)
 
 type Config struct {
-	General *GeneralOptions `toml:"general"`
-	Server  *ServerOptions  `toml:"server"`
-	DNS     *DNSOptions     `toml:"dns"`
-	HTTPS   *HTTPSOptions   `toml:"https"`
-	Policy  *PolicyOptions  `toml:"policy"`
+	App    *AppOptions    `toml:"app"`
+	Conn   *ConnOptions   `toml:"connection"`
+	DNS    *DNSOptions    `toml:"dns"`
+	HTTPS  *HTTPSOptions  `toml:"https"`
+	UDP    *UDPOptions    `toml:"udp"`
+	Policy *PolicyOptions `toml:"policy"`
 }
 
 func (c *Config) UnmarshalTOML(data any) (err error) {
@@ -35,10 +36,11 @@ func (c *Config) UnmarshalTOML(data any) (err error) {
 		return fmt.Errorf("non-table type config file")
 	}
 
-	c.General = findStructFrom[GeneralOptions](m, "general", &err)
-	c.Server = findStructFrom[ServerOptions](m, "server", &err)
+	c.App = findStructFrom[AppOptions](m, "app", &err)
+	c.Conn = findStructFrom[ConnOptions](m, "connection", &err)
 	c.DNS = findStructFrom[DNSOptions](m, "dns", &err)
 	c.HTTPS = findStructFrom[HTTPSOptions](m, "https", &err)
+	c.UDP = findStructFrom[UDPOptions](m, "udp", &err)
 	c.Policy = findStructFrom[PolicyOptions](m, "policy", &err)
 
 	return
@@ -46,11 +48,12 @@ func (c *Config) UnmarshalTOML(data any) (err error) {
 
 func NewConfig() *Config {
 	return &Config{
-		General: &GeneralOptions{},
-		Server:  &ServerOptions{},
-		DNS:     &DNSOptions{},
-		HTTPS:   &HTTPSOptions{},
-		Policy:  &PolicyOptions{},
+		App:    &AppOptions{},
+		Conn:   &ConnOptions{},
+		DNS:    &DNSOptions{},
+		HTTPS:  &HTTPSOptions{},
+		UDP:    &UDPOptions{},
+		Policy: &PolicyOptions{},
 	}
 }
 
@@ -60,11 +63,12 @@ func (c *Config) Clone() *Config {
 	}
 
 	return &Config{
-		General: c.General.Clone(),
-		Server:  c.Server.Clone(),
-		DNS:     c.DNS.Clone(),
-		HTTPS:   c.HTTPS.Clone(),
-		Policy:  c.Policy.Clone(),
+		App:    c.App.Clone(),
+		Conn:   c.Conn.Clone(),
+		DNS:    c.DNS.Clone(),
+		HTTPS:  c.HTTPS.Clone(),
+		UDP:    c.UDP.Clone(),
+		Policy: c.Policy.Clone(),
 	}
 }
 
@@ -78,16 +82,21 @@ func (origin *Config) Merge(overrides *Config) *Config {
 	}
 
 	return &Config{
-		General: origin.General.Merge(overrides.General),
-		Server:  origin.Server.Merge(overrides.Server),
-		DNS:     origin.DNS.Merge(overrides.DNS),
-		HTTPS:   origin.HTTPS.Merge(overrides.HTTPS),
-		Policy:  origin.Policy.Merge(overrides.Policy),
+		App:    origin.App.Merge(overrides.App),
+		Conn:   origin.Conn.Merge(overrides.Conn),
+		DNS:    origin.DNS.Merge(overrides.DNS),
+		HTTPS:  origin.HTTPS.Merge(overrides.HTTPS),
+		UDP:    origin.UDP.Merge(overrides.UDP),
+		Policy: origin.Policy.Merge(overrides.Policy),
 	}
 }
 
 func (c *Config) ShouldEnablePcap() bool {
 	if *c.HTTPS.FakeCount > 0 {
+		return true
+	}
+
+	if c.UDP != nil && c.UDP.FakeCount != nil && *c.UDP.FakeCount > 0 {
 		return true
 	}
 
@@ -97,7 +106,10 @@ func (c *Config) ShouldEnablePcap() bool {
 
 	if c.Policy.Template != nil {
 		template := c.Policy.Template
-		if template.HTTPS != nil && ptr.FromPtr(template.HTTPS.FakeCount) > 0 {
+		if template.HTTPS != nil && lo.FromPtr(template.HTTPS.FakeCount) > 0 {
+			return true
+		}
+		if template.UDP != nil && lo.FromPtr(template.UDP.FakeCount) > 0 {
 			return true
 		}
 	}
@@ -105,15 +117,11 @@ func (c *Config) ShouldEnablePcap() bool {
 	if c.Policy.Overrides != nil {
 		rules := c.Policy.Overrides
 		for _, r := range rules {
-			if r.HTTPS == nil {
-				continue
+			if r.HTTPS != nil && r.HTTPS.FakeCount != nil && *r.HTTPS.FakeCount > 0 {
+				return true
 			}
 
-			if r.HTTPS.FakeCount == nil {
-				continue
-			}
-
-			if *r.HTTPS.FakeCount > 0 {
+			if r.UDP != nil && r.UDP.FakeCount != nil && *r.UDP.FakeCount > 0 {
 				return true
 			}
 		}
@@ -124,33 +132,40 @@ func (c *Config) ShouldEnablePcap() bool {
 
 func getDefault() *Config { //exhaustruct:enforce
 	return &Config{
-		General: &GeneralOptions{
-			LogLevel:       ptr.FromValue(zerolog.InfoLevel),
-			Silent:         ptr.FromValue(false),
-			SetSystemProxy: ptr.FromValue(false),
+		App: &AppOptions{
+			LogLevel:             lo.ToPtr(zerolog.InfoLevel),
+			Silent:               lo.ToPtr(false),
+			AutoConfigureNetwork: lo.ToPtr(false),
+			Mode:                 lo.ToPtr(AppModeHTTP),
+			ListenAddr:           nil,
 		},
-		Server: &ServerOptions{
-			DefaultTTL: ptr.FromValue(uint8(64)),
-			ListenAddr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8080, Zone: ""},
-			Timeout:    ptr.FromValue(time.Duration(0)),
+		Conn: &ConnOptions{
+			DefaultFakeTTL: lo.ToPtr(uint8(8)),
+			DNSTimeout:     lo.ToPtr(time.Duration(5000) * time.Millisecond),
+			TCPTimeout:     lo.ToPtr(time.Duration(10000) * time.Millisecond),
+			UDPIdleTimeout: lo.ToPtr(time.Duration(25000) * time.Millisecond),
 		},
 		DNS: &DNSOptions{
-			Mode:     ptr.FromValue(DNSModeUDP),
+			Mode:     lo.ToPtr(DNSModeUDP),
 			Addr:     &net.TCPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53, Zone: ""},
-			HTTPSURL: ptr.FromValue("https://dns.google/dns-query"),
-			QType:    ptr.FromValue(DNSQueryIPv4),
-			Cache:    ptr.FromValue(false),
+			HTTPSURL: lo.ToPtr("https://dns.google/dns-query"),
+			QType:    lo.ToPtr(DNSQueryIPv4),
+			Cache:    lo.ToPtr(false),
 		},
 		HTTPS: &HTTPSOptions{
-			Disorder:   ptr.FromValue(false),
-			FakeCount:  ptr.FromValue(uint8(0)),
-			FakePacket: proto.NewFakeTLSMessage([]byte(FakeClientHello)),
-			SplitMode:  ptr.FromValue(HTTPSSplitModeSNI),
-			ChunkSize:  ptr.FromValue(uint8(0)),
-			Skip:       ptr.FromValue(false),
+			Disorder:           lo.ToPtr(false),
+			FakeCount:          lo.ToPtr(uint8(0)),
+			FakePacket:         proto.NewFakeTLSMessage([]byte(FakeClientHello)),
+			SplitMode:          lo.ToPtr(HTTPSSplitModeSNI),
+			ChunkSize:          lo.ToPtr(uint8(35)),
+			CustomSegmentPlans: []SegmentPlan{},
+			Skip:               lo.ToPtr(false),
+		},
+		UDP: &UDPOptions{
+			FakeCount:  lo.ToPtr(0),
+			FakePacket: make([]byte, 64),
 		},
 		Policy: &PolicyOptions{
-			Auto:      ptr.FromValue(false),
 			Template:  &Rule{},
 			Overrides: []Rule{},
 		},

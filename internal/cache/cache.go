@@ -33,9 +33,15 @@ func (o *options) WithSkipExisting(skipExisting bool) *options {
 
 // Cache is the unified interface for all cache implementations.
 // The Set method accepts a variadic list of options.
-type Cache interface {
-	// Get retrieves a value from the cache.
-	Get(key string) (any, bool)
-	// Set adds a value to the cache, applying any provided options.
-	Set(key string, value any, opts *options) bool
+type Cache[K comparable] interface {
+	// Fetch retrieves a value from the cache.
+	Fetch(key K) (any, bool)
+	// Store adds a value to the cache, applying any provided options.
+	Store(key K, value any, opts *options) bool
+	Evict(key K)
+	Has(key K) bool
+	// ForEach iterates over the cache items.
+	ForEach(f func(key K, value any) error) error
+	// Size returns the number of items in the cache.
+	Size() int
 }

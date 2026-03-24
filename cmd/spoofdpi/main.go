@@ -16,11 +16,13 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/dns"
 	"github.com/xvzc/SpoofDPI/internal/logging"
 	"github.com/xvzc/SpoofDPI/internal/matcher"
+	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/packet"
-	"github.com/xvzc/SpoofDPI/internal/proxy"
-	"github.com/xvzc/SpoofDPI/internal/proxy/http"
+	"github.com/xvzc/SpoofDPI/internal/server"
+	"github.com/xvzc/SpoofDPI/internal/server/http"
+	"github.com/xvzc/SpoofDPI/internal/server/socks5"
+	"github.com/xvzc/SpoofDPI/internal/server/tun"
 	"github.com/xvzc/SpoofDPI/internal/session"
-	"github.com/xvzc/SpoofDPI/internal/system"
 )
 
 // Version and commit are set at build time.
@@ -32,21 +34,25 @@ var (
 
 func main() {
 	cmd := config.CreateCommand(runApp, version, commit, build)
-	ctx := session.WithNewTraceID(context.Background())
-	if err := cmd.Run(ctx, os.Args); err != nil {
+	appctx, cancel := signal.NotifyContext(
+		session.WithNewTraceID(context.Background()),
+		syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP,
+	)
+	defer cancel()
+	if err := cmd.Run(appctx, os.Args); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func runApp(ctx context.Context, configDir string, cfg *config.Config) {
-	if !*cfg.General.Silent {
+func runApp(appctx context.Context, configDir string, cfg *config.Config) {
+	if !*cfg.App.Silent {
 		printBanner()
 	}
 
-	logging.SetGlobalLogger(ctx, *cfg.General.LogLevel)
+	logging.SetGlobalLogger(appctx, *cfg.App.LogLevel)
 
-	logger := log.Logger.With().Ctx(ctx).Logger()
+	logger := log.Logger.With().Ctx(appctx).Logger()
 	logger.Info().Str("version", version).Msg("started spoofdpi")
 	if configDir != "" {
 		logger.Info().
@@ -54,35 +60,20 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 			Msgf("config file loaded")
 	}
 
-	// set system-wide proxy configuration.
-	if !*cfg.General.SetSystemProxy {
-		logger.Info().Msg("use `--system-proxy` to automatically set system proxy")
-	}
-
 	resolver := createResolver(logger, cfg)
-	p, err := createProxy(logger, cfg, resolver)
+
+	srv, err := createServer(appctx, logger, cfg, resolver)
 	if err != nil {
-		logger.Fatal().
-			Err(err).
-			Msg("failed to create proxy")
+		logger.Fatal().Err(err).Msg("failed to create server")
 	}
 
-	// start app
-	wait := make(chan struct{}) // wait for setup logs to be printed
-	go p.ListenAndServe(ctx, wait)
-
-	// set system-wide proxy configuration.
-	if *cfg.General.SetSystemProxy {
-		port := cfg.Server.ListenAddr.Port
-		if err := system.SetProxy(logger, uint16(port)); err != nil {
-			logger.Fatal().Err(err).Msg("failed to enable system proxy")
+	// Start server
+	ready := make(chan struct{})
+	go func() {
+		if err := srv.ListenAndServe(appctx, ready); err != nil {
+			logger.Fatal().Err(err).Msgf("failed to start server: %T", srv)
 		}
-		defer func() {
-			if err := system.UnsetProxy(logger); err != nil {
-				logger.Fatal().Err(err).Msg("failed to disable system proxy")
-			}
-		}()
-	}
+	}()
 
 	logger.Info().Msg("dns info")
 	logger.Info().Msgf(" query type '%s'", cfg.DNS.QType.String())
@@ -103,42 +94,67 @@ func runApp(ctx context.Context, configDir string, cfg *config.Config) {
 		Uint8("count", uint8(*cfg.HTTPS.FakeCount)).
 		Msg(" fake")
 
-	logger.Info().
-		Bool("auto", *cfg.Policy.Auto).
-		Msgf("policy")
-
-	if *cfg.Server.Timeout > 0 {
+	if *cfg.Conn.DNSTimeout > 0 {
 		logger.Info().
-			Str("value", fmt.Sprintf("%dms", cfg.Server.Timeout)).
-			Msgf("connection timeout")
+			Str("value", fmt.Sprintf("%dms", cfg.Conn.DNSTimeout.Milliseconds())).
+			Msgf("dns connection timeout")
+	}
+	if *cfg.Conn.TCPTimeout > 0 {
+		logger.Info().
+			Str("value", fmt.Sprintf("%dms", cfg.Conn.TCPTimeout.Milliseconds())).
+			Msgf("tcp connection timeout")
+	}
+	if *cfg.Conn.UDPIdleTimeout > 0 {
+		logger.Info().
+			Str("value", fmt.Sprintf("%dms", cfg.Conn.UDPIdleTimeout.Milliseconds())).
+			Msgf("udp idle timeout")
 	}
 
-	wait <- struct{}{}
+	logger.Info().Msgf("app-mode: %s", cfg.App.Mode.String())
 
-	sigs := make(chan os.Signal, 1)
-	done := make(chan bool, 1)
+	switch *cfg.App.Mode {
+	case config.AppModeSOCKS5:
+		logger.Warn().Msg("SOCKS5 mode is an EXPERIMENTAL feature")
+	case config.AppModeTUN:
+		logger.Warn().Msg("TUN mode is an EXPERIMENTAL feature")
+	}
 
-	signal.Notify(
-		sigs,
-		syscall.SIGINT,
-		syscall.SIGTERM,
-		syscall.SIGQUIT,
-		syscall.SIGHUP)
+	logger.Info().Msgf("server started on %s", srv.Addr())
 
-	go func() {
-		<-sigs
-		done <- true
-	}()
+	<-ready
 
-	<-done
+	// System Proxy Config
+	if *cfg.App.AutoConfigureNetwork {
+		unset, err := srv.SetNetworkConfig()
+		if err != nil {
+			logger.Fatal().Err(err).Msg("failed to set system network config")
+		}
+		if unset != nil {
+			defer func() {
+				if err := unset(); err != nil {
+					logger.Error().Err(err).Msg("failed to unset system network config")
+				}
+			}()
+		}
+	}
+
+	<-appctx.Done()
 }
 
 func createResolver(logger zerolog.Logger, cfg *config.Config) dns.Resolver {
 	// create a TTL cache for storing DNS records.
 
-	udpResolver := dns.NewUDPResolver(logging.WithScope(logger, "dns"), cfg.DNS.Clone())
+	udpResolver := dns.NewUDPResolver(
+		logging.WithScope(logger, "dns"),
+		cfg.DNS.Clone(),
+		cfg.Conn.Clone(),
+	)
 
-	dohResolver := dns.NewHTTPSResolver(logging.WithScope(logger, "dns"), cfg.DNS.Clone())
+	dohResolver := dns.NewHTTPSResolver(
+		logging.WithScope(logger, "dns"),
+		cfg.DNS.Clone(),
+		cfg.Conn.Clone(),
+	)
 
 	sysResolver := dns.NewSystemResolver(
 		logging.WithScope(logger, "dns"),
@@ -147,7 +163,7 @@ func createResolver(logger zerolog.Logger, cfg *config.Config) dns.Resolver {
 
 	cacheResolver := dns.NewCacheResolver(
 		logging.WithScope(logger, "dns"),
-		cache.NewTTLCache(
+		cache.NewTTLCache[string](
 			cache.TTLCacheAttrs{
 				NumOfShards:     64,
 				CleanupInterval: time.Duration(3 * time.Minute),
@@ -169,14 +185,14 @@ func createResolver(logger zerolog.Logger, cfg *config.Config) dns.Resolver {
 func createPacketObjects(
 	logger zerolog.Logger,
 	cfg *config.Config,
-) (packet.Sniffer, packet.Writer, error) {
+) (packet.Sniffer, packet.Writer, packet.Sniffer, packet.Writer, error) {
 	// create a network detector for passive discovery
 	networkDetector := packet.NewNetworkDetector(
 		logging.WithScope(logger, "pkt"),
 	)
 
 	if err := networkDetector.Start(context.Background()); err != nil {
-		return nil, nil, fmt.Errorf("error starting network detector: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("error starting network detector: %w", err)
 	}
 
 	// Wait for gateway MAC with timeout
@@ -185,15 +201,27 @@ func createPacketObjects(
 
 	gatewayMAC, err := networkDetector.WaitForGatewayMAC(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to detect gateway (timeout): %w", err)
+		return nil, nil, nil, nil, fmt.Errorf(
+			"failed to detect gateway (timeout): %w",
+			err,
+		)
 	}
 
 	iface := networkDetector.GetInterface()
 
 	// create a pcap handle for packet capturing.
-	handle, err := packet.NewHandle(iface)
+	tcpHandle, err := packet.NewHandle(iface)
 	if err != nil {
-		return nil, nil, fmt.Errorf(
+		return nil, nil, nil, nil, fmt.Errorf(
+			"error opening pcap handle on interface %s: %w",
+			iface.Name,
+			err,
+		)
+	}
+
+	udpHandle, err := packet.NewHandle(iface)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf(
 			"error opening pcap handle on interface %s: %w",
 			iface.Name,
 			err,
@@ -204,34 +232,58 @@ func createPacketObjects(
 	logger.Info().Str("name", iface.Name).
 		Str("mac", iface.HardwareAddr.String()).
 		Msg(" interface")
+
+	gatewayMACStr := gatewayMAC.String()
+	if gatewayMACStr == "" {
+		gatewayMACStr = "none"
+	}
 	logger.Info().
-		Str("mac", gatewayMAC.String()).
+		Str("mac", gatewayMACStr).
 		Msg(" gateway (passive detection)")
 
-	hopCache := cache.NewLRUCache(4096)
-	sniffer := packet.NewTCPSniffer(
+	hopCache := cache.NewLRUCache[netutil.IPKey](4096, nil)
+
+	// TCP Objects
+	tcpSniffer := packet.NewTCPSniffer(
 		logging.WithScope(logger, "pkt"),
 		hopCache,
-		handle,
-		uint8(*cfg.Server.DefaultTTL),
+		tcpHandle,
+		uint8(*cfg.Conn.DefaultFakeTTL),
 	)
-	sniffer.StartCapturing()
+	tcpSniffer.StartCapturing()
 
-	writer := packet.NewTCPWriter(
+	tcpWriter := packet.NewTCPWriter(
 		logging.WithScope(logger, "pkt"),
-		handle,
+		tcpHandle,
 		iface,
 		gatewayMAC,
 	)
 
-	return sniffer, writer, nil
+	// UDP Objects
+	udpSniffer := packet.NewUDPSniffer(
+		logging.WithScope(logger, "pkt"),
+		hopCache,
+		udpHandle,
+		uint8(*cfg.Conn.DefaultFakeTTL),
+	)
+	udpSniffer.StartCapturing()
+
+	udpWriter := packet.NewUDPWriter(
+		logging.WithScope(logger, "pkt"),
+		udpHandle,
+		iface,
+		gatewayMAC,
+	)
+
+	return tcpSniffer, tcpWriter, udpSniffer, udpWriter, nil
 }
 
-func createProxy(
+func createServer(
+	appctx context.Context,
 	logger zerolog.Logger,
 	cfg *config.Config,
 	resolver dns.Resolver,
-) (proxy.ProxyServer, error) {
+) (server.Server, error) {
 	ruleMatcher := matcher.NewRuleMatcher(
 		matcher.NewAddrMatcher(),
 		matcher.NewDomainMatcher(),
@@ -244,51 +296,138 @@ func createProxy(
 		}
 	}
 
-	// create an HTTP handler.
-	httpHandler := http.NewHTTPHandler(logging.WithScope(logger, "hnd"))
-
-	var sniffer packet.Sniffer
-	var writer packet.Writer
+	var tcpSniffer packet.Sniffer
+	var tcpWriter packet.Writer
+	var udpSniffer packet.Sniffer
+	var udpWriter packet.Writer
 
 	if cfg.ShouldEnablePcap() {
 		var err error
-		sniffer, writer, err = createPacketObjects(logger, cfg)
+		tcpSniffer, tcpWriter, udpSniffer, udpWriter, err = createPacketObjects(
+			logger,
+			cfg,
+		)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	httpsHandler := http.NewHTTPSHandler(
-		logging.WithScope(logger, "hnd"),
-		desync.NewTLSDesyncer(
-			writer,
-			sniffer,
-			&desync.TLSDesyncerAttrs{DefaultTTL: *cfg.Server.DefaultTTL},
-		),
-		sniffer,
-		cfg.HTTPS.Clone(),
+	desyncer := desync.NewTLSDesyncer(
+		tcpWriter,
+		tcpSniffer,
 	)
 
-	// if cfg.Server.EnableSocks5 != nil && *cfg.Server.EnableSocks5 {
-	// 	return socks5.NewSocks5Proxy(
-	// 		logging.WithScope(logger, "pxy"),
-	// 		resolver,
-	// 		httpsHandler,
-	// 		ruleMatcher,
-	// 		cfg.Server.Clone(),
-	// 		cfg.Policy.Clone(),
-	// 	), nil
-	// }
+	switch *cfg.App.Mode {
+	case config.AppModeHTTP:
+		httpHandler := http.NewHTTPHandler(logging.WithScope(logger, "hnd"))
+		httpsHandler := http.NewHTTPSHandler(
+			logging.WithScope(logger, "hnd"),
+			desyncer,
+			tcpSniffer,
+			cfg.HTTPS.Clone(),
+			cfg.Conn.Clone(),
+		)
 
-	return http.NewHTTPProxy(
-		logging.WithScope(logger, "pxy"),
-		resolver,
-		httpHandler,
-		httpsHandler,
-		ruleMatcher,
-		cfg.Server.Clone(),
-		cfg.Policy.Clone(),
-	), nil
+		return http.NewHTTPProxy(
+			logging.WithScope(logger, "srv"),
+			resolver,
+			httpHandler,
+			httpsHandler,
+			ruleMatcher,
+			cfg.App.Clone(),
+			cfg.Conn.Clone(),
+			cfg.Policy.Clone(),
+		), nil
+	case config.AppModeSOCKS5:
+		connectHandler := socks5.NewConnectHandler(
+			logging.WithScope(logger, "hnd"),
+			desyncer,
+			tcpSniffer,
+			cfg.App.Clone(),
+			cfg.Conn.Clone(),
+			cfg.HTTPS.Clone(),
+		)
+		udpDesyncer := desync.NewUDPDesyncer(
+			logging.WithScope(logger, "dsn"),
+			udpWriter,
+			udpSniffer,
+		)
+		udpPool := netutil.NewConnRegistry[netutil.NATKey](4096, 60*time.Second)
+		udpPool.RunCleanupLoop(appctx)
+		udpAssociateHandler := socks5.NewUdpAssociateHandler(
+			logging.WithScope(logger, "hnd"),
+			udpPool,
+			udpDesyncer,
+			cfg.UDP.Clone(),
+		)
+		bindHandler := socks5.NewBindHandler(logging.WithScope(logger, "hnd"))
+
+		return socks5.NewSOCKS5Proxy(
+			logging.WithScope(logger, "srv"),
+			resolver,
+			ruleMatcher,
+			connectHandler,
+			bindHandler,
+			udpAssociateHandler,
+			cfg.App.Clone(),
+			cfg.Conn.Clone(),
+			cfg.Policy.Clone(),
+		), nil
+	case config.AppModeTUN:
+		// Find default interface and gateway before modifying routes
+		defaultIface, defaultGateway, err := netutil.GetDefaultInterfaceAndGateway()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get default interface: %w", err)
+		}
+		logger.Info().
+			Str("interface", defaultIface).
+			Str("gateway", defaultGateway).
+			Msg("determined default interface and gateway")
+		// s.defaultIface = defaultIface
+		// s.defaultGateway = defaultGateway
+
+		// Update handlers with network info
+		// s.tcpHandler.SetNetworkInfo(defaultIface, defaultGateway)
+		// s.udpHandler.SetNetworkInfo(defaultIface, defaultGateway)
+		//
+		tcpHandler := tun.NewTCPHandler(
+			logging.WithScope(logger, "hnd"),
+			ruleMatcher, // For domain-based TLS matching
+			cfg.HTTPS.Clone(),
+			cfg.Conn.Clone(),
+			desyncer,
+			tcpSniffer, // For TTL tracking
+			defaultIface,
+			defaultGateway,
+		)
+
+		udpDesyncer := desync.NewUDPDesyncer(
+			logging.WithScope(logger, "hnd"),
+			udpWriter,
+			udpSniffer,
+		)
+
+		udpHandler := tun.NewUDPHandler(
+			logging.WithScope(logger, "hnd"),
+			udpDesyncer,
+			cfg.UDP.Clone(),
+			cfg.Conn.Clone(),
+			defaultIface,
+			defaultGateway,
+		)
+
+		return tun.NewTunServer(
+			logging.WithScope(logger, "srv"),
+			cfg,
+			ruleMatcher, // For IP-based matching in server.go
+			tcpHandler,
+			udpHandler,
+			defaultIface,
+			defaultGateway,
+		), nil
+	default:
+		return nil, fmt.Errorf("unknown server mode: %s", *cfg.App.Mode)
+	}
 }
 
 func printBanner() {

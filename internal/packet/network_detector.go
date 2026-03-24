@@ -13,12 +13,12 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/netutil"
 )
 
-var dnsServers = []net.IPAddr{
-	{IP: net.ParseIP("8.8.8.8")},
-	{IP: net.ParseIP("8.8.4.4")},
-	{IP: net.ParseIP("1.1.1.1")},
-	{IP: net.ParseIP("1.0.0.1")},
-	{IP: net.ParseIP("9.9.9.9")},
+var dnsServers = []net.IP{
+	net.ParseIP("8.8.8.8"),
+	net.ParseIP("8.8.4.4"),
+	net.ParseIP("1.1.1.1"),
+	net.ParseIP("1.0.0.1"),
+	net.ParseIP("9.9.9.9"),
 }
 
 type NetworkDetector struct {
@@ -69,13 +69,46 @@ func (nd *NetworkDetector) Start(ctx context.Context) error {
 		}
 	}()
 
-	conn, err := netutil.DialFastest(ctx, "udp", dnsServers, 53, time.Duration(0))
+	go func() {
+		// Wait for the packet capture to start
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(300 * time.Millisecond):
+		}
+
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+
+		nd.probe(ctx)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-nd.found:
+				return
+			case <-ticker.C:
+				nd.probe(ctx)
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (nd *NetworkDetector) probe(ctx context.Context) {
+	conn, err := netutil.DialFastest(ctx, "udp", &netutil.Destination{
+		Addrs:   dnsServers,
+		Port:    53,
+		Timeout: 2 * time.Second,
+	})
 	if err != nil {
-		return err
+		return
 	}
 	defer func() { _ = conn.Close() }()
 
-	return nil
+	_, _ = conn.Write([]byte("."))
 }
 
 func (nd *NetworkDetector) processPacket(p gopacket.Packet) {
@@ -202,6 +235,10 @@ func (nd *NetworkDetector) GetGatewayMAC() net.HardwareAddr {
 func (nd *NetworkDetector) WaitForGatewayMAC(
 	ctx context.Context,
 ) (net.HardwareAddr, error) {
+	if nd.iface.HardwareAddr == nil {
+		return nil, nil
+	}
+
 	if nd.IsFound() {
 		return nd.GetGatewayMAC(), nil
 	}
@@ -222,9 +259,11 @@ func findDefaultInterface(ctx context.Context) (*net.Interface, error) {
 	conn, err := netutil.DialFastest(
 		ctx,
 		"udp",
-		dnsServers,
-		53,
-		time.Duration(10)*time.Second,
+		&netutil.Destination{
+			Addrs:   dnsServers,
+			Port:    53,
+			Timeout: time.Duration(20) * time.Second,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -251,7 +290,10 @@ func findDefaultInterface(ctx context.Context) (*net.Interface, error) {
 		)
 	}
 
-	for _, iface := range ifaces {
+	var defaultIface *net.Interface
+
+	for i := range ifaces {
+		iface := ifaces[i]
 		addrs, err := iface.Addrs()
 		if err != nil {
 			continue // Skip interfaces whose addresses cannot be retrieved
@@ -261,11 +303,39 @@ func findDefaultInterface(ctx context.Context) (*net.Interface, error) {
 			if ipnet, ok := addr.(*net.IPNet); ok {
 				// Check if the IP used for Dial matches the interface's IP
 				if ipnet.IP.Equal(localAddr.IP) {
-					// Return &iface (*net.Interface) instead of iface.Name (string)
-					return &iface, nil // Found the default interface
+					if len(iface.HardwareAddr) > 0 {
+						return &iface, nil // Found the default interface with MAC
+					}
+					defaultIface = &iface
 				}
 			}
 		}
+	}
+
+	// fmt.Println("hello")
+
+	// If we found a default interface but it has no MAC (e.g. VPN/TUN),
+	// try to find a physical interface as fallback.
+	if defaultIface != nil {
+		for i := range ifaces {
+			iface := ifaces[i]
+			if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+				continue
+			}
+			if len(iface.HardwareAddr) == 0 {
+				continue
+			}
+
+			addrs, _ := iface.Addrs()
+			for _, addr := range addrs {
+				if ipnet, ok := addr.(*net.IPNet); ok {
+					if ipnet.IP.To4() != nil && !ipnet.IP.IsLoopback() {
+						return &iface, nil
+					}
+				}
+			}
+		}
+		return defaultIface, nil
 	}
 
 	return nil, fmt.Errorf(

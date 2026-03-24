@@ -7,16 +7,16 @@ import (
 	"time"
 )
 
-var _ Cache = (*TTLCache)(nil)
+var _ Cache[string] = (*TTLCache[string])(nil)
 
 // ttlCacheItem represents a single cached item using generics.
-type ttlCacheItem struct {
+type ttlCacheItem[K comparable] struct {
 	value     any       // The cached data of type T.
 	expiresAt time.Time // The time when the item expires.
 }
 
 // isExpired checks if the item has expired.
-func (i ttlCacheItem) isExpired() bool {
+func (i ttlCacheItem[K]) isExpired() bool {
 	if i.expiresAt.IsZero() {
 		// zero time means no expiration.
 		return false
@@ -25,40 +25,43 @@ func (i ttlCacheItem) isExpired() bool {
 }
 
 // ttlCacheShard represents a single, thread-safe shard of the cache.
-type ttlCacheShard struct {
-	items map[string]ttlCacheItem // items holds the cache data for this shard.
+type ttlCacheShard[K comparable] struct {
+	items map[K]ttlCacheItem[K] // items holds the cache data for this shard.
 	mu    sync.RWMutex
 }
 
 type TTLCacheAttrs struct {
 	NumOfShards     uint8
 	CleanupInterval time.Duration
+	HashFunc        func(key any) uint64
 }
 
 // TTLCache is a high-performance, sharded, generic TTL cache.
-type TTLCache struct {
-	shards []*ttlCacheShard // A slice of cache shards.
+type TTLCache[K comparable] struct {
+	shards   []*ttlCacheShard[K] // A slice of cache shards.
+	hashFunc func(key any) uint64
 }
 
 // NewTTLCache creates a new sharded TTL cache with a background janitor goroutine.
 // numShards specifies the number of shards to create and must be greater than 0.
 // cleanupInterval specifies how often the janitor should run.
-func NewTTLCache(
+func NewTTLCache[K comparable](
 	attrs TTLCacheAttrs,
-) *TTLCache {
+) *TTLCache[K] {
 	if attrs.NumOfShards == 0 {
 		panic(
 			fmt.Errorf("number of shards must be greater than 0, got %d", attrs.NumOfShards),
 		)
 	}
 
-	c := &TTLCache{
-		shards: make([]*ttlCacheShard, attrs.NumOfShards),
+	c := &TTLCache[K]{
+		shards:   make([]*ttlCacheShard[K], attrs.NumOfShards),
+		hashFunc: attrs.HashFunc,
 	}
 
 	for i := range attrs.NumOfShards {
-		c.shards[i] = &ttlCacheShard{
-			items: make(map[string]ttlCacheItem),
+		c.shards[i] = &ttlCacheShard[K]{
+			items: make(map[K]ttlCacheItem[K]),
 		}
 	}
 
@@ -70,7 +73,7 @@ func NewTTLCache(
 }
 
 // janitor runs the cleanup goroutine, calling ForceCleanup at the specified interval.
-func (c *TTLCache) janitor(interval time.Duration) {
+func (c *TTLCache[K]) janitor(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for range ticker.C {
@@ -79,9 +82,22 @@ func (c *TTLCache) janitor(interval time.Duration) {
 }
 
 // getShard maps a key to its corresponding cache shard using a hash function.
-func (c *TTLCache) getShard(key string) *ttlCacheShard {
+func (c *TTLCache[K]) getShard(key K) *ttlCacheShard[K] {
+	if c.hashFunc != nil {
+		hash := c.hashFunc(key)
+		return c.shards[hash%uint64(len(c.shards))]
+	}
+
 	hasher := fnv.New64a()
-	hasher.Write([]byte(key))
+	// Optimally hash the memory without string allocation
+	switch v := any(key).(type) {
+	case string:
+		hasher.Write([]byte(v))
+	case []byte:
+		hasher.Write(v)
+	default:
+		_, _ = fmt.Fprint(hasher, key)
+	}
 	hash := hasher.Sum64()
 	return c.shards[hash%uint64(len(c.shards))]
 }
@@ -89,9 +105,9 @@ func (c *TTLCache) getShard(key string) *ttlCacheShard {
 // ┌─────────────┐
 // │ PUBLIC APIs │
 // └─────────────┘
-// Set adds an item to the cache, replacing any existing item.
+// Store adds an item to the cache, replacing any existing item.
 // If ttl is 0 or negative, the item will never expire (passive-only).
-func (c *TTLCache) Set(key string, value any, opts *options) bool {
+func (c *TTLCache[K]) Store(key K, value any, opts *options) bool {
 	shard := c.getShard(key)
 
 	shard.mu.Lock()
@@ -115,7 +131,7 @@ func (c *TTLCache) Set(key string, value any, opts *options) bool {
 	}
 
 	expiresAt := time.Now().Add(opts.ttl)
-	newItem := ttlCacheItem{
+	newItem := ttlCacheItem[K]{
 		value:     value,
 		expiresAt: expiresAt,
 	}
@@ -124,10 +140,10 @@ func (c *TTLCache) Set(key string, value any, opts *options) bool {
 	return true
 }
 
-// Get retrieves an item from the cache.
+// Fetch retrieves an item from the cache.
 // It returns the item (of type T) and true if found and not expired.
 // Otherwise, it returns the zero value of T and false.
-func (c *TTLCache) Get(key string) (any, bool) {
+func (c *TTLCache[K]) Fetch(key K) (any, bool) {
 	shard := c.getShard(key)
 	shard.mu.RLock()
 	i, ok := shard.items[key]
@@ -157,17 +173,31 @@ func (c *TTLCache) Get(key string) (any, bool) {
 	return i.value, true
 }
 
-// Delete removes an item from the cache.
-func (c *TTLCache) Delete(key string) {
+// Evict removes an item from the cache.
+func (c *TTLCache[K]) Evict(key K) {
 	shard := c.getShard(key)
 	shard.mu.Lock()
 	delete(shard.items, key)
 	shard.mu.Unlock()
 }
 
+// Has checks if an item exists in the cache and is not expired.
+func (c *TTLCache[K]) Has(key K) bool {
+	shard := c.getShard(key)
+	shard.mu.RLock()
+	i, ok := shard.items[key]
+	shard.mu.RUnlock()
+
+	if !ok {
+		return false
+	}
+
+	return !i.isExpired()
+}
+
 // ForceCleanup actively scans all shards and deletes expired items.
 // This is called periodically by the janitor but can also be called manually.
-func (c *TTLCache) ForceCleanup() {
+func (c *TTLCache[K]) ForceCleanup() {
 	now := time.Now()
 	for _, shard := range c.shards {
 		shard.mu.Lock()
@@ -178,4 +208,30 @@ func (c *TTLCache) ForceCleanup() {
 		}
 		shard.mu.Unlock()
 	}
+}
+
+// ForEach iterates over the cache items.
+func (c *TTLCache[K]) ForEach(f func(key K, value any) error) error {
+	for _, shard := range c.shards {
+		shard.mu.RLock()
+		for key, i := range shard.items { // Pre-allocate values to avoid holding RLock unnecessarily? For now, keep simple.
+			if err := f(key, i.value); err != nil {
+				shard.mu.RUnlock()
+				return err
+			}
+		}
+		shard.mu.RUnlock()
+	}
+	return nil
+}
+
+// Size returns the total number of items across all shards.
+func (c *TTLCache[K]) Size() int {
+	total := 0
+	for _, shard := range c.shards {
+		shard.mu.RLock()
+		total += len(shard.items)
+		shard.mu.RUnlock()
+	}
+	return total
 }

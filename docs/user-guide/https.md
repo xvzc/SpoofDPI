@@ -16,6 +16,7 @@ Specifies the default packet fragmentation strategy to use for the Client Hello 
 - `random`: Splits the packet at a random position.
 - `chunk`: Splits the packet into fixed-size chunks (controlled by `https-chunk-size`).
 - `first-byte`: Splits only the first byte of the packet.
+- `custom`: Uses custom segment plans (TOML only).
 - `none`: Disables fragmentation.
 
 ### Usage
@@ -39,7 +40,7 @@ split-mode = "sni"
 
 ### Description
 
-Specifies the chunk size in bytes for packet fragmentation. `(default: 0, max: 255)`
+Specifies the chunk size in bytes for packet fragmentation. `(default: 35, max: 255)`
 
 This value is only applied when `https-split-mode` is set to `chunk`.
 Try lower values if the default fails to bypass the DPI.
@@ -129,10 +130,10 @@ The value should be a sequence of bytes representing a valid (or semi-valid) TLS
 ### Usage
 
 **Command-Line Flag**
-Provide a comma-separated string of hexadecimal bytes (e.g., `16,03,01,...`).
+Provide a comma-separated string of hexadecimal bytes (e.g., `0x16, 0x03, 0x01, ...`).
 
 ```console
-$ spoofdpi --https-fake-packet "16,03,01,00,a1,..."
+$ spoofdpi --https-fake-packet "0x16, 0x03, 0x01, 0x00, 0xa1, ..."
 ```
 
 **TOML Config**
@@ -164,4 +165,46 @@ $ spoofdpi --https-skip
 ```toml
 [https]
 skip = true
+```
+
+---
+
+## `custom-segments`
+
+`type: array of segment plans`
+
+### Description
+
+Defines custom segmentation plans for fine-grained control over how the Client Hello packet is split. This option is only used when `split-mode` is set to `"custom"`.
+
+Each segment plan specifies where to split the packet relative to a reference point (`from`) with an offset (`at`).
+
+!!! note
+    This option is only available via the TOML config file.
+
+!!! important
+    When using `custom` split-mode, the global `disorder` option is **ignored**. Use the `lazy` field in each segment plan to control packet ordering instead.
+
+### Segment Plan Fields
+
+| Field   | Type    | Required | Description |
+| :------ | :------ | :------- | :---------- |
+| `from`  | String  | Yes      | Reference point: `"head"` (start of packet) or `"sni"` (start of SNI extension). |
+| `at`    | Int     | Yes      | Byte offset from the reference point. Negative values count backwards. |
+| `lazy`  | Boolean | No       | If `true`, delays sending this segment (equivalent to disorder). `(default: false)` |
+| `noise` | Int     | No       | Adds random noise (in bytes) to the split position. `(default: 0)` |
+
+### Usage
+
+**TOML Config**
+
+```toml
+[https]
+split-mode = "custom"
+custom-segments = [
+    { from = "head", at = 2 },                    # Split 2 bytes from start
+    { from = "sni", at = 0 },                     # Split at SNI start
+    { from = "sni", at = -5, lazy = true },       # Split 5 bytes before SNI, delayed
+    { from = "head", at = 100, noise = 10 },      # Split at ~100 bytes with ±10 noise
+]
 ```

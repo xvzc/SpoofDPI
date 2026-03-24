@@ -14,18 +14,23 @@ var _ Resolver = (*UDPResolver)(nil)
 type UDPResolver struct {
 	logger zerolog.Logger
 
-	client  *dns.Client
-	dnsOpts *config.DNSOptions
+	client          *dns.Client
+	defaultDNSOpts  *config.DNSOptions
+	defaultConnOpts *config.ConnOptions
 }
 
 func NewUDPResolver(
 	logger zerolog.Logger,
-	dnsOpts *config.DNSOptions,
+	defaultDNSOpts *config.DNSOptions,
+	defaultConnOpts *config.ConnOptions,
 ) *UDPResolver {
 	return &UDPResolver{
-		client:  &dns.Client{},
-		dnsOpts: dnsOpts,
-		logger:  logger,
+		client: &dns.Client{
+			Timeout: *defaultConnOpts.DNSTimeout,
+		},
+		defaultDNSOpts:  defaultDNSOpts,
+		defaultConnOpts: defaultConnOpts,
+		logger:          logger,
 	}
 }
 
@@ -33,7 +38,7 @@ func (ur *UDPResolver) Info() []ResolverInfo {
 	return []ResolverInfo{
 		{
 			Name: "udp",
-			Dst:  ur.dnsOpts.Addr.String(),
+			Dst:  ur.defaultDNSOpts.Addr.String(),
 		},
 	}
 }
@@ -44,7 +49,7 @@ func (ur *UDPResolver) Resolve(
 	fallback Resolver,
 	rule *config.Rule,
 ) (*RecordSet, error) {
-	opts := ur.dnsOpts.Clone()
+	opts := ur.defaultDNSOpts.Clone()
 	if rule != nil {
 		opts = opts.Merge(rule.DNS)
 	}

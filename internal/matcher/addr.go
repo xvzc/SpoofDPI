@@ -6,8 +6,8 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/samber/lo"
 	"github.com/xvzc/SpoofDPI/internal/config"
-	"github.com/xvzc/SpoofDPI/internal/ptr"
 )
 
 // AddrMatcher implements Matcher for IP/CIDR rules.
@@ -43,11 +43,11 @@ func (m *AddrMatcher) Add(r *config.Rule) error {
 	}
 
 	if r.Priority == nil {
-		r.Priority = ptr.FromValue(uint16(0))
+		r.Priority = lo.ToPtr(uint16(0))
 	}
 
 	if r.Block == nil {
-		r.Block = ptr.FromValue(false)
+		r.Block = lo.ToPtr(false)
 	}
 
 	m.mu.Lock()
