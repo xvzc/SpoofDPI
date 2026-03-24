@@ -19,7 +19,7 @@ import (
 	"github.com/xvzc/SpoofDPI/internal/netutil"
 	"github.com/xvzc/SpoofDPI/internal/packet"
 	"github.com/xvzc/SpoofDPI/internal/server"
-	"github.com/xvzc/SpoofDPI/internal/server/http" // Add http import
+	"github.com/xvzc/SpoofDPI/internal/server/http"
 	"github.com/xvzc/SpoofDPI/internal/server/socks5"
 	"github.com/xvzc/SpoofDPI/internal/server/tun"
 	"github.com/xvzc/SpoofDPI/internal/session"

@@ -39,7 +39,9 @@ func CreateCommand(
 			&cli.StringFlag{
 				Name: "app-mode",
 				Usage: fmt.Sprintf(`<"http"|"socks5"|"tun">
-				Specifies the proxy mode. (default: %q)`,
+				Specifies the proxy mode.
+				Note that 'socks5' and 'tun' modes are currently Experimental.
+				(default: %q)`,
 					defaultCfg.App.Mode.String(),
 				),
 				OnlyOnce:  true,

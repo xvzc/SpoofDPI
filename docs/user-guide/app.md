@@ -16,6 +16,9 @@ Specifies the proxy mode. `(default: "http")`
 - `socks5`: SOCKS5 proxy mode
 - `tun`: TUN interface mode (transparent proxy)
 
+!!! warning
+    **SOCKS5** and **TUN** modes are currently Experimental. You might encounter unexpected behaviors or bugs. Feedback and bug reports are highly appreciated!
+
 ### Usage
 
 **Command-Line Flag**
