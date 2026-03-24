@@ -110,7 +110,14 @@ func runApp(appctx context.Context, configDir string, cfg *config.Config) {
 			Msgf("udp idle timeout")
 	}
 
-	logger.Info().Msgf("app-mode; %s", cfg.App.Mode.String())
+	logger.Info().Msgf("app-mode: %s", cfg.App.Mode.String())
+
+	switch *cfg.App.Mode {
+	case config.AppModeSOCKS5:
+		logger.Warn().Msg("SOCKS5 mode is an EXPERIMENTAL feature")
+	case config.AppModeTUN:
+		logger.Warn().Msg("TUN mode is an EXPERIMENTAL feature")
+	}
 
 	logger.Info().Msgf("server started on %s", srv.Addr())
 
