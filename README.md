@@ -21,3 +21,5 @@ Your sponsorship directly fuels the motivation required for continued project ma
 [Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) by @SadeghHayeri  
 [GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) by @ValdikSS
 
+## 🔗 See Also
+[DPIBreak](https://github.com/dilluti0n/dpibreak) by @dilluti0n - kernel based circumvention tool for Linux and Windows
