@@ -3,7 +3,7 @@ set -e
 
 # Configuration
 OWNER="xvzc"
-REPO="SpoofDPI"
+REPO="spoofdpi"
 BIN_NAME="spoofdpi"
 INSTALL_PATH="/usr/local/bin"
 

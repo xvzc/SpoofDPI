@@ -1,12 +1,12 @@
 # Overview
 
-There are two methods to configure SpoofDPI, and both can be used together.
+There are two methods to configure spoofdpi, and both can be used together.
 
 - TOML Config File
 - Command-Line Flags
 
 ## Configuration Priority
-SpoofDPI applies settings in the following order:
+spoofdpi applies settings in the following order:
 
 1. Values defined in the TOML config file
 2. Values passed via command-line (CLI) flags
@@ -16,7 +16,7 @@ For example, if `config.toml` contains `listen-addr = "127.0.0.1:8080"`, but the
 
 ## Config File Path
 
-If a specific path is not provided via a `--config` flag, SpoofDPI will search for `spoofdpi.toml` in the following locations in order, applying only the first file found:
+If a specific path is not provided via a `--config` flag, spoofdpi will search for `spoofdpi.toml` in the following locations in order, applying only the first file found:
 
 - `$SPOOFDPI_CONFIG` environment variable
 - `/etc/spoofdpi.toml`

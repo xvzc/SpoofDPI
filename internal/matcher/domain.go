@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/samber/lo"
-	"github.com/xvzc/SpoofDPI/internal/config"
+	"github.com/xvzc/spoofdpi/internal/config"
 )
 
 // node represents a single node in the radix tree implementation.

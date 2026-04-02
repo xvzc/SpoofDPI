@@ -5,7 +5,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/xvzc/SpoofDPI/internal/cache"
+	"github.com/xvzc/spoofdpi/internal/cache"
 )
 
 // ConnRegistry manages UDP connections with LRU eviction policy and idle timeout.

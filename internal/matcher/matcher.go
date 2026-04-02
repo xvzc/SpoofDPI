@@ -5,7 +5,7 @@ import (
 	"net"
 
 	"github.com/samber/lo"
-	"github.com/xvzc/SpoofDPI/internal/config"
+	"github.com/xvzc/spoofdpi/internal/config"
 )
 
 // -----------------------------------------------------------------------------

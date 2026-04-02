@@ -1,8 +1,8 @@
 <p align="center">
-  <img alt="SpoofDPI" src="./docs/static/banner.jpg" height="200" />
+  <img alt="spoofdpi" src="./docs/static/banner.jpg" height="200" />
 </p>
 
-SpoofDPI is a simple proxy tool, mainly designed to neutralize the *Deep Packet Inspection (DPI)* techniques that power many internet censorship systems.
+`spoofdpi` is a simple proxy tool, mainly designed to neutralize the *Deep Packet Inspection (DPI)* techniques that power many internet censorship systems.
 
 For more detailed information, please refer to the [Official Documentation](https://spoofdpi.xvzc.dev).
 
@@ -15,7 +15,7 @@ For more detailed information, please refer to the [Official Documentation](http
 </a>
 
 ## ☕ Github Sponsors
-Your sponsorship directly fuels the motivation required for continued project maintenance. If you find SpoofDPI valuable, please consider supporting [@xvzc on Github](https://github.com/sponsors/xvzc).
+Your sponsorship directly fuels the motivation required for continued project maintenance. If you find spoofdpi valuable, please consider supporting [@xvzc on Github](https://github.com/sponsors/xvzc).
 
 ## 💡 Inspirations
 [Green Tunnel](https://github.com/SadeghHayeri/GreenTunnel) by @SadeghHayeri  

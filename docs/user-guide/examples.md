@@ -1,6 +1,6 @@
 # Configuration Examples
 
-This page provides various configuration examples to help you set up SpoofDPI for different scenarios.
+This page provides various configuration examples to help you set up spoofdpi for different scenarios.
 
 ## Basic Setup
 
@@ -52,7 +52,7 @@ Route traffic differently based on the domain or IP address.
 
 ## Automatic Detection
 
-Let SpoofDPI automatically detect blocked sites and apply a specific template.
+Let spoofdpi automatically detect blocked sites and apply a specific template.
 
 ```toml
 [policy]

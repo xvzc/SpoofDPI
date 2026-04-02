@@ -82,7 +82,7 @@ nfpms:
       - rpm
       - archlinux
     vendor: xvzc
-    homepage: https://github.com/xvzc/SpoofDPI
+    homepage: https://github.com/xvzc/spoofdpi
     maintainer: xvzc
     description: A simple and fast anti-censorship tool written in Go
     license: Apache-2.0

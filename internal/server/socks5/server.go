@@ -12,14 +12,14 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
-	"github.com/xvzc/SpoofDPI/internal/config"
-	"github.com/xvzc/SpoofDPI/internal/dns"
-	"github.com/xvzc/SpoofDPI/internal/logging"
-	"github.com/xvzc/SpoofDPI/internal/matcher"
-	"github.com/xvzc/SpoofDPI/internal/netutil"
-	"github.com/xvzc/SpoofDPI/internal/proto"
-	"github.com/xvzc/SpoofDPI/internal/server"
-	"github.com/xvzc/SpoofDPI/internal/session"
+	"github.com/xvzc/spoofdpi/internal/config"
+	"github.com/xvzc/spoofdpi/internal/dns"
+	"github.com/xvzc/spoofdpi/internal/logging"
+	"github.com/xvzc/spoofdpi/internal/matcher"
+	"github.com/xvzc/spoofdpi/internal/netutil"
+	"github.com/xvzc/spoofdpi/internal/proto"
+	"github.com/xvzc/spoofdpi/internal/server"
+	"github.com/xvzc/spoofdpi/internal/session"
 )
 
 type SOCKS5Proxy struct {

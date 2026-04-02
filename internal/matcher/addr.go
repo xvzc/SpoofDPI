@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/samber/lo"
-	"github.com/xvzc/SpoofDPI/internal/config"
+	"github.com/xvzc/spoofdpi/internal/config"
 )
 
 // AddrMatcher implements Matcher for IP/CIDR rules.

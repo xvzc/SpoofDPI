@@ -1,6 +1,6 @@
 # Policy Configuration
 
-By defining rules within the Policy section, you can granularly control how SpoofDPI handles connections to specific domains or IP addresses. You can define per-domain bypass strategies, DNS settings, or simply block connections.
+By defining rules within the Policy section, you can granularly control how spoofdpi handles connections to specific domains or IP addresses. You can define per-domain bypass strategies, DNS settings, or simply block connections.
 
 ## `template`
 

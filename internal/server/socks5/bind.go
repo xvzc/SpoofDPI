@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/logging"
-	"github.com/xvzc/SpoofDPI/internal/netutil"
-	"github.com/xvzc/SpoofDPI/internal/proto"
+	"github.com/xvzc/spoofdpi/internal/logging"
+	"github.com/xvzc/spoofdpi/internal/netutil"
+	"github.com/xvzc/spoofdpi/internal/proto"
 )
 
 type BindHandler struct {

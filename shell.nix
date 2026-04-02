@@ -21,6 +21,6 @@ pkgs.mkShell {
 
   shellHook = # sh
     ''
-      export name="nix:SpoofDPI"
+      export name="nix:spoofdpi"
     '';
 }

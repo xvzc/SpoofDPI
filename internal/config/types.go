@@ -11,7 +11,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
-	"github.com/xvzc/SpoofDPI/internal/proto"
+	"github.com/xvzc/spoofdpi/internal/proto"
 )
 
 type primitive interface {
