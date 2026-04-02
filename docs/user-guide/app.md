@@ -42,7 +42,7 @@ mode = "socks5"
 
 Specifies the IP address and port to listen on. `(default: 127.0.0.1:8080 for http, 127.0.0.1:1080 for socks5)`
 
-If you want to run SpoofDPI remotely (e.g., on a physically separated machine), set the IP part to `0.0.0.0`. Otherwise, it is recommended to leave this option as default for security.
+If you want to run spoofdpi remotely (e.g., on a physically separated machine), set the IP part to `0.0.0.0`. Otherwise, it is recommended to leave this option as default for security.
 
 ### Usage
 
@@ -141,7 +141,7 @@ auto-configure-network = true
 
 Specifies the path to a custom `TOML` config file. `(default: none)`
 
-If this option is set, SpoofDPI will not search the default directories.
+If this option is set, spoofdpi will not search the default directories.
 
 ### Usage
 

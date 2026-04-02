@@ -4,7 +4,7 @@ This project utilizes `CGO` for low-level networking capabilities, requiring spe
 
 ## Prerequisites
 
-* **Go Version:** Go **1.22 or higher** is required.
+* **Go Version:** Go **1.26 or higher** is required.
 * **C Compiler:** A C compiler (GCC or Clang) must be available on your system.
 * **Network Dependency:** The project relies on the **libpcap** library for packet capture functionality. You must install the development headers for this library before building.
 

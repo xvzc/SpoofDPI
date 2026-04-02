@@ -100,7 +100,7 @@ Sending fake packets can trick DPI systems into inspecting invalid traffic, allo
 If `https-chunk-size` is greater than 0, each fake packet will also be fragmented.
 
 !!! note
-    SpoofDPI must be run with root privileges to use this option effectively on some systems or configurations requiring raw socket access (though usually not required for standard usage, verify if this note from old docs is still accurate - kept for safety).
+    spoofdpi must be run with root privileges to use this option effectively on some systems or configurations requiring raw socket access (though usually not required for standard usage, verify if this note from old docs is still accurate - kept for safety).
 
 ### Usage
 

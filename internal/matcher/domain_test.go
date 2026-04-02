@@ -5,7 +5,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	"github.com/xvzc/SpoofDPI/internal/config"
+	"github.com/xvzc/spoofdpi/internal/config"
 )
 
 func TestDomainMatcher(t *testing.T) {

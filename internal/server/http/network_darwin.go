@@ -10,15 +10,15 @@ import (
 	"strings"
 
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/netutil"
+	"github.com/xvzc/spoofdpi/internal/netutil"
 )
 
 const (
-	permissionErrorHelpText = "By default SpoofDPI tries to set itself up as a system-wide proxy server.\n" +
+	permissionErrorHelpText = "By default spoofdpi tries to set itself up as a system-wide proxy server.\n" +
 		"Doing so may require root access on machines with\n" +
 		"'Settings > Privacy & Security > Advanced > Require" +
 		" an administrator password to access system-wide settings' enabled.\n" +
-		"If you do not want SpoofDPI to act as a system-wide proxy, provide" +
+		"If you do not want spoofdpi to act as a system-wide proxy, provide" +
 		" -system-proxy=false."
 )
 

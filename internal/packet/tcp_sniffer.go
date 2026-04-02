@@ -7,9 +7,9 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/cache"
-	"github.com/xvzc/SpoofDPI/internal/logging"
-	"github.com/xvzc/SpoofDPI/internal/netutil"
+	"github.com/xvzc/spoofdpi/internal/cache"
+	"github.com/xvzc/spoofdpi/internal/logging"
+	"github.com/xvzc/spoofdpi/internal/netutil"
 )
 
 var _ Sniffer = (*TCPSniffer)(nil)

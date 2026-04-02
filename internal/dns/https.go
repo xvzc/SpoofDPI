@@ -13,8 +13,8 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/rs/zerolog"
-	"github.com/xvzc/SpoofDPI/internal/config"
-	"github.com/xvzc/SpoofDPI/internal/logging"
+	"github.com/xvzc/spoofdpi/internal/config"
+	"github.com/xvzc/spoofdpi/internal/logging"
 	"golang.org/x/net/http2"
 )
 

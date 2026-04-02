@@ -1,6 +1,6 @@
 ## Requirements
 
-SpoofDPI requires the [libpcap](https://github.com/the-tcpdump-group/libpcap) library on all operating systems **except Linux**.
+spoofdpi requires the [libpcap](https://github.com/the-tcpdump-group/libpcap) library on all operating systems **except Linux**.
 
 ```console
 - macOS
@@ -18,11 +18,11 @@ $ echo "libpcap is not required on Linux"
 ## Install Using Script
 You can install `spoofdpi` using the provided script. The binary will be installed to `/usr/local/bin`.
 ```console
-$ curl -fsSL https://raw.githubusercontent.com/xvzc/SpoofDPI/main/install.sh | bash
+$ curl -fsSL https://raw.githubusercontent.com/xvzc/spoofdpi/main/install.sh | bash
 ```
 
 ## Install With Package Manager
-You can also install SpoofDPI using package managers of your choice, but note that the version may not be the latest, depending on the [Packaging Status](#packaging-status).
+You can also install spoofdpi using package managers of your choice, but note that the version may not be the latest, depending on the [Packaging Status](#packaging-status).
 
 ```console
 - macOS
@@ -41,7 +41,7 @@ $ pkg install spoofdpi
 ```
 
 ## Manual Build
-To build SpoofDPI manually, ensure that you have a recent version of [Go](https://go.dev) and the [libpcap](https://github.com/the-tcpdump-group/libpcap) library installed.
+To build spoofdpi manually, ensure that you have [Go](https://go.dev) **1.26 or higher** and the [libpcap](https://github.com/the-tcpdump-group/libpcap) library installed.
 !!! note 
     **libpcap** is no longer required on Linux, so `CGO` does not need to be enabled.
 ### Git
@@ -51,12 +51,12 @@ If you are building manually from the latest commit, we recommend including the 
 #!/usr/bin/env sh
 
 BUILD_INFO="git"
-SRC="SpoofDPI"
+SRC="spoofdpi"
 DIST="dist"
 
 mkdir -p ./$DIST
 
-git clone https://github.com/xvzc/SpoofDPI.git
+git clone https://github.com/xvzc/spoofdpi.git
 
 BUILD_LDFLAGS="-s -w"
 BUILD_LDFLAGS="$BUILD_LDFLAGS -X 'main.commit=$(git -C ./$SRC rev-parse --short HEAD)'"
@@ -85,7 +85,7 @@ SRC="spoofdpi-$VERSION"
 DIST="dist"
 
 curl -fsSL \
-  https://github.com/xvzc/SpoofDPI/releases/download/v$VERSION/$ASSET \
+  https://github.com/xvzc/spoofdpi/releases/download/v$VERSION/$ASSET \
   -o ./$ASSET
 
 tar -xvzf ./spoofdpi-$VERSION.tar.gz

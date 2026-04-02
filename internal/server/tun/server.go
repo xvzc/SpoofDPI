@@ -13,12 +13,12 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
 	"github.com/songgao/water"
-	"github.com/xvzc/SpoofDPI/internal/config"
-	"github.com/xvzc/SpoofDPI/internal/logging"
-	"github.com/xvzc/SpoofDPI/internal/matcher"
-	"github.com/xvzc/SpoofDPI/internal/netutil"
-	"github.com/xvzc/SpoofDPI/internal/server"
-	"github.com/xvzc/SpoofDPI/internal/session"
+	"github.com/xvzc/spoofdpi/internal/config"
+	"github.com/xvzc/spoofdpi/internal/logging"
+	"github.com/xvzc/spoofdpi/internal/matcher"
+	"github.com/xvzc/spoofdpi/internal/netutil"
+	"github.com/xvzc/spoofdpi/internal/server"
+	"github.com/xvzc/spoofdpi/internal/session"
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
@@ -119,7 +119,7 @@ func (s *TunServer) SetNetworkConfig() (func() error, error) {
 	}
 
 	// Add a host route to the gateway via the physical interface
-	// This ensures SpoofDPI's outbound traffic goes through en0, not utun8
+	// This ensures spoofdpi's outbound traffic goes through en0, not utun8
 	if err := SetGatewayRoute(s.gateway, s.iface); err != nil {
 		s.logger.Error().Err(err).Msg("failed to set gateway route")
 	}

@@ -1,6 +1,6 @@
 # Testing
 
-This document outlines how to run tests and the conventions for writing new tests in SpoofDPI.
+This document outlines how to run tests and the conventions for writing new tests in spoofdpi.
 
 ## Running Tests
 
@@ -24,7 +24,7 @@ $ go test -v -run TestCreateCommand_Flags ./internal/config/
 
 ## Conventions
 
-SpoofDPI uses the standard `testing` package enhanced by [testify](https://github.com/stretchr/testify) for assertions and requirements.
+spoofdpi uses the standard `testing` package enhanced by [testify](https://github.com/stretchr/testify) for assertions and requirements.
 
 ### 1. Framework
 

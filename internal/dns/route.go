@@ -9,8 +9,8 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
-	"github.com/xvzc/SpoofDPI/internal/config"
-	"github.com/xvzc/SpoofDPI/internal/logging"
+	"github.com/xvzc/spoofdpi/internal/config"
+	"github.com/xvzc/spoofdpi/internal/logging"
 )
 
 type RouteResolver struct {

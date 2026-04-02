@@ -15,7 +15,7 @@ body:
     attributes:
       label: Version
       description: |
-        Version of SpoofDPI that you are currently using
+        Version of spoofdpi that you are currently using
         This can be shown by running "spoofdpi -v" in terminal
     validations:
       required: true
@@ -40,10 +40,10 @@ body:
   - type: textarea
     id: run-info
     attributes:
-      label: How are you running SpoofDPI?
+      label: How are you running spoofdpi?
       description: |
-        Please provide information of how you are running SpoofDPI. 
-        This may include command line options that you used to run SpoofDPI, or the way how you installed SpoofDPI, and some more details.
+        Please provide information of how you are running spoofdpi. 
+        This may include command line options that you used to run spoofdpi, or the way how you installed spoofdpi, and some more details.
     validations:
       required: true
 

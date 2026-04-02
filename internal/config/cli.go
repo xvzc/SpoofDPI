@@ -13,7 +13,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/urfave/cli/v3"
-	"github.com/xvzc/SpoofDPI/internal/proto"
+	"github.com/xvzc/spoofdpi/internal/proto"
 )
 
 func CreateCommand(

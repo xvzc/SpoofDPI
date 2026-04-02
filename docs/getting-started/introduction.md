@@ -2,7 +2,7 @@
 
 # Introduction
 
-**SpoofDPI** is a lightweight, flexible tool designed to circumvent *[Deep Packet Inspection (DPI)](https://en.wikipedia.org/wiki/Deep_packet_inspection)* through advanced packet manipulation. It is written in [Go](https://go.dev), supports cross-platform execution, and operates with minimal overhead.
+**spoofdpi** is a lightweight, flexible tool designed to circumvent *[Deep Packet Inspection (DPI)](https://en.wikipedia.org/wiki/Deep_packet_inspection)* through advanced packet manipulation. It is written in [Go](https://go.dev), supports cross-platform execution, and operates with minimal overhead.
 
 ## Features
 

@@ -3,8 +3,8 @@ package packet
 import (
 	"net"
 
-	"github.com/xvzc/SpoofDPI/internal/cache"
-	"github.com/xvzc/SpoofDPI/internal/netutil"
+	"github.com/xvzc/spoofdpi/internal/cache"
+	"github.com/xvzc/spoofdpi/internal/netutil"
 )
 
 type Sniffer interface {
