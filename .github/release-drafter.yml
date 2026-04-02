@@ -3,7 +3,7 @@ tag-template: 'v$RESOLVED_VERSION'
 change-template: '* $TITLE (#$NUMBER) by @$AUTHOR'
 change-title-escapes: '\<*_&#@`'
 template: |
-  ## Changelog
+  # Changelog
   $CHANGES
 
 version-resolver:
