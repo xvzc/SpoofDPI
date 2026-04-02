@@ -17,6 +17,9 @@ permissions:
   contents: write
   id-token: write
 
+env:
+  GO_VERSION: '1.26'
+
 jobs:
   update-draft:
     # Run only on push to main to update the release draft
@@ -56,7 +59,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Install Syft
         run: |
