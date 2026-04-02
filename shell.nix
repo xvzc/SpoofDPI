@@ -11,7 +11,7 @@ pkgs.mkShell {
     libpcap
   ];
   packages = with pkgs; [
-    go
+    go_1_26
     goreleaser
     gopls
     golangci-lint-langserver
