@@ -2,6 +2,10 @@
   <img alt="spoofdpi" src="./docs/static/banner.jpg" height="200" />
 </p>
 
+> [!WARNING]
+> **Repository Name Changed**
+> To comply with Go ecosystem standards and package naming conventions, the repository and module name have been changed from `SpoofDPI` to `spoofdpi`. If you are manually building from source or referencing the module, please update your URLs and imports accordingly.
+
 `spoofdpi` is a simple proxy tool, mainly designed to neutralize the *Deep Packet Inspection (DPI)* techniques that power many internet censorship systems.
 
 For more detailed information, please refer to the [Official Documentation](https://spoofdpi.xvzc.dev).
