@@ -10,7 +10,7 @@
 
 For more detailed information, please refer to the [Official Documentation](https://spoofdpi.dev).
 
-[Join our Discord channel](https://spoofdpi.xvzc.dev) for discussions (If you can 😅).
+[Join our Discord channel](https://discord.gg/k7qMbqhrcH) for discussions (If you can 😅).
 
 ## 📦 Packaging Status
 
