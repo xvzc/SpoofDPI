@@ -2,7 +2,7 @@
   <img alt="spoofdpi" src="./docs/static/banner.jpg" height="200" />
 </p>
 
-> [!WARNING]
+> [!NOTE]
 > **Repository Name Changed**
 > To comply with Go ecosystem standards and package naming conventions, the repository and module name have been changed from `SpoofDPI` to `spoofdpi`. If you are manually building from source or referencing the module, please update your URLs and imports accordingly.
 
