@@ -8,7 +8,7 @@
 
 `spoofdpi` is a simple proxy tool, mainly designed to neutralize the *Deep Packet Inspection (DPI)* techniques that power many internet censorship systems.
 
-For more detailed information, please refer to the [Official Documentation](https://spoofdpi.xvzc.dev).
+For more detailed information, please refer to the [Official Documentation](https://spoofdpi.dev).
 
 [Join our Discord channel](https://spoofdpi.xvzc.dev) for discussions (If you can 😅).
 
