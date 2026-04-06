@@ -104,7 +104,7 @@ func (p *HTTPProxy) Addr() string {
 }
 
 func (p *HTTPProxy) handleNewConnection(ctx context.Context, conn net.Conn) {
-	logger := logging.WithLocalScope(ctx, p.logger, "conn-init")
+	logger := logging.WithLocalScope(ctx, p.logger, "conn_init")
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

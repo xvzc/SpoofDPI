@@ -21,9 +21,9 @@ var (
 			MarginBottom(0)
 
 	speedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("86")).
+			Foreground(lipgloss.Color("255")).
 			Bold(true).
-			MarginBottom(0)
+			MarginLeft(41)
 
 	logStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240"))
@@ -48,15 +48,32 @@ type model struct {
 	viewport     viewport.Model
 	spinner      spinner.Model
 	logs         []string
+	filteredLogs []string
 	speed        string
 	lastTxBytes  uint64
 	lastRxBytes  uint64
 	lastTickTime time.Time
 	ready        bool
+	filterInput  string
+	activeFilter string
+	inputMode    bool
 }
 
 func formatSpeed(up, down float64) string {
 	return fmt.Sprintf("↑ %8.2f KB/s │ ↓ %8.2f KB/s", up, down)
+}
+
+func filterLogs(logs []string, filter string) []string {
+	if filter == "" {
+		return logs
+	}
+	var result []string
+	for _, log := range logs {
+		if strings.Contains(log, filter) {
+			result = append(result, log)
+		}
+	}
+	return result
 }
 
 func initialModel() model {
@@ -98,8 +115,48 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == "q" || msg.String() == "ctrl+c" {
+		switch msg.String() {
+		case "ctrl+c":
 			return m, tea.Quit
+		case "enter":
+			if m.inputMode {
+				m.activeFilter = m.filterInput
+				m.filteredLogs = filterLogs(m.logs, m.activeFilter)
+				m.inputMode = false
+				m.updateViewport()
+			}
+		case "esc":
+			if m.inputMode {
+				m.inputMode = false
+				m.filterInput = ""
+			} else if m.activeFilter != "" {
+				m.activeFilter = ""
+				m.filteredLogs = m.logs
+				m.updateViewport()
+			}
+		case "backspace":
+			if m.inputMode && len(m.filterInput) > 0 {
+				m.filterInput = m.filterInput[:len(m.filterInput)-1]
+			}
+		case "R":
+			if !m.inputMode {
+				m.logs = []string{}
+				m.filteredLogs = filterLogs(m.logs, m.activeFilter)
+				m.updateViewport()
+			} else {
+				m.filterInput += msg.String()
+			}
+		case "f":
+			if !m.inputMode {
+				m.inputMode = true
+				m.filterInput = ""
+			} else {
+				m.filterInput += msg.String()
+			}
+		default:
+			if m.inputMode {
+				m.filterInput += msg.String()
+			}
 		}
 
 	case tea.WindowSizeMsg:
@@ -145,19 +202,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case logMsg:
 		m.logs = append(m.logs, string(msg))
 
+		if m.activeFilter == "" || strings.Contains(string(msg), m.activeFilter) {
+			m.filteredLogs = append(m.filteredLogs, string(msg))
+		}
+
 		const maxLogs = 5000
 		if len(m.logs) > maxLogs {
 			m.logs = m.logs[len(m.logs)-maxLogs:]
 		}
-
-		if m.ready {
-			isAtBottom := m.viewport.AtBottom()
-			m.viewport.SetContent(strings.Join(m.logs, "\n"))
-
-			if isAtBottom {
-				m.viewport.GotoBottom()
-			}
+		if len(m.filteredLogs) > maxLogs {
+			m.filteredLogs = m.filteredLogs[len(m.filteredLogs)-maxLogs:]
 		}
+
+		m.updateViewport()
 	}
 
 	m.viewport, cmd = m.viewport.Update(msg)
@@ -166,10 +223,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+func (m *model) updateViewport() {
+	if !m.ready {
+		return
+	}
+	isAtBottom := m.viewport.AtBottom()
+	m.viewport.SetContent(strings.Join(m.filteredLogs, "\n"))
+	if isAtBottom {
+		m.viewport.GotoBottom()
+	}
+}
+
 func (m model) headerView() string {
 	logoView := logoStyle.Render(strings.TrimPrefix(logo, "\n"))
 
-	speedText := fmt.Sprintf("%s %s", m.spinner.View(), m.speed)
+	speedText := fmt.Sprintf("%s %s", m.speed, m.spinner.View())
 	speedView := speedStyle.Render(speedText)
 
 	width := m.viewport.Width
@@ -188,29 +256,43 @@ func (m model) footerView() string {
 		return ""
 	}
 
-	help := "[filter (f)] [clear filter (F)] [clear logs (R)] [quit (q)]"
-	helpStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("249")).
-		MarginRight(0)
+	var left, right string
+	var leftStyle, rightStyle lipgloss.Style
 
-	total := m.viewport.TotalLineCount()
+	keyStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("226")).
+		Bold(true)
 
-	current := m.viewport.YOffset + m.viewport.Height
-	if m.viewport.AtBottom() || current > total {
-		current = total
+	descStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("249"))
+
+	if m.inputMode {
+		left = "filter: " + m.filterInput
+		leftStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("82"))
+		right = keyStyle.Render("enter") + " " + descStyle.Render("apply") + "  " +
+			keyStyle.Render("esc") + " " + descStyle.Render("cancel")
+		rightStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("82"))
+	} else if m.activeFilter != "" {
+		left = "filter: " + m.activeFilter
+		leftStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("75"))
+		right = keyStyle.Render("esc") + " unfilter  " +
+			keyStyle.Render("f") + " filter  " +
+			keyStyle.Render("R") + " clear  " +
+			keyStyle.Render("^C") + " quit"
+		rightStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("75"))
+	} else {
+		right = keyStyle.Render("f") + " filter  " +
+			keyStyle.Render("R") + " clear  " +
+			keyStyle.Render("^C") + " quit"
+		rightStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("249"))
 	}
 
-	info := fmt.Sprintf("%d / %d lines", current, total)
+	leftStr := leftStyle.Render(left)
+	rightStr := rightStyle.Width(m.viewport.Width - lipgloss.Width(leftStr)).
+		Align(lipgloss.Right).
+		Render(right)
 
-	return lipgloss.JoinHorizontal(
-		lipgloss.Left,
-		helpStyle.Render(help),
-		lipgloss.NewStyle().
-			Foreground(lipgloss.Color("205")).
-			Width(m.viewport.Width-lipgloss.Width(help)).
-			Align(lipgloss.Right).
-			Render(info),
-	)
+	return leftStr + rightStr
 }
 
 func (m model) View() string {
@@ -231,9 +313,9 @@ var (
 	ready = make(chan struct{})
 )
 
-type TuiWriter struct{}
+type TUIWriter struct{}
 
-func (TuiWriter) Write(b []byte) (n int, err error) {
+func (TUIWriter) Write(b []byte) (n int, err error) {
 	<-ready
 	if p != nil {
 		p.Send(logMsg(strings.TrimSpace(string(b))))

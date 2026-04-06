@@ -44,6 +44,7 @@ var availableLogLevelValues = []string{
 }
 
 type AppOptions struct {
+	NoTUI                *bool          `toml:"no-tui"`
 	LogLevel             *zerolog.Level `toml:"log-level"`
 	Silent               *bool          `toml:"silent"`
 	AutoConfigureNetwork *bool          `toml:"auto-configure-network"`
@@ -57,6 +58,7 @@ func (o *AppOptions) UnmarshalTOML(data any) (err error) {
 		return fmt.Errorf("non-table type general config")
 	}
 
+	o.NoTUI = findFrom(m, "no-tui", parseBoolFn(), &err)
 	o.Silent = findFrom(m, "silent", parseBoolFn(), &err)
 	o.AutoConfigureNetwork = findFrom(m, "auto-configure-network", parseBoolFn(), &err)
 	if p := findFrom(m, "log-level", parseStringFn(checkLogLevel), &err); isOk(p, err) {
@@ -92,6 +94,7 @@ func (o *AppOptions) Clone() *AppOptions {
 	}
 
 	return &AppOptions{
+		NoTUI:                clonePrimitive(o.NoTUI),
 		LogLevel:             newLevel,
 		Silent:               clonePrimitive(o.Silent),
 		AutoConfigureNetwork: clonePrimitive(o.AutoConfigureNetwork),
@@ -110,6 +113,7 @@ func (origin *AppOptions) Merge(overrides *AppOptions) *AppOptions {
 	}
 
 	return &AppOptions{
+		NoTUI:    lo.CoalesceOrEmpty(overrides.NoTUI, origin.NoTUI),
 		LogLevel: lo.CoalesceOrEmpty(overrides.LogLevel, origin.LogLevel),
 		Silent:   lo.CoalesceOrEmpty(overrides.Silent, origin.Silent),
 		AutoConfigureNetwork: lo.CoalesceOrEmpty(
