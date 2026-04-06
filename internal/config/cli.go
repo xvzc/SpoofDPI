@@ -345,14 +345,14 @@ func CreateCommand(
 			},
 
 			&cli.BoolFlag{
-				Name: "silent",
+				Name: "no-tui",
 				Usage: fmt.Sprintf(`
-				Do not show the banner at start up (default: %v)`,
-					*defaultCfg.App.Silent,
+				Disable TUI and run in headless mode. (default: %v)`,
+					*defaultCfg.App.NoTUI,
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.App.Silent = lo.ToPtr(v)
+					argsCfg.App.NoTUI = lo.ToPtr(v)
 					return nil
 				},
 			},

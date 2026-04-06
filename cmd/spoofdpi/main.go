@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -47,13 +46,8 @@ func main() {
 }
 
 func runApp(appctx context.Context, configDir string, cfg *config.Config) {
-	var logW io.Writer = os.Stdout
-	if !*cfg.App.Silent {
-		logW = TuiWriter{}
-	}
-	logging.SetGlobalLogger(appctx, *cfg.App.LogLevel, logW)
-
-	if !*cfg.App.Silent {
+	if !*cfg.App.NoTUI {
+		logging.SetGlobalLogger(appctx, *cfg.App.LogLevel, TUIWriter{})
 		ctx, cancel := context.WithCancel(appctx)
 		defer cancel()
 
@@ -71,6 +65,7 @@ func runApp(appctx context.Context, configDir string, cfg *config.Config) {
 		cancel()
 		<-errChan
 	} else {
+		logging.SetGlobalLogger(appctx, *cfg.App.LogLevel, os.Stdout)
 		if err := startServer(appctx, configDir, cfg); err != nil {
 			os.Exit(1)
 		}
@@ -143,9 +138,9 @@ func startServer(appctx context.Context, configDir string, cfg *config.Config) e
 
 	switch *cfg.App.Mode {
 	case config.AppModeSOCKS5:
-		logger.Warn().Msg("SOCKS5 mode is an EXPERIMENTAL feature")
+		logger.Warn().Msg("'socks5' mode is an experimental feature")
 	case config.AppModeTUN:
-		logger.Warn().Msg("TUN mode is an EXPERIMENTAL feature")
+		logger.Warn().Msg("'tun' mode is an experimental feature")
 	}
 
 	logger.Info().Msgf("server started on %s", srv.Addr())
