@@ -82,7 +82,7 @@ func DialFastest(
 		select {
 		case res := <-results:
 			if res.err == nil {
-				return res.conn, nil
+				return &TrackingConn{Conn: res.conn}, nil
 			}
 			if firstError == nil {
 				firstError = res.err

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
+	"io"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -22,13 +22,13 @@ const (
 
 // SetGlobalLogger creates and configures the global zerolog.Logger instance
 // based on the application configuration.
-func SetGlobalLogger(ctx context.Context, l zerolog.Level) {
+func SetGlobalLogger(ctx context.Context, l zerolog.Level, w io.Writer) {
 	zerolog.SetGlobalLevel(l)
 
 	// Define the order of parts in the console output.
 	// Configure a human-readable console writer.
 	consoleWriter := zerolog.ConsoleWriter{
-		Out:        os.Stdout,
+		Out:        w,
 		TimeFormat: time.RFC3339,
 		// FormatPrepare intercepts fields just before printing
 		// to apply custom formatting, like adding brackets [SCOPE] or parens (trace_id).

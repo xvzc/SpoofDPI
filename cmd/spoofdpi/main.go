@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -46,12 +47,37 @@ func main() {
 }
 
 func runApp(appctx context.Context, configDir string, cfg *config.Config) {
+	var logW io.Writer = os.Stdout
 	if !*cfg.App.Silent {
-		printBanner()
+		logW = TuiWriter{}
 	}
+	logging.SetGlobalLogger(appctx, *cfg.App.LogLevel, logW)
 
-	logging.SetGlobalLogger(appctx, *cfg.App.LogLevel)
+	if !*cfg.App.Silent {
+		ctx, cancel := context.WithCancel(appctx)
+		defer cancel()
 
+		errChan := make(chan error, 1)
+
+		go func() {
+			errChan <- startServer(ctx, configDir, cfg)
+		}()
+
+		if err := startTUI(); err != nil {
+			logger := log.Logger.With().Ctx(appctx).Logger()
+			logger.Error().Err(err).Msg("tui error")
+		}
+
+		cancel()
+		<-errChan
+	} else {
+		if err := startServer(appctx, configDir, cfg); err != nil {
+			os.Exit(1)
+		}
+	}
+}
+
+func startServer(appctx context.Context, configDir string, cfg *config.Config) error {
 	logger := log.Logger.With().Ctx(appctx).Logger()
 	logger.Info().Str("version", version).Msg("started spoofdpi")
 	if configDir != "" {
@@ -60,18 +86,23 @@ func runApp(appctx context.Context, configDir string, cfg *config.Config) {
 			Msgf("config file loaded")
 	}
 
+	logger.Info().Msgf("app-mode: %s", cfg.App.Mode.String())
+
 	resolver := createResolver(logger, cfg)
 
 	srv, err := createServer(appctx, logger, cfg, resolver)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to create server")
+		logger.Error().Err(err).Msg("failed to create server")
+		return err
 	}
 
 	// Start server
 	ready := make(chan struct{})
 	go func() {
 		if err := srv.ListenAndServe(appctx, ready); err != nil {
-			logger.Fatal().Err(err).Msgf("failed to start server: %T", srv)
+			logger.Error().Err(err).Msgf("failed to start server: %T", srv)
+			// Return to avoid hanging if TUI is waiting?
+			// Serve errors are just logged, and TUI stays up.
 		}
 	}()
 
@@ -110,8 +141,6 @@ func runApp(appctx context.Context, configDir string, cfg *config.Config) {
 			Msgf("udp idle timeout")
 	}
 
-	logger.Info().Msgf("app-mode: %s", cfg.App.Mode.String())
-
 	switch *cfg.App.Mode {
 	case config.AppModeSOCKS5:
 		logger.Warn().Msg("SOCKS5 mode is an EXPERIMENTAL feature")
@@ -127,7 +156,8 @@ func runApp(appctx context.Context, configDir string, cfg *config.Config) {
 	if *cfg.App.AutoConfigureNetwork {
 		unset, err := srv.SetNetworkConfig()
 		if err != nil {
-			logger.Fatal().Err(err).Msg("failed to set system network config")
+			logger.Error().Err(err).Msg("failed to set system network config")
+			return err
 		}
 		if unset != nil {
 			defer func() {
@@ -139,6 +169,7 @@ func runApp(appctx context.Context, configDir string, cfg *config.Config) {
 	}
 
 	<-appctx.Done()
+	return nil
 }
 
 func createResolver(logger zerolog.Logger, cfg *config.Config) dns.Resolver {
@@ -428,25 +459,4 @@ func createServer(
 	default:
 		return nil, fmt.Errorf("unknown server mode: %s", *cfg.App.Mode)
 	}
-}
-
-func printBanner() {
-	const banner = `
- .d8888b.                              .d888 8888888b.  8888888b. 8888888
-d88P  Y88b                            d88P'  888  'Y88b 888   Y88b  888
-Y88b.                                 888    888    888 888    888  888
- 'Y888b.   88888b.   .d88b.   .d88b.  888888 888    888 888   d88P  888
-    'Y88b. 888 '88b d88''88b d88''88b 888    888    888 8888888P'   888
-      '888 888  888 888  888 888  888 888    888    888 888         888
-Y88b  d88P 888 d88P Y88..88P Y88..88P 888    888  .d88P 888         888
- 'Y8888P'  88888P'   'Y88P'   'Y88P'  888    8888888P'  888       8888888
-           888
-           888
-           888
-
-`
-
-	fmt.Print(banner)
-	fmt.Printf("Press 'CTRL + c' to quit\n")
-	fmt.Printf("\n")
 }
