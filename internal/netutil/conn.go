@@ -160,6 +160,9 @@ func CloseConns(closers ...io.Closer) {
 // SetTTL configures the TTL or Hop Limit depending on the IP version.
 // The isIPv4 parameter is determined by examining the remote address of the connection.
 func SetTTL(conn net.Conn, isIPv4 bool, ttl uint8) error {
+	if tc, ok := conn.(*TrackingConn); ok {
+		conn = tc.Conn
+	}
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
 		return errors.New("failed to cast to TCPConn")
