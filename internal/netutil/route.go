@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 	"strings"
+
+	"github.com/jackpal/gateway"
 )
 
 func FindSafeSubnet() (string, string, error) {
@@ -97,6 +99,15 @@ func bindToInterface(
 	)
 }
 
+// getDefaultGateway finds the default gateway on macOS/BSD
+func getDefaultGateway() (string, error) {
+	ip, err := gateway.DiscoverGateway()
+	if err != nil {
+		return "", err
+	}
+	return ip.String(), nil
+}
+
 // GetDefaultInterfaceAndGateway returns the name of the default network interface and the gateway IP
 func GetDefaultInterfaceAndGateway() (string, string, error) {
 	// Dial a public DNS server to determine the default interface
@@ -138,10 +149,10 @@ func GetDefaultInterfaceAndGateway() (string, string, error) {
 	}
 
 	// Get gateway by parsing route table
-	gateway, err := getDefaultGateway()
+	gatewayIp, err := gateway.DiscoverGateway()
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get default gateway: %w", err)
 	}
 
-	return ifaceName, gateway, nil
+	return ifaceName, gatewayIp.String(), nil
 }
