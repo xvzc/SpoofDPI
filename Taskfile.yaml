@@ -5,4 +5,4 @@ tasks:
     desc: Build and run with dynamic arguments
     cmds:
       - go build ./cmd/...
-      - sudo ./spoofdpi {{.CLI_ARGS}}
+      - sudo -E ./spoofdpi {{.CLI_ARGS}}
