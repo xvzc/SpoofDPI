@@ -3,9 +3,9 @@ package netutil
 import (
 	"fmt"
 	"net"
+	"strings"
 )
 
-// FindSafeSubnet scans the 10.0.0.0/8 range to find an unused /30 subnet
 func FindSafeSubnet() (string, string, error) {
 	// Retrieve all active interface addresses to prevent CIDR overlapping.
 	// Checking against existing networks is faster than sending probe packets.
@@ -44,6 +44,57 @@ func FindSafeSubnet() (string, string, error) {
 	}
 
 	return "", "", fmt.Errorf("failed to find an available address in 10.0.0.0/8")
+}
+
+// bindToInterface sets the dialer's LocalAddr to use the interface's IP as the source address.
+// On Linux, we only set LocalAddr because SO_BINDTODEVICE can cause issues with
+// socket lookup for incoming packets.
+func bindToInterface(
+	network string,
+	dialer *net.Dialer,
+	iface *net.Interface,
+	targetIP net.IP,
+) error {
+	if iface == nil {
+		return nil
+	}
+
+	// Find the interface's IP address to use as source
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return fmt.Errorf("failed to get interface addresses: %w", err)
+	}
+
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok {
+			// Match IP version: use IPv4 source for IPv4 target, IPv6 for IPv6
+			if targetIP.To4() != nil && ipnet.IP.To4() != nil && !ipnet.IP.IsLoopback() {
+				if strings.HasPrefix(network, "tcp") {
+					dialer.LocalAddr = &net.TCPAddr{IP: ipnet.IP}
+				} else if strings.HasPrefix(network, "udp") {
+					dialer.LocalAddr = &net.UDPAddr{IP: ipnet.IP}
+				} else {
+					dialer.LocalAddr = &net.IPAddr{IP: ipnet.IP}
+				}
+				return nil
+			} else if targetIP.To4() == nil && ipnet.IP.To4() == nil && !ipnet.IP.IsLoopback() {
+				if strings.HasPrefix(network, "tcp") {
+					dialer.LocalAddr = &net.TCPAddr{IP: ipnet.IP}
+				} else if strings.HasPrefix(network, "udp") {
+					dialer.LocalAddr = &net.UDPAddr{IP: ipnet.IP}
+				} else {
+					dialer.LocalAddr = &net.IPAddr{IP: ipnet.IP}
+				}
+				return nil
+			}
+		}
+	}
+
+	return fmt.Errorf(
+		"no suitable IP address found on interface %s for target %s",
+		iface.Name,
+		targetIP,
+	)
 }
 
 // GetDefaultInterfaceAndGateway returns the name of the default network interface and the gateway IP
