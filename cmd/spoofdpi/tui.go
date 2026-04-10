@@ -53,6 +53,8 @@ type model struct {
 	lastTxBytes  uint64
 	lastRxBytes  uint64
 	lastTickTime time.Time
+	avgUpSpeed   float64
+	avgDownSpeed float64
 	ready        bool
 	filterInput  string
 	activeFilter string
@@ -60,7 +62,7 @@ type model struct {
 }
 
 func formatSpeed(up, down float64) string {
-	return fmt.Sprintf("↑ %8.2f KB/s │ ↓ %8.2f KB/s", up, down)
+	return fmt.Sprintf("↑ %8.1f KB/s ┆ ↓ %8.1f KB/s", up, down)
 }
 
 func filterLogs(logs []string, filter string) []string {
@@ -189,14 +191,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		currentRx := netutil.GetRxBytes()
 		currentTx := netutil.GetTxBytes()
 
-		upSpeed := (float64(currentTx-m.lastTxBytes) / 1024.0) / elapsed
-		downSpeed := (float64(currentRx-m.lastRxBytes) / 1024.0) / elapsed
+		rawUpSpeed := (float64(currentTx-m.lastTxBytes) / 1024.0) / elapsed
+		rawDownSpeed := (float64(currentRx-m.lastRxBytes) / 1024.0) / elapsed
 
 		m.lastRxBytes = currentRx
 		m.lastTxBytes = currentTx
 		m.lastTickTime = now
 
-		m.speed = formatSpeed(upSpeed, downSpeed)
+		alpha := 0.3
+		m.avgUpSpeed = (rawUpSpeed * alpha) + (m.avgUpSpeed * (1 - alpha))
+		m.avgDownSpeed = (rawDownSpeed * alpha) + (m.avgDownSpeed * (1 - alpha))
+
+		m.speed = formatSpeed(m.avgUpSpeed, m.avgDownSpeed)
 		cmds = append(cmds, tickCmd())
 
 	case logMsg:

@@ -14,10 +14,10 @@ func bindToInterface(
 	iface *net.Interface,
 	targetIP net.IP,
 ) error {
-	return nil
+	return fmt.Errorf("'bindToInterface' is not supported on this platform")
 }
 
 // getDefaultGateway is not supported on this platform.
 func getDefaultGateway() (string, error) {
-	return "", fmt.Errorf("getDefaultGateway not supported on this platform")
+	return "", fmt.Errorf("'getDefaultGateway' is not supported on this platform")
 }
