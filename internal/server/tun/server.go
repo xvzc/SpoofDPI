@@ -270,23 +270,44 @@ func (s *TunServer) tunToStack(
 	ep *channel.Endpoint,
 ) {
 	const (
-		offset = 4
-		mtu    = 1500
+		// readOffset is the headroom before each IP packet in the read buffer.
+		// wireguard-go on Linux (IFF_VNET_HDR) writes the virtio-net header into
+		// buf[offset-virtioNetHdrLen:offset], so offset must be >= 10.
+		// On macOS the value just acts as padding; >= 4 is sufficient.
+		// We use 10 so a single constant works on all platforms.
+		readOffset = 10
+		mtu        = 1500
 	)
-	buf := make(
-		[]byte,
-		offset+mtu,
-	) // must be offset+mtu so wireguard-go writes into buf[offset:]
-	sizes := make([]int, 1)
+
+	// Batch size: on Linux with IFF_VNET_HDR, BatchSize() returns
+	// conn.IdealBatchSize (typically 128). handleVirtioRead → gsoSplit writes
+	// each GRO sub-segment into a separate bufs[i] slot. If len(bufs) < number
+	// of segments, gsoSplit returns ErrTooManySegments. We must therefore
+	// pre-allocate exactly BatchSize() buffers.
+	batchSize := s.tunDevice.BatchSize()
+
+	// Allocate all per-packet buffers from a single contiguous backing array to
+	// keep allocations low.
+	const bufSize = readOffset + mtu
+	backing := make([]byte, batchSize*bufSize)
+	bufs := make([][]byte, batchSize)
+	sizes := make([]int, batchSize)
+	for i := range bufs {
+		bufs[i] = backing[i*bufSize : (i+1)*bufSize]
+	}
 
 	for {
-		sizes[0] = mtu // reset each iteration; wireguard-go overwrites this with the actual packet length
-		n, err := s.tunDevice.Read([][]byte{buf}, sizes, offset)
+		// Reset sizes before each Read; wireguard-go overwrites them with actual
+		// packet lengths.
+		for i := range sizes {
+			sizes[i] = mtu
+		}
+
+		n, err := s.tunDevice.Read(bufs, sizes, readOffset)
 		if err != nil {
 			if errors.Is(err, fs.ErrClosed) || errors.Is(err, os.ErrClosed) {
 				return
 			}
-
 			select {
 			case <-appctx.Done():
 				return
@@ -298,52 +319,24 @@ func (s *TunServer) tunToStack(
 			}
 		}
 
-		if n < 1 || sizes[0] < 1 {
-			continue
+		// Process each packet returned by this Read call (n >= 1 on success).
+		for i := range n {
+			if sizes[i] < 1 {
+				continue
+			}
+
+			packet := bufs[i][readOffset : readOffset+sizes[i]]
+
+			if packet[0]>>4 != 4 {
+				logger.Trace().Int("version", int(packet[0]>>4)).Msg("skipping non-ipv4 packet")
+				continue
+			}
+
+			payload := buffer.MakeWithData(append([]byte(nil), packet...))
+			pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{Payload: payload})
+			ep.InjectInbound(ipv4.ProtocolNumber, pkt)
+			pkt.DecRef()
 		}
-
-		// logger.Trace().
-		// 	Bytes("buf[0:4] = ", buf[0:4]).
-		// 	Int("sizes[0] = ", sizes[0]).
-		// 	Msg("Debugging..")
-		//
-		// logger.Trace().
-		// 	Bytes("buf[4:20] = ", buf[4:20]).
-		// 	Msg("Debugging..")
-
-		packet := buf[offset : offset+sizes[0]]
-
-		version := packet[0] >> 4
-		if version != 4 {
-			logger.Trace().Int("version", int(version)).Msg("skipping non-ipv4 packet")
-			continue
-		}
-
-		// readLen := sizes[0]
-		// version := (buf[0] >> 4)
-		// if version != 4 {
-		// 	logger.Trace().Int("version", int(version)).Msg("skipping non-ipv4 packet")
-		// 	continue
-		// }
-
-		// Parse source and destination IP for debugging
-		// srcIP := net.IP(buf[12:16])
-		// dstIP := net.IP(buf[16:20])
-		// protocol := buf[9]
-		// logger.Trace().
-		// 	Str("src", srcIP.String()).
-		// 	Str("dst", dstIP.String()).
-		// 	Uint8("proto", protocol).
-		// 	Int("len", n).
-		// 	Msg("injecting packet to stack")
-
-		payload := buffer.MakeWithData(append([]byte(nil), packet...))
-
-		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
-			Payload: payload,
-		})
-		ep.InjectInbound(ipv4.ProtocolNumber, pkt)
-		pkt.DecRef()
 	}
 }
 
@@ -368,8 +361,17 @@ func (s *TunServer) stackToTun(
 	ep.AddNotify(n)
 
 	// Pool of []byte slices to avoid per-packet allocation.
-	// Each buffer holds a 4-byte header placeholder followed by the IP packet.
-	const writeOffset = 4
+	// Each buffer holds a headroom prefix followed by the IP packet.
+	//
+	// The offset must be >= 10 (virtioNetHdrLen) on Linux because wireguard-go
+	// enables IFF_VNET_HDR, and its Write() implementation does:
+	//   offset -= virtioNetHdrLen  (i.e. offset -= 10)
+	// to place the virtio-net header in buf[offset-10:offset] before writing.
+	// With offset=4 this would compute a negative index, silently dropping every
+	// packet written back to the TUN device (no response ever reaches the client).
+	// On macOS the TUN device only needs offset >= 4 (AF-family header), so 10 is
+	// safe on all platforms.
+	const writeOffset = 10
 	pool := &sync.Pool{
 		New: func() any {
 			b := make([]byte, writeOffset+1500)
@@ -414,5 +416,5 @@ func (s *TunServer) stackToTun(
 }
 
 func newTunDevice() (tun.Device, error) {
-	return tun.CreateTUN("utun", 1500)
+	return tun.CreateTUN("tun", 1500)
 }
