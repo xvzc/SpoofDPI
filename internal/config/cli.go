@@ -17,7 +17,7 @@ import (
 )
 
 func CreateCommand(
-	runFunc func(ctx context.Context, configDir string, cfg *Config),
+	runFunc func(ctx context.Context, configDir string, cfg *Config) error,
 	version string,
 	commit string,
 	build string,
@@ -442,8 +442,11 @@ func CreateCommand(
 				}
 			}
 
-			runFunc(ctx, strings.Replace(configDir, os.Getenv("HOME"), "~", 1), finalCfg)
-			return nil
+			return runFunc(
+				ctx,
+				strings.Replace(configDir, os.Getenv("HOME"), "~", 1),
+				finalCfg,
+			)
 		},
 	}
 

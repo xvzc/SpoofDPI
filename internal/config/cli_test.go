@@ -153,8 +153,9 @@ func TestCreateCommand_Flags(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			var capturedCfg *Config
-			runFunc := func(ctx context.Context, configDir string, cfg *Config) {
+			runFunc := func(ctx context.Context, configDir string, cfg *Config) error {
 				capturedCfg = cfg
+				return nil
 			}
 
 			cmd := CreateCommand(runFunc, "v0.0.0", "commit", "build")
@@ -235,8 +236,9 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 	require.NoError(t, err)
 
 	var capturedCfg *Config
-	runFunc := func(ctx context.Context, configDir string, cfg *Config) {
+	runFunc := func(ctx context.Context, configDir string, cfg *Config) error {
 		capturedCfg = cfg
+		return nil
 	}
 
 	cmd := CreateCommand(runFunc, "v0.0.0", "commit", "build")

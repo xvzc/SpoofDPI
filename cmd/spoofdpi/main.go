@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -32,74 +33,91 @@ var (
 	build   = "unknown"
 )
 
+type SwitchableWriter struct {
+	// target is a pointer to an interface, or just the interface itself.
+	// We use a pointer to the interface for direct updates.
+	target io.Writer
+}
+
+func (sw *SwitchableWriter) SetWriter(w io.Writer) {
+	// Update the underlying value that the pointer references
+	sw.target = w
+}
+
+func (sw *SwitchableWriter) Write(p []byte) (n int, err error) {
+	// Access the current writer through the pointer
+	return sw.target.Write(p)
+}
+
+type DelayedWriter struct {
+	writer io.Writer
+	delay  time.Duration
+}
+
+// DelayedWriter is stateless, so value receiver is technically fine,
+// but pointer receiver is preferred for consistency in Go.
+func (dw *DelayedWriter) Write(p []byte) (n int, err error) {
+	if dw.delay > 0 {
+		time.Sleep(dw.delay)
+	}
+	return dw.writer.Write(p)
+}
+
 func main() {
 	cmd := config.CreateCommand(runApp, version, commit, build)
-	appctx, cancel := signal.NotifyContext(
-		session.WithNewTraceID(context.Background()),
-		syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP,
-	)
-	defer cancel()
-	if err := cmd.Run(appctx, os.Args); err != nil {
+	if err := cmd.Run(context.Background(), os.Args); err != nil {
+		fmt.Println("application failed to start")
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func runApp(appctx context.Context, configDir string, cfg *config.Config) {
+func runApp(mainctx context.Context, configDir string, cfg *config.Config) error {
+	appctx, cancel := signal.NotifyContext(
+		session.WithNewTraceID(mainctx),
+		syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP,
+	)
+	defer cancel()
+
+	var writer io.Writer
+	// Channel to capture critical TUI execution failures
 	if !*cfg.App.NoTUI {
-		logging.SetGlobalLogger(appctx, *cfg.App.LogLevel, TUIWriter{})
-		ctx, cancel := context.WithCancel(appctx)
-		defer cancel()
-
-		errChan := make(chan error, 1)
-
-		go func() {
-			errChan <- startServer(ctx, configDir, cfg)
-		}()
-
-		if err := startTUI(); err != nil {
-			logger := log.Logger.With().Ctx(appctx).Logger()
-			logger.Error().Err(err).Msg("tui error")
+		if err := startTUI(cancel); err != nil {
+			return fmt.Errorf("failed to start tui: %w", err)
 		}
-
-		cancel()
-		<-errChan
+		writer = TUIWriter{}
 	} else {
-		logging.SetGlobalLogger(appctx, *cfg.App.LogLevel, os.Stdout)
-		if err := startServer(appctx, configDir, cfg); err != nil {
-			os.Exit(1)
-		}
+		writer = os.Stdout
 	}
-}
 
-func startServer(appctx context.Context, configDir string, cfg *config.Config) error {
+	dw := &DelayedWriter{
+		writer: writer,
+		delay:  29 * time.Millisecond,
+	}
+	sw := &SwitchableWriter{target: dw}
+
+	logging.SetGlobalLogger(appctx, *cfg.App.LogLevel, sw)
 	logger := log.Logger.With().Ctx(appctx).Logger()
-	logger.Info().Str("version", version).Msg("started spoofdpi")
+
+	logger.Info().Str("version", version).Msg("spoofdpi")
 	if configDir != "" {
 		logger.Info().
 			Str("dir", configDir).
-			Msgf("config file loaded")
+			Msgf("loaded config file")
+	} else {
+		logger.Warn().
+			Msg("config file not found")
+		logger.Warn().
+			Msg(" please try 'sudo -E spoofdpi' if you expect a configuration to be loaded")
 	}
 
-	logger.Info().Msgf("app-mode: %s", cfg.App.Mode.String())
+	logger.Info().Str("mode", cfg.App.Mode.String()).Msgf("app")
 
 	resolver := createResolver(logger, cfg)
-
 	srv, err := createServer(appctx, logger, cfg, resolver)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to create server")
-		return err
 	}
-
-	// Start server
-	ready := make(chan struct{})
-	go func() {
-		if err := srv.ListenAndServe(appctx, ready); err != nil {
-			logger.Error().Err(err).Msgf("failed to start server: %T", srv)
-			// Return to avoid hanging if TUI is waiting?
-			// Serve errors are just logged, and TUI stays up.
-		}
-	}()
 
 	logger.Info().Msg("dns info")
 	logger.Info().Msgf(" query type '%s'", cfg.DNS.QType.String())
@@ -143,27 +161,30 @@ func startServer(appctx context.Context, configDir string, cfg *config.Config) e
 		logger.Warn().Msg("'tun' mode is an experimental feature")
 	}
 
-	logger.Info().Msgf("server started on %s", srv.Addr())
-
-	<-ready
-
-	// System Proxy Config
-	if *cfg.App.AutoConfigureNetwork {
-		unset, err := srv.SetNetworkConfig()
-		if err != nil {
-			logger.Error().Err(err).Msg("failed to set system network config")
-			return err
-		}
-		if unset != nil {
-			defer func() {
-				if err := unset(); err != nil {
-					logger.Error().Err(err).Msg("failed to unset system network config")
-				}
-			}()
+	time.Sleep(300 * time.Millisecond)
+	err = srv.ListenAndServe(appctx)
+	if err != nil {
+		logger.Error().Err(err).Msg("server failed to start")
+	} else {
+		logger.Info().Msgf("server started on %s", srv.Addr())
+		if *cfg.App.AutoConfigureNetwork {
+			unset, err := srv.SetNetworkConfig()
+			if err != nil {
+				logger.Error().Err(err).Msg("failed to set system network config")
+			} else if unset != nil {
+				defer func() {
+					if err := unset(); err != nil {
+						logger.Error().Err(err).Msg("failed to unset system network config")
+					}
+				}()
+			}
 		}
 	}
 
+	sw.SetWriter(writer)
+
 	<-appctx.Done()
+
 	return nil
 }
 

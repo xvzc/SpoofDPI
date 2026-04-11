@@ -8,6 +8,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/google/gopacket v1.1.19
+	github.com/jackpal/gateway v1.1.1
 	github.com/miekg/dns v1.1.61
 	github.com/rs/zerolog v1.33.0
 	github.com/samber/lo v1.52.0
@@ -16,6 +17,7 @@ require (
 	github.com/urfave/cli/v3 v3.6.1
 	golang.org/x/net v0.44.0
 	golang.org/x/sys v0.38.0
+	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb
 	gvisor.dev/gvisor v0.0.0-20260401053414-479e1cc2c3d9
 )
 
@@ -31,7 +33,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/google/btree v1.1.2 // indirect
-	github.com/jackpal/gateway v1.1.1 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
@@ -51,6 +52,7 @@ require (
 	golang.org/x/text v0.29.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	golang.org/x/tools v0.37.0 // indirect
+	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

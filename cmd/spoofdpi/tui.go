@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"strings"
@@ -59,6 +60,8 @@ type model struct {
 	filterInput  string
 	activeFilter string
 	inputMode    bool
+
+	readyChan chan struct{}
 }
 
 func formatSpeed(up, down float64) string {
@@ -78,7 +81,7 @@ func filterLogs(logs []string, filter string) []string {
 	return result
 }
 
-func initialModel() model {
+func initialModel(readyChan chan struct{}) model {
 	s := spinner.New()
 	s.Spinner = spinner.Spinner{
 		Frames: spinnerFrames,
@@ -92,6 +95,7 @@ func initialModel() model {
 		logs:         []string{},
 		speed:        formatSpeed(0, 0),
 		lastTickTime: time.Now(),
+		readyChan:    readyChan,
 	}
 }
 
@@ -171,6 +175,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.YPosition = headerHeight
 			m.viewport.SetContent(strings.Join(m.logs, "\n"))
 			m.ready = true
+			if m.readyChan != nil {
+				close(m.readyChan)
+				m.readyChan = nil
+			}
 		} else {
 			m.viewport.Width = msg.Width
 			m.viewport.Height = msg.Height - verticalMarginHeight
@@ -314,24 +322,37 @@ func (m model) View() string {
 	)
 }
 
-var (
-	p     *tea.Program
-	ready = make(chan struct{})
-)
+var p *tea.Program
 
 type TUIWriter struct{}
 
+var startupLogDelay = 117 * time.Millisecond
+
 func (TUIWriter) Write(b []byte) (n int, err error) {
-	<-ready
 	if p != nil {
-		p.Send(logMsg(strings.TrimSpace(string(b))))
+		go p.Send(logMsg(strings.TrimSpace(string(b))))
 	}
 	return len(b), nil
 }
 
-func startTUI() error {
-	p = tea.NewProgram(initialModel(), tea.WithAltScreen())
-	close(ready)
-	_, err := p.Run()
-	return err
+func startTUI(cancel context.CancelFunc) error {
+	readyChan := make(chan struct{})
+	p = tea.NewProgram(initialModel(readyChan), tea.WithAltScreen())
+
+	errChan := make(chan error, 1)
+
+	go func() {
+		defer cancel()
+		_, err := p.Run()
+		if err != nil {
+			errChan <- err
+		}
+	}()
+
+	select {
+	case <-readyChan:
+		return nil
+	case err := <-errChan:
+		return err
+	}
 }

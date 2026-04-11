@@ -9,16 +9,17 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
-	"github.com/songgao/water"
 	"github.com/xvzc/spoofdpi/internal/config"
 	"github.com/xvzc/spoofdpi/internal/logging"
 	"github.com/xvzc/spoofdpi/internal/matcher"
 	"github.com/xvzc/spoofdpi/internal/netutil"
 	"github.com/xvzc/spoofdpi/internal/server"
 	"github.com/xvzc/spoofdpi/internal/session"
+	"golang.zx2c4.com/wireguard/tun"
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
@@ -41,7 +42,7 @@ type TunServer struct {
 	tcpHandler *TCPHandler
 	udpHandler *UDPHandler
 
-	tunDevice *water.Interface
+	tunDevice tun.Device
 	iface     string
 	gateway   string
 }
@@ -68,121 +69,14 @@ func NewTunServer(
 
 func (s *TunServer) ListenAndServe(
 	appctx context.Context,
-	ready chan<- struct{},
 ) error {
+	logger := logging.WithLocalScope(appctx, s.logger, "tun")
+
 	var err error
 	s.tunDevice, err = newTunDevice()
 	if err != nil {
 		return fmt.Errorf("failed to create tun device: %w", err)
 	}
-
-	go func() {
-		<-appctx.Done()
-		_ = s.tunDevice.Close()
-	}()
-
-	if ready != nil {
-		close(ready)
-	}
-
-	return s.handle(appctx)
-}
-
-func (s *TunServer) SetNetworkConfig() (func() error, error) {
-	if s.tunDevice == nil {
-		return nil, fmt.Errorf("tun device not initialized")
-	}
-
-	local, remote, err := netutil.FindSafeSubnet()
-	if err != nil {
-		return nil, fmt.Errorf("failed to find safe subnet: %w", err)
-	}
-
-	if err := SetInterfaceAddress(s.tunDevice.Name(), local, remote); err != nil {
-		return nil, fmt.Errorf("failed to set interface address: %w", err)
-	}
-
-	// Add route for the TUN interface subnet to ensure packets can return
-	// This is crucial for the TUN interface to receive packets destined for its own subnet
-	// Calculate the network address for /30 subnet (e.g., 10.0.0.1 -> 10.0.0.0/30)
-	localIP := net.ParseIP(local)
-	networkAddr := net.IPv4(
-		localIP[12],
-		localIP[13],
-		localIP[14],
-		localIP[15]&0xFC,
-	) // Mask with /30
-
-	err = SetRoute(s.tunDevice.Name(), []string{networkAddr.String() + "/30"})
-	if err != nil {
-		return nil, fmt.Errorf("failed to set local route: %w", err)
-	}
-
-	// Add a host route to the gateway via the physical interface
-	// This ensures spoofdpi's outbound traffic goes through en0, not utun8
-	if err := SetGatewayRoute(s.gateway, s.iface); err != nil {
-		s.logger.Error().Err(err).Msg("failed to set gateway route")
-	}
-
-	err = SetRoute(s.tunDevice.Name(), []string{"0.0.0.0/0"}) // Default Route
-	if err != nil {
-		return nil, fmt.Errorf("failed to set default route: %w", err)
-	}
-
-	unset := func() error {
-		if s.tunDevice == nil {
-			return nil
-		}
-
-		// Remove the gateway route
-		if s.gateway != "" && s.iface != "" {
-			if err := UnsetGatewayRoute(s.gateway, s.iface); err != nil {
-				s.logger.Warn().Err(err).Msg("failed to unset gateway route")
-			}
-		}
-
-		return UnsetRoute(s.tunDevice.Name(), []string{"0.0.0.0/0"}) // Default Route
-	}
-
-	return unset, nil
-}
-
-func (s *TunServer) Addr() string {
-	if s.tunDevice != nil {
-		return s.tunDevice.Name()
-	}
-	return "tun"
-}
-
-// matchRuleByAddr extracts IP and port from net.Addr and performs rule matching
-func (s *TunServer) matchRuleByAddr(addr net.Addr) *config.Rule {
-	if s.matcher == nil {
-		return nil
-	}
-
-	host, portStr, err := net.SplitHostPort(addr.String())
-	if err != nil {
-		return nil
-	}
-
-	ip := net.ParseIP(host)
-	if ip == nil {
-		return nil
-	}
-
-	port, _ := strconv.Atoi(portStr)
-
-	selector := &matcher.Selector{
-		Kind: matcher.MatchKindAddr,
-		IP:   lo.ToPtr(ip),
-		Port: lo.ToPtr(uint16(port)),
-	}
-
-	return s.matcher.Search(selector)
-}
-
-func (s *TunServer) handle(appctx context.Context) error {
-	logger := logging.WithLocalScope(appctx, s.logger, "tun")
 
 	// 1. Create gVisor stack
 	stk := stack.New(stack.Options{
@@ -200,6 +94,11 @@ func (s *TunServer) handle(appctx context.Context) error {
 	if err := stk.CreateNIC(nicID, ep); err != nil {
 		return fmt.Errorf("failed to create NIC: %v", err)
 	}
+
+	go func() {
+		<-appctx.Done()
+		_ = s.tunDevice.Close()
+	}()
 
 	// 3. Enable Promiscuous mode & Spoofing
 	stk.SetPromiscuousMode(nicID, true)
@@ -257,10 +156,112 @@ func (s *TunServer) handle(appctx context.Context) error {
 	stk.SetTransportProtocolHandler(udp.ProtocolNumber, udpFwd.HandlePacket)
 
 	// 6. Start packet pump
-	go s.tunToStack(appctx, logger, ep)
-	s.stackToTun(appctx, logger, ep)
+	go func() {
+		go s.tunToStack(appctx, logger, ep)
+		s.stackToTun(appctx, logger, ep)
+	}()
 
 	return nil
+}
+
+func (s *TunServer) SetNetworkConfig() (func() error, error) {
+	if s.tunDevice == nil {
+		return nil, fmt.Errorf("tun device not initialized")
+	}
+
+	tunName, err := s.tunDevice.Name()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tun device name: %w", err)
+	}
+
+	local, remote, err := netutil.FindSafeSubnet()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find safe subnet: %w", err)
+	}
+
+	if err := SetInterfaceAddress(tunName, local, remote); err != nil {
+		return nil, fmt.Errorf("failed to set interface address: %w", err)
+	}
+
+	// Add route for the TUN interface subnet to ensure packets can return
+	// This is crucial for the TUN interface to receive packets destined for its own subnet
+	// Calculate the network address for /30 subnet (e.g., 10.0.0.1 -> 10.0.0.0/30)
+	localIP := net.ParseIP(local)
+	networkAddr := net.IPv4(
+		localIP[12],
+		localIP[13],
+		localIP[14],
+		localIP[15]&0xFC,
+	) // Mask with /30
+
+	err = SetRoute(tunName, []string{networkAddr.String() + "/30"})
+	if err != nil {
+		return nil, fmt.Errorf("failed to set local route: %w", err)
+	}
+
+	// Add a host route to the gateway via the physical interface
+	// This ensures spoofdpi's outbound traffic goes through en0, not utun8
+	if err := SetGatewayRoute(s.gateway, s.iface); err != nil {
+		s.logger.Error().Err(err).Msg("failed to set gateway route")
+	}
+
+	err = SetRoute(tunName, []string{"0.0.0.0/0"}) // Default Route
+	if err != nil {
+		return nil, fmt.Errorf("failed to set default route: %w", err)
+	}
+
+	unset := func() error {
+		if s.tunDevice == nil {
+			return nil
+		}
+
+		// Remove the gateway route
+		if s.gateway != "" && s.iface != "" {
+			if err := UnsetGatewayRoute(s.gateway, s.iface); err != nil {
+				s.logger.Warn().Err(err).Msg("failed to unset gateway route")
+			}
+		}
+
+		return UnsetRoute(tunName, []string{"0.0.0.0/0"}) // Default Route
+	}
+
+	return unset, nil
+}
+
+func (s *TunServer) Addr() string {
+	if s.tunDevice != nil {
+		if name, err := s.tunDevice.Name(); err == nil {
+			return name
+		}
+	}
+	return "tun"
+}
+
+// matchRuleByAddr extracts IP and port from net.Addr and performs rule matching
+func (s *TunServer) matchRuleByAddr(addr net.Addr) *config.Rule {
+	if s.matcher == nil {
+		return nil
+	}
+
+	host, portStr, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return nil
+	}
+
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return nil
+	}
+
+	port, _ := strconv.Atoi(portStr)
+
+	selector := &matcher.Selector{
+		Kind: matcher.MatchKindAddr,
+		IP:   lo.ToPtr(ip),
+		Port: lo.ToPtr(uint16(port)),
+	}
+
+	return s.matcher.Search(selector)
 }
 
 func (s *TunServer) tunToStack(
@@ -268,9 +269,19 @@ func (s *TunServer) tunToStack(
 	logger zerolog.Logger,
 	ep *channel.Endpoint,
 ) {
-	buf := make([]byte, 2000)
+	const (
+		offset = 4
+		mtu    = 1500
+	)
+	buf := make(
+		[]byte,
+		offset+mtu,
+	) // must be offset+mtu so wireguard-go writes into buf[offset:]
+	sizes := make([]int, 1)
+
 	for {
-		n, err := s.tunDevice.Read(buf)
+		sizes[0] = mtu // reset each iteration; wireguard-go overwrites this with the actual packet length
+		n, err := s.tunDevice.Read([][]byte{buf}, sizes, offset)
 		if err != nil {
 			if errors.Is(err, fs.ErrClosed) || errors.Is(err, os.ErrClosed) {
 				return
@@ -287,30 +298,46 @@ func (s *TunServer) tunToStack(
 			}
 		}
 
-		if n < 1 {
+		if n < 1 || sizes[0] < 1 {
 			continue
 		}
 
-		version := (buf[0] >> 4)
+		// logger.Trace().
+		// 	Bytes("buf[0:4] = ", buf[0:4]).
+		// 	Int("sizes[0] = ", sizes[0]).
+		// 	Msg("Debugging..")
+		//
+		// logger.Trace().
+		// 	Bytes("buf[4:20] = ", buf[4:20]).
+		// 	Msg("Debugging..")
+
+		packet := buf[offset : offset+sizes[0]]
+
+		version := packet[0] >> 4
 		if version != 4 {
 			logger.Trace().Int("version", int(version)).Msg("skipping non-ipv4 packet")
 			continue
 		}
 
-		// Parse source and destination IP for debugging
-		// if n >= 20 {
-		// 	srcIP := net.IP(buf[12:16])
-		// 	dstIP := net.IP(buf[16:20])
-		// 	protocol := buf[9]
-		// 	logger.Trace().
-		// 		Str("src", srcIP.String()).
-		// 		Str("dst", dstIP.String()).
-		// 		Uint8("proto", protocol).
-		// 		Int("len", n).
-		// 		Msg("injecting packet to stack")
+		// readLen := sizes[0]
+		// version := (buf[0] >> 4)
+		// if version != 4 {
+		// 	logger.Trace().Int("version", int(version)).Msg("skipping non-ipv4 packet")
+		// 	continue
 		// }
 
-		payload := buffer.MakeWithData(append([]byte(nil), buf[:n]...))
+		// Parse source and destination IP for debugging
+		// srcIP := net.IP(buf[12:16])
+		// dstIP := net.IP(buf[16:20])
+		// protocol := buf[9]
+		// logger.Trace().
+		// 	Str("src", srcIP.String()).
+		// 	Str("dst", dstIP.String()).
+		// 	Uint8("proto", protocol).
+		// 	Int("len", n).
+		// 	Msg("injecting packet to stack")
+
+		payload := buffer.MakeWithData(append([]byte(nil), packet...))
 
 		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
 			Payload: payload,
@@ -340,6 +367,16 @@ func (s *TunServer) stackToTun(
 	n := &notifier{ch: ch}
 	ep.AddNotify(n)
 
+	// Pool of []byte slices to avoid per-packet allocation.
+	// Each buffer holds a 4-byte header placeholder followed by the IP packet.
+	const writeOffset = 4
+	pool := &sync.Pool{
+		New: func() any {
+			b := make([]byte, writeOffset+1500)
+			return &b
+		},
+	}
+
 	for {
 		select {
 		case <-appctx.Done():
@@ -359,15 +396,23 @@ func (s *TunServer) stackToTun(
 
 		views := pkt.ToView().AsSlice()
 		if len(views) > 0 {
-			_, _ = s.tunDevice.Write(views)
+			// wireguard-go Write(bufs, offset) writes the 4-byte AF family header into
+			// buf[offset-4:offset] and reads the IP packet from buf[offset:].
+			// We must therefore prepend 4 zero bytes so the IP payload starts at index 4.
+			needed := writeOffset + len(views)
+			bp := pool.Get().(*[]byte)
+			if cap(*bp) < needed {
+				*bp = make([]byte, needed)
+			}
+			buf := (*bp)[:needed]
+			copy(buf[writeOffset:], views)
+			_, _ = s.tunDevice.Write([][]byte{buf}, writeOffset)
+			pool.Put(bp)
 		}
 		pkt.DecRef()
 	}
 }
 
-func newTunDevice() (*water.Interface, error) {
-	config := water.Config{
-		DeviceType: water.TUN,
-	}
-	return water.New(config)
+func newTunDevice() (tun.Device, error) {
+	return tun.CreateTUN("utun", 1500)
 }
