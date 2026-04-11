@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"net"
 	"os"
+	"runtime"
 	"strconv"
 	"sync"
 
@@ -416,5 +417,9 @@ func (s *TunServer) stackToTun(
 }
 
 func newTunDevice() (tun.Device, error) {
-	return tun.CreateTUN("tun", 1500)
+	name := "tun"
+	if runtime.GOOS == "darwin" {
+		name = "utun"
+	}
+	return tun.CreateTUN(name, 1500)
 }
