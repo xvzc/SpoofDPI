@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
@@ -57,7 +58,6 @@ func NewHTTPProxy(
 
 func (p *HTTPProxy) ListenAndServe(
 	appctx context.Context,
-	ready chan<- struct{},
 ) error {
 	listener, err := net.ListenTCP("tcp", p.appOpts.ListenAddr)
 	if err != nil {
@@ -74,25 +74,26 @@ func (p *HTTPProxy) ListenAndServe(
 		_ = listener.Close()
 	}()
 
-	if ready != nil {
-		close(ready)
-	}
+	go func() {
+		var delay time.Duration
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					return
+				}
 
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			if errors.Is(err, net.ErrClosed) {
-				return nil // Normal shutdown
+				p.logger.Error().Err(err).Msgf("failed to accept new connection")
+				delay = server.BackoffOnError(delay)
+
+				continue
 			}
-			p.logger.Error().
-				Err(err).
-				Msgf("failed to accept new connection")
 
-			continue
+			go p.handleNewConnection(session.WithNewTraceID(context.Background()), conn)
 		}
+	}()
 
-		go p.handleNewConnection(session.WithNewTraceID(context.Background()), conn)
-	}
+	return nil
 }
 
 func (p *HTTPProxy) SetNetworkConfig() (func() error, error) {

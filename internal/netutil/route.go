@@ -99,15 +99,6 @@ func bindToInterface(
 	)
 }
 
-// getDefaultGateway finds the default gateway on macOS/BSD
-func getDefaultGateway() (string, error) {
-	ip, err := gateway.DiscoverGateway()
-	if err != nil {
-		return "", err
-	}
-	return ip.String(), nil
-}
-
 // GetDefaultInterfaceAndGateway returns the name of the default network interface and the gateway IP
 func GetDefaultInterfaceAndGateway() (string, string, error) {
 	// Dial a public DNS server to determine the default interface

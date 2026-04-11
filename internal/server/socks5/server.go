@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
@@ -62,7 +63,6 @@ func NewSOCKS5Proxy(
 
 func (p *SOCKS5Proxy) ListenAndServe(
 	appctx context.Context,
-	ready chan<- struct{},
 ) error {
 	listener, err := net.ListenTCP("tcp", p.appOpts.ListenAddr)
 	if err != nil {
@@ -78,24 +78,26 @@ func (p *SOCKS5Proxy) ListenAndServe(
 		_ = listener.Close()
 	}()
 
-	if ready != nil {
-		close(ready)
-	}
+	go func() {
+		var delay time.Duration
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					return // Normal shutdown
+				}
 
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			if errors.Is(err, net.ErrClosed) {
-				return nil
+				p.logger.Error().Err(err).Msg("failed to accept new connection")
+				server.BackoffOnError(delay)
+
+				continue
 			}
-			p.logger.Error().
-				Err(err).
-				Msg("failed to accept new connection")
-			continue
-		}
 
-		go p.handleConnection(session.WithNewTraceID(appctx), conn)
-	}
+			go p.handleConnection(session.WithNewTraceID(appctx), conn)
+		}
+	}()
+
+	return nil
 }
 
 func (p *SOCKS5Proxy) SetNetworkConfig() (func() error, error) {
