@@ -116,11 +116,7 @@ func (p *HTTPProxy) AutoConfigureNetwork() (func() error, error) {
 		return nil, fmt.Errorf("failed to configure network: %w", err)
 	}
 
-	cleanup := func() error {
-		return p.sysNet.UnsetNetworkConfig()
-	}
-
-	return cleanup, nil
+	return p.sysNet.UnsetNetworkConfig, nil
 }
 
 func (p *HTTPProxy) Addr() string {

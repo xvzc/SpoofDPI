@@ -50,8 +50,5 @@ func (n *socks5SystemNetworkDarwin) SetNetworkConfig() error {
 }
 
 func (n *socks5SystemNetworkDarwin) UnsetNetworkConfig() error {
-	if n.pacServer != nil {
-		_ = n.pacServer.Close()
-	}
-	return nil
+	return server.UnsetSystemProxy(n.pacServer)
 }

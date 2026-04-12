@@ -50,8 +50,5 @@ func (n *httpSystemNetworkDarwin) SetNetworkConfig() error {
 }
 
 func (n *httpSystemNetworkDarwin) UnsetNetworkConfig() error {
-	if n.pacServer != nil {
-		_ = n.pacServer.Close()
-	}
-	return nil
+	return server.UnsetSystemProxy(n.pacServer)
 }

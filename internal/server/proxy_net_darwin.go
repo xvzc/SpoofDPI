@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	stateFilePath           = "/tmp/spoofdpi.proxy.darwin.prev"
+	stateFilePath           = "/tmp/spoofdpi.proxy.darwin.state"
 	PermissionErrorHelpText = "By default spoofdpi tries to set itself up as a system-wide proxy server.\n" +
 		"Doing so may require root access on machines with\n" +
 		"'Settings > Privacy & Security > Advanced > Require" +
@@ -24,9 +24,7 @@ const (
 )
 
 type proxyStateDarwin struct {
-	Service           string `json:"service"`
-	PrevAutoProxyURL  string `json:"prev_autoproxy_url"`
-	PrevAutoDiscovery string `json:"prev_autodiscovery"`
+	Service string `json:"service"`
 }
 
 func RunPACServer(content string) (string, *http.Server, error) {
@@ -101,37 +99,6 @@ func IsPermissionError(err error) bool {
 	return ok && exitErr.ExitCode() == 14
 }
 
-func getCurrentProxySettings(service string) (url, status string, err error) {
-	cmd := exec.Command("networksetup", "-getautoproxyurl", service)
-	out, err := cmd.Output()
-	if err != nil {
-		return "", "", err
-	}
-
-	lines := strings.Split(string(out), "\n")
-	if len(lines) > 0 && strings.HasPrefix(lines[0], "URL:") {
-		url = strings.TrimSpace(strings.TrimPrefix(lines[0], "URL:"))
-		if url == "(null)" {
-			url = ""
-		}
-	}
-
-	cmd = exec.Command("networksetup", "-getproxyautodiscovery", service)
-	out, err = cmd.Output()
-	if err != nil {
-		return "", "", err
-	}
-
-	output := strings.TrimSpace(string(out))
-	if strings.HasSuffix(output, "Yes") {
-		status = "on"
-	} else {
-		status = "off"
-	}
-
-	return url, status, nil
-}
-
 func saveState(state *proxyStateDarwin) error {
 	data, err := json.Marshal(state)
 	if err != nil {
@@ -171,23 +138,6 @@ func SetSystemProxy(
 	port uint16,
 	proxyType string,
 ) (*http.Server, error) {
-	prevState, err := loadState()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load state: %w", err)
-	}
-
-	if prevState == nil {
-		autoproxyURL, autoDiscovery, getErr := getCurrentProxySettings(service)
-		if getErr != nil {
-			return nil, getErr
-		}
-		prevState = &proxyStateDarwin{
-			Service:           service,
-			PrevAutoProxyURL:  autoproxyURL,
-			PrevAutoDiscovery: autoDiscovery,
-		}
-	}
-
 	if proxyType == "" {
 		proxyType = "HTTP"
 	}
@@ -211,7 +161,7 @@ func SetSystemProxy(
 		return nil, fmt.Errorf("setting proxyautodiscovery: %w", err)
 	}
 
-	if err := saveState(prevState); err != nil {
+	if err := saveState(&proxyStateDarwin{Service: service}); err != nil {
 		_ = pacServer.Close()
 		return nil, fmt.Errorf("failed to save state: %w", err)
 	}
@@ -235,34 +185,18 @@ func UnsetSystemProxy(pacServer *http.Server) error {
 
 	var errs []error
 
-	if state.PrevAutoProxyURL != "" {
-		if err := NetworkSetup(
-			"-setautoproxyurl",
-			state.Service,
-			state.PrevAutoProxyURL,
-		); err != nil {
-			errs = append(errs, err)
-		}
-	} else {
-		if err := NetworkSetup("-setautoproxystate", state.Service, "off"); err != nil {
-			errs = append(errs, err)
-		}
+	if err := NetworkSetup("-setautoproxystate", state.Service, "off"); err != nil {
+		errs = append(errs, err)
 	}
 
-	if state.PrevAutoDiscovery == "on" {
-		if err := NetworkSetup("-setproxyautodiscovery", state.Service, "on"); err != nil {
-			errs = append(errs, err)
-		}
-	} else {
-		if err := NetworkSetup("-setproxyautodiscovery", state.Service, "off"); err != nil {
-			errs = append(errs, err)
-		}
+	if err := NetworkSetup("-setproxyautodiscovery", state.Service, "off"); err != nil {
+		errs = append(errs, err)
 	}
 
 	_ = deleteState()
 
 	if len(errs) > 0 {
-		return fmt.Errorf("failed to restore proxy settings: %v", errs)
+		return fmt.Errorf("failed to disable proxy: %v", errs)
 	}
 	return nil
 }
