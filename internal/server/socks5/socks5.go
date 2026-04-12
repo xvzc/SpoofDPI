@@ -23,6 +23,13 @@ import (
 	"github.com/xvzc/spoofdpi/internal/session"
 )
 
+// SOCKS5SystemNetwork handles OS-specific network configuration for SOCKS5 proxy.
+type SOCKS5SystemNetwork interface {
+	DefaultRoute() *netutil.Route
+	SetNetworkConfig() error
+	UnsetNetworkConfig() error
+}
+
 type SOCKS5Proxy struct {
 	logger zerolog.Logger
 
@@ -31,6 +38,7 @@ type SOCKS5Proxy struct {
 	connectHandler      *ConnectHandler
 	bindHandler         *BindHandler
 	udpAssociateHandler *UdpAssociateHandler
+	sysNet              SOCKS5SystemNetwork
 
 	appOpts    *config.AppOptions
 	connOpts   *config.ConnOptions
@@ -44,6 +52,7 @@ func NewSOCKS5Proxy(
 	connectHandler *ConnectHandler,
 	bindHandler *BindHandler,
 	udpAssociateHandler *UdpAssociateHandler,
+	sysNet SOCKS5SystemNetwork,
 	appOpts *config.AppOptions,
 	connOpts *config.ConnOptions,
 	policyOpts *config.PolicyOptions,
@@ -55,6 +64,7 @@ func NewSOCKS5Proxy(
 		connectHandler:      connectHandler,
 		bindHandler:         bindHandler,
 		udpAssociateHandler: udpAssociateHandler,
+		sysNet:              sysNet,
 		appOpts:             appOpts,
 		connOpts:            connOpts,
 		policyOpts:          policyOpts,
@@ -100,8 +110,20 @@ func (p *SOCKS5Proxy) ListenAndServe(
 	return nil
 }
 
-func (p *SOCKS5Proxy) SetNetworkConfig() (func() error, error) {
-	return setSystemProxy(p.logger, uint16(p.appOpts.ListenAddr.Port))
+func (p *SOCKS5Proxy) AutoConfigureNetwork() (func() error, error) {
+	if p.sysNet == nil {
+		return nil, fmt.Errorf("system network not initialized")
+	}
+
+	if err := p.sysNet.SetNetworkConfig(); err != nil {
+		return nil, fmt.Errorf("failed to configure network: %w", err)
+	}
+
+	cleanup := func() error {
+		return p.sysNet.UnsetNetworkConfig()
+	}
+
+	return cleanup, nil
 }
 
 func (p *SOCKS5Proxy) Addr() string {

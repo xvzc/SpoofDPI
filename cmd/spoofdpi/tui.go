@@ -326,8 +326,6 @@ var p *tea.Program
 
 type TUIWriter struct{}
 
-var startupLogDelay = 117 * time.Millisecond
-
 func (TUIWriter) Write(b []byte) (n int, err error) {
 	if p != nil {
 		go p.Send(logMsg(strings.TrimSpace(string(b))))

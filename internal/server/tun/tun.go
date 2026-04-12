@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"net"
 	"os"
-	"runtime"
 	"strconv"
 	"sync"
 
@@ -35,6 +34,15 @@ import (
 // Ensure tcpip is used to avoid "imported and not used" error
 var _ tcpip.NetworkProtocolNumber = ipv4.ProtocolNumber
 
+// TUNSystemNetwork handles OS-specific network configuration for TUN mode.
+type TUNSystemNetwork interface {
+	TunDevice() tun.Device
+	DefaultRoute() *netutil.Route
+	SetNetworkConfig() error
+	UnsetNetworkConfig() error
+	BindDialer(dialer *net.Dialer, network string, targetIP net.IP) error
+}
+
 type TunServer struct {
 	logger  zerolog.Logger
 	config  *config.Config
@@ -43,9 +51,7 @@ type TunServer struct {
 	tcpHandler *TCPHandler
 	udpHandler *UDPHandler
 
-	tunDevice tun.Device
-	iface     string
-	gateway   string
+	sysNet TUNSystemNetwork // OS-specific network configuration
 }
 
 func NewTunServer(
@@ -54,8 +60,7 @@ func NewTunServer(
 	matcher matcher.RuleMatcher,
 	tcpHandler *TCPHandler,
 	udpHandler *UDPHandler,
-	iface string,
-	gateway string,
+	sysNet TUNSystemNetwork,
 ) server.Server {
 	return &TunServer{
 		logger:     logger,
@@ -63,8 +68,7 @@ func NewTunServer(
 		matcher:    matcher,
 		tcpHandler: tcpHandler,
 		udpHandler: udpHandler,
-		iface:      iface,
-		gateway:    gateway,
+		sysNet:     sysNet,
 	}
 }
 
@@ -73,10 +77,9 @@ func (s *TunServer) ListenAndServe(
 ) error {
 	logger := logging.WithLocalScope(appctx, s.logger, "tun")
 
-	var err error
-	s.tunDevice, err = newTunDevice()
-	if err != nil {
-		return fmt.Errorf("failed to create tun device: %w", err)
+	tunDevice := s.sysNet.TunDevice()
+	if tunDevice == nil {
+		return fmt.Errorf("tun device not available")
 	}
 
 	// 1. Create gVisor stack
@@ -98,7 +101,7 @@ func (s *TunServer) ListenAndServe(
 
 	go func() {
 		<-appctx.Done()
-		_ = s.tunDevice.Close()
+		_ = tunDevice.Close()
 	}()
 
 	// 3. Enable Promiscuous mode & Spoofing
@@ -124,7 +127,7 @@ func (s *TunServer) ListenAndServe(
 		var wq waiter.Queue
 		ep, err := r.CreateEndpoint(&wq)
 		if err != nil {
-			logger.Error().Msgf("failed to create endpoint: %v", err)
+			logger.Error().Msgf("failed to create tcp endpoint: %v", err)
 			r.Complete(true)
 			return
 		}
@@ -134,7 +137,12 @@ func (s *TunServer) ListenAndServe(
 
 		// Match rule by IP before passing to handler
 		rule := s.matchRuleByAddr(conn.LocalAddr())
-		go s.tcpHandler.Handle(session.WithNewTraceID(context.Background()), conn, rule)
+		go s.tcpHandler.Handle(
+			session.WithNewTraceID(context.Background()),
+			s.sysNet,
+			conn,
+			rule,
+		)
 	})
 	stk.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpFwd.HandlePacket)
 
@@ -151,87 +159,40 @@ func (s *TunServer) ListenAndServe(
 
 		// Match rule by IP before passing to handler
 		rule := s.matchRuleByAddr(conn.LocalAddr())
-		go s.udpHandler.Handle(session.WithNewTraceID(context.Background()), conn, rule)
+		go s.udpHandler.Handle(
+			session.WithNewTraceID(context.Background()),
+			s.sysNet,
+			conn,
+			rule,
+		)
 		return true
 	})
 	stk.SetTransportProtocolHandler(udp.ProtocolNumber, udpFwd.HandlePacket)
 
 	// 6. Start packet pump
 	go func() {
-		go s.tunToStack(appctx, logger, ep)
-		s.stackToTun(appctx, logger, ep)
+		go s.tunToStack(appctx, logger, ep, tunDevice)
+		s.stackToTun(appctx, logger, ep, tunDevice)
 	}()
 
 	return nil
 }
 
-func (s *TunServer) SetNetworkConfig() (func() error, error) {
-	if s.tunDevice == nil {
-		return nil, fmt.Errorf("tun device not initialized")
+func (s *TunServer) AutoConfigureNetwork() (func() error, error) {
+	if s.sysNet == nil {
+		return nil, fmt.Errorf("system network not initialized")
 	}
 
-	tunName, err := s.tunDevice.Name()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tun device name: %w", err)
+	if err := s.sysNet.SetNetworkConfig(); err != nil {
+		return nil, fmt.Errorf("failed to configure network: %w", err)
 	}
 
-	local, remote, err := netutil.FindSafeSubnet()
-	if err != nil {
-		return nil, fmt.Errorf("failed to find safe subnet: %w", err)
-	}
-
-	if err := SetInterfaceAddress(tunName, local, remote); err != nil {
-		return nil, fmt.Errorf("failed to set interface address: %w", err)
-	}
-
-	// Add route for the TUN interface subnet to ensure packets can return
-	// This is crucial for the TUN interface to receive packets destined for its own subnet
-	// Calculate the network address for /30 subnet (e.g., 10.0.0.1 -> 10.0.0.0/30)
-	localIP := net.ParseIP(local)
-	networkAddr := net.IPv4(
-		localIP[12],
-		localIP[13],
-		localIP[14],
-		localIP[15]&0xFC,
-	) // Mask with /30
-
-	err = SetRoute(tunName, []string{networkAddr.String() + "/30"})
-	if err != nil {
-		return nil, fmt.Errorf("failed to set local route: %w", err)
-	}
-
-	// Add a host route to the gateway via the physical interface
-	// This ensures spoofdpi's outbound traffic goes through en0, not utun8
-	if err := SetGatewayRoute(s.gateway, s.iface); err != nil {
-		s.logger.Error().Err(err).Msg("failed to set gateway route")
-	}
-
-	err = SetRoute(tunName, []string{"0.0.0.0/0"}) // Default Route
-	if err != nil {
-		return nil, fmt.Errorf("failed to set default route: %w", err)
-	}
-
-	unset := func() error {
-		if s.tunDevice == nil {
-			return nil
-		}
-
-		// Remove the gateway route
-		if s.gateway != "" && s.iface != "" {
-			if err := UnsetGatewayRoute(s.gateway, s.iface); err != nil {
-				s.logger.Warn().Err(err).Msg("failed to unset gateway route")
-			}
-		}
-
-		return UnsetRoute(tunName, []string{"0.0.0.0/0"}) // Default Route
-	}
-
-	return unset, nil
+	return s.sysNet.UnsetNetworkConfig, nil
 }
 
 func (s *TunServer) Addr() string {
-	if s.tunDevice != nil {
-		if name, err := s.tunDevice.Name(); err == nil {
+	if dev := s.sysNet.TunDevice(); dev != nil {
+		if name, err := dev.Name(); err == nil {
 			return name
 		}
 	}
@@ -269,6 +230,7 @@ func (s *TunServer) tunToStack(
 	appctx context.Context,
 	logger zerolog.Logger,
 	ep *channel.Endpoint,
+	tunDevice tun.Device,
 ) {
 	const (
 		// readOffset is the headroom before each IP packet in the read buffer.
@@ -285,7 +247,7 @@ func (s *TunServer) tunToStack(
 	// each GRO sub-segment into a separate bufs[i] slot. If len(bufs) < number
 	// of segments, gsoSplit returns ErrTooManySegments. We must therefore
 	// pre-allocate exactly BatchSize() buffers.
-	batchSize := s.tunDevice.BatchSize()
+	batchSize := tunDevice.BatchSize()
 
 	// Allocate all per-packet buffers from a single contiguous backing array to
 	// keep allocations low.
@@ -304,7 +266,7 @@ func (s *TunServer) tunToStack(
 			sizes[i] = mtu
 		}
 
-		n, err := s.tunDevice.Read(bufs, sizes, readOffset)
+		n, err := tunDevice.Read(bufs, sizes, readOffset)
 		if err != nil {
 			if errors.Is(err, fs.ErrClosed) || errors.Is(err, os.ErrClosed) {
 				return
@@ -356,6 +318,7 @@ func (s *TunServer) stackToTun(
 	appctx context.Context,
 	logger zerolog.Logger,
 	ep *channel.Endpoint,
+	tunDevice tun.Device,
 ) {
 	ch := make(chan struct{}, 1)
 	n := &notifier{ch: ch}
@@ -409,17 +372,9 @@ func (s *TunServer) stackToTun(
 			}
 			buf := (*bp)[:needed]
 			copy(buf[writeOffset:], views)
-			_, _ = s.tunDevice.Write([][]byte{buf}, writeOffset)
+			_, _ = tunDevice.Write([][]byte{buf}, writeOffset)
 			pool.Put(bp)
 		}
 		pkt.DecRef()
 	}
-}
-
-func newTunDevice() (tun.Device, error) {
-	name := "tun"
-	if runtime.GOOS == "darwin" {
-		name = "utun"
-	}
-	return tun.CreateTUN(name, 1500)
 }

@@ -18,8 +18,6 @@ type UDPHandler struct {
 	defaultUDPOpts  *config.UDPOptions
 	defaultConnOpts *config.ConnOptions
 	desyncer        *desync.UDPDesyncer
-	iface           string
-	gateway         string
 }
 
 func NewUDPHandler(
@@ -27,25 +25,21 @@ func NewUDPHandler(
 	desyncer *desync.UDPDesyncer,
 	defaultUDPOpts *config.UDPOptions,
 	defaultConnOpts *config.ConnOptions,
-	iface string,
-	gateway string,
 ) *UDPHandler {
 	return &UDPHandler{
 		logger:          logger,
 		desyncer:        desyncer,
 		defaultUDPOpts:  defaultUDPOpts,
 		defaultConnOpts: defaultConnOpts,
-		iface:           iface,
-		gateway:         gateway,
 	}
 }
 
-func (h *UDPHandler) SetNetworkInfo(iface, gateway string) {
-	h.iface = iface
-	h.gateway = gateway
-}
-
-func (h *UDPHandler) Handle(ctx context.Context, lConn net.Conn, rule *config.Rule) {
+func (h *UDPHandler) Handle(
+	ctx context.Context,
+	sysNet TUNSystemNetwork,
+	lConn net.Conn,
+	rule *config.Rule,
+) {
 	logger := logging.WithLocalScope(ctx, h.logger, "udp")
 
 	defer netutil.CloseConns(lConn)
@@ -56,16 +50,13 @@ func (h *UDPHandler) Handle(ctx context.Context, lConn net.Conn, rule *config.Ru
 	}
 	port, _ := strconv.Atoi(portStr)
 
-	var iface *net.Interface
-	if h.iface != "" {
-		iface, _ = net.InterfaceByName(h.iface)
+	if route := sysNet.DefaultRoute(); route != nil && route.Iface.Name != "" {
+		logger.Debug().Str("iface", route.Iface.Name).Msg("using interface for dial")
 	}
 
 	dst := &netutil.Destination{
-		Domain:  host,
-		Port:    port,
-		Iface:   iface,
-		Gateway: h.gateway,
+		Domain: host,
+		Port:   port,
 	}
 	if ip := net.ParseIP(host); ip != nil {
 		dst.Addrs = []net.IP{ip}
@@ -81,7 +72,7 @@ func (h *UDPHandler) Handle(ctx context.Context, lConn net.Conn, rule *config.Ru
 	}
 
 	// Dial remote connection
-	rawConn, err := netutil.DialFastest(ctx, "udp", dst)
+	rawConn, err := netutil.DialFastest(ctx, "udp", dst, sysNet.BindDialer)
 	if err != nil {
 		logger.Error().Msgf("error dialing to %s", dst.String())
 		return
@@ -110,7 +101,7 @@ func (h *UDPHandler) Handle(ctx context.Context, lConn net.Conn, rule *config.Ru
 	go netutil.TunnelConns(ctx, resCh, lConnWrapped, rConnWrapped, netutil.TunnelDirOut)
 	go netutil.TunnelConns(ctx, resCh, rConnWrapped, lConnWrapped, netutil.TunnelDirIn)
 
-	err = netutil.WaitAndLogTunnel(
+	err = netutil.WaitForTunnelCompletion(
 		ctx,
 		logger,
 		resCh,

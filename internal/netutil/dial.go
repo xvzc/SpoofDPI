@@ -13,13 +13,19 @@ type dialResult struct {
 	err  error
 }
 
+// BindFunc is called to configure the dialer before dialing.
+// If it returns an error, the dial attempt fails.
+type BindFunc func(dialer *net.Dialer, network string, targetIP net.IP) error
+
 // DialFastest attempts robust connections to the server
 // and returns the first successful conn. All the other connections will be
 // automatically canceled by calling `cancel()`
+// If bindFunc is not nil, it is called to configure the dialer before each dial attempt.
 func DialFastest(
 	ctx context.Context,
 	network string,
 	dst *Destination,
+	bindFunc BindFunc,
 ) (net.Conn, error) {
 	if len(dst.Addrs) == 0 {
 		return nil, fmt.Errorf("no addresses provided to dial")
@@ -51,9 +57,9 @@ func DialFastest(
 					dialer.Deadline = time.Now().Add(dst.Timeout)
 				}
 
-				// If Iface is specified, bind to the interface
-				if dst.Iface != nil {
-					if err := bindToInterface(network, dialer, dst.Iface, ip); err != nil {
+				// Apply bind function if provided
+				if bindFunc != nil {
+					if err := bindFunc(dialer, network, ip); err != nil {
 						select {
 						case results <- dialResult{conn: nil, err: err}:
 						case <-ctx.Done():

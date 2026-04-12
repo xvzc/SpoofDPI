@@ -168,7 +168,7 @@ func runApp(mainctx context.Context, configDir string, cfg *config.Config) error
 	} else {
 		logger.Info().Msgf("server started on %s", srv.Addr())
 		if *cfg.App.AutoConfigureNetwork {
-			unset, err := srv.SetNetworkConfig()
+			unset, err := srv.AutoConfigureNetwork()
 			if err != nil {
 				logger.Error().Err(err).Msg("failed to set system network config")
 			} else if unset != nil {
@@ -364,6 +364,8 @@ func createServer(
 		tcpSniffer,
 	)
 
+	defaultRoute, _ := netutil.DefaultRoute()
+
 	switch *cfg.App.Mode {
 	case config.AppModeHTTP:
 		httpHandler := http.NewHTTPHandler(logging.WithScope(logger, "hnd"))
@@ -375,12 +377,19 @@ func createServer(
 			cfg.Conn.Clone(),
 		)
 
+		sysNet := http.NewHTTPSystemNetwork(
+			logging.WithScope(logger, "sys"),
+			uint16(cfg.App.ListenAddr.Port),
+			defaultRoute,
+		)
+
 		return http.NewHTTPProxy(
 			logging.WithScope(logger, "srv"),
 			resolver,
 			httpHandler,
 			httpsHandler,
 			ruleMatcher,
+			sysNet,
 			cfg.App.Clone(),
 			cfg.Conn.Clone(),
 			cfg.Policy.Clone(),
@@ -416,27 +425,32 @@ func createServer(
 			connectHandler,
 			bindHandler,
 			udpAssociateHandler,
+			socks5.NewSOCKS5SystemNetwork(
+				logging.WithScope(logger, "sys"),
+				uint16(cfg.App.ListenAddr.Port),
+				defaultRoute,
+			),
 			cfg.App.Clone(),
 			cfg.Conn.Clone(),
 			cfg.Policy.Clone(),
 		), nil
 	case config.AppModeTUN:
 		// Find default interface and gateway before modifying routes
-		defaultIface, defaultGateway, err := netutil.GetDefaultInterfaceAndGateway()
+		defaultRoute, err := netutil.DefaultRoute()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get default interface: %w", err)
+			return nil, fmt.Errorf("failed to get default route: %w", err)
 		}
 		logger.Info().
-			Str("interface", defaultIface).
-			Str("gateway", defaultGateway).
+			Str("interface", defaultRoute.Iface.Name).
+			Str("gateway", defaultRoute.Gateway.String()).
 			Msg("determined default interface and gateway")
-		// s.defaultIface = defaultIface
-		// s.defaultGateway = defaultGateway
 
-		// Update handlers with network info
-		// s.tcpHandler.SetNetworkInfo(defaultIface, defaultGateway)
-		// s.udpHandler.SetNetworkInfo(defaultIface, defaultGateway)
-		//
+		// Get FIB ID from config (FreeBSD only, default to 1)
+		fibID := 1
+		if cfg.App.FreebsdFIB != nil {
+			fibID = *cfg.App.FreebsdFIB
+		}
+
 		tcpHandler := tun.NewTCPHandler(
 			logging.WithScope(logger, "hnd"),
 			ruleMatcher, // For domain-based TLS matching
@@ -444,8 +458,6 @@ func createServer(
 			cfg.Conn.Clone(),
 			desyncer,
 			tcpSniffer, // For TTL tracking
-			defaultIface,
-			defaultGateway,
 		)
 
 		udpDesyncer := desync.NewUDPDesyncer(
@@ -459,8 +471,6 @@ func createServer(
 			udpDesyncer,
 			cfg.UDP.Clone(),
 			cfg.Conn.Clone(),
-			defaultIface,
-			defaultGateway,
 		)
 
 		return tun.NewTunServer(
@@ -469,8 +479,7 @@ func createServer(
 			ruleMatcher, // For IP-based matching in server.go
 			tcpHandler,
 			udpHandler,
-			defaultIface,
-			defaultGateway,
+			tun.NewTUNSystemNetwork(logging.WithScope(logger, "sys"), defaultRoute, fibID),
 		), nil
 	default:
 		return nil, fmt.Errorf("unknown server mode: %s", *cfg.App.Mode)

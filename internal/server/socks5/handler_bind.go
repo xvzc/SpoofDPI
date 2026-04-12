@@ -87,7 +87,7 @@ func (h *BindHandler) Handle(
 	go netutil.TunnelConns(ctx, resCh, remoteConn, conn, netutil.TunnelDirOut)
 	go netutil.TunnelConns(ctx, resCh, conn, remoteConn, netutil.TunnelDirIn)
 
-	return netutil.WaitAndLogTunnel(
+	return netutil.WaitForTunnelCompletion(
 		ctx,
 		logger,
 		resCh,

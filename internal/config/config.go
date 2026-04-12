@@ -139,6 +139,7 @@ func getDefault() *Config { //exhaustruct:enforce
 			AutoConfigureNetwork: lo.ToPtr(false),
 			Mode:                 lo.ToPtr(AppModeHTTP),
 			ListenAddr:           nil,
+			FreebsdFIB:           lo.ToPtr(1),
 		},
 		Conn: &ConnOptions{
 			DefaultFakeTTL: lo.ToPtr(uint8(8)),

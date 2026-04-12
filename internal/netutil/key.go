@@ -5,6 +5,27 @@ import (
 	"net"
 )
 
+/*
+`isIPv4Mapped` checks if the 16-byte array contains an IPv4-mapped IPv6 address.
+
+Note: While net.IP.To4() is generally preferred for standard IP checks,
+this function is strictly optimized for IPKey/NATKey types to avoid
+unnecessary allocations and overhead in high-performance paths.
+DO NOT use this function in other contexts.
+*/
+func isIPv4Mapped(ip [16]byte) bool {
+	// IPv4-mapped IPv6 address has the prefix 0:0:0:0:0:FFFF
+	for i := 0; i < 10; i++ {
+		if ip[i] != 0 {
+			return false
+		}
+	}
+	if ip[10] != 0xff || ip[11] != 0xff {
+		return false
+	}
+	return true
+}
+
 // NATKey represents a 4-tuple (SrcIP, SrcPort, DstIP, DstPort) for zero-allocation NAT session mapping
 type NATKey struct {
 	SrcIP   [16]byte

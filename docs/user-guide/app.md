@@ -179,6 +179,31 @@ $ spoofdpi --clean
 
 ---
 
+## `freebsd-fib`
+
+`type: integer`
+
+### Description
+
+Specifies the FIB (Forwarding Information Base) ID for FreeBSD routing table. `(default: 1)`
+
+Valid range is 1-15. This option is only applicable on **FreeBSD** systems when using TUN mode.
+
+### Usage
+
+**Command-Line Flag**
+```console
+$ spoofdpi --freebsd-fib 3
+```
+
+**TOML Config**
+```toml
+[app]
+freebsd-fib = 3
+```
+
+---
+
 ## `version`
 
 `type: boolean`

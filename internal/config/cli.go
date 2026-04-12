@@ -389,6 +389,21 @@ func CreateCommand(
 				},
 			},
 
+			&cli.Int64Flag{
+				Name: "freebsd-fib",
+				Usage: fmt.Sprintf(`
+				FIB ID for FreeBSD routing table (1-15). (default: %v)`,
+					1,
+				),
+				Value:     1,
+				OnlyOnce:  true,
+				Validator: checkFreeBSDFibID,
+				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
+					argsCfg.App.FreebsdFIB = lo.ToPtr(int(v))
+					return nil
+				},
+			},
+
 			&cli.BoolFlag{
 				Name: "version",
 				Usage: `

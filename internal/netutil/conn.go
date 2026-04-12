@@ -87,9 +87,9 @@ func TunnelConns(
 	resCh <- TransferResult{Written: n, Dir: dir, Err: nil}
 }
 
-// WaitAndLogTunnel aggregates results and logs the summary.
+// WaitForTunnelCompletion aggregates results and logs the summary.
 // errHandler processes the list of errors to determine the final error.
-func WaitAndLogTunnel(
+func WaitForTunnelCompletion(
 	ctx context.Context,
 	logger zerolog.Logger,
 	resCh <-chan TransferResult,

@@ -50,6 +50,7 @@ type AppOptions struct {
 	AutoConfigureNetwork *bool          `toml:"auto-configure-network"`
 	Mode                 *AppModeType   `toml:"mode"`
 	ListenAddr           *net.TCPAddr   `toml:"listen-addr"`
+	FreebsdFIB           *int           `toml:"freebsd-fib"` // FreeBSD only: FIB ID for routing (2-15)
 }
 
 func (o *AppOptions) UnmarshalTOML(data any) (err error) {
@@ -70,6 +71,7 @@ func (o *AppOptions) UnmarshalTOML(data any) (err error) {
 	if p := findFrom(m, "listen-addr", parseStringFn(checkHostPort), &err); isOk(p, err) {
 		o.ListenAddr = lo.ToPtr(MustParseTCPAddr(*p))
 	}
+	o.FreebsdFIB = findFrom(m, "freebsd-fib", parseIntFn[int](checkFreeBSDFibID), &err)
 
 	return err
 }
@@ -100,6 +102,7 @@ func (o *AppOptions) Clone() *AppOptions {
 		AutoConfigureNetwork: clonePrimitive(o.AutoConfigureNetwork),
 		Mode:                 clonePrimitive(o.Mode),
 		ListenAddr:           newAddr,
+		FreebsdFIB:           clonePrimitive(o.FreebsdFIB),
 	}
 }
 
@@ -122,12 +125,13 @@ func (origin *AppOptions) Merge(overrides *AppOptions) *AppOptions {
 		),
 		Mode:       lo.CoalesceOrEmpty(overrides.Mode, origin.Mode),
 		ListenAddr: lo.CoalesceOrEmpty(overrides.ListenAddr, origin.ListenAddr),
+		FreebsdFIB: lo.CoalesceOrEmpty(overrides.FreebsdFIB, origin.FreebsdFIB),
 	}
 }
 
-// ┌──────────────────────┐
-// │ CONNECTION OPTIONS   │
-// └──────────────────────┘
+// ┌────────────────────┐
+// │ CONNECTION OPTIONS │
+// └────────────────────┘
 var _ merger[*ConnOptions] = (*ConnOptions)(nil)
 
 type AppModeType int
