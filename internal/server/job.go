@@ -1,6 +1,6 @@
 package server
 
 type ConfigurationJob struct {
-	Set   func() error
-	Unset func() error
+	Up   func() error
+	Down func() error
 }

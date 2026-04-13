@@ -377,7 +377,7 @@ func (s *TunServer) AutoConfigureNetwork() (func(), error) {
 
 		// Reverts only the successfully applied jobs in LIFO order
 		for i := len(staleStateJobs) - 1; i >= 0; i-- {
-			if err := staleStateJobs[i].Unset(); err != nil {
+			if err := staleStateJobs[i].Down(); err != nil {
 				s.logger.Error().Err(err).Msg("failed to run unset job")
 			}
 		}
@@ -404,7 +404,11 @@ func (s *TunServer) AutoConfigureNetwork() (func(), error) {
 
 	set := func() error {
 		for i, each := range newStateJobs {
-			if err := each.Set(); err != nil {
+			if each.Up == nil {
+				continue
+			}
+
+			if err := each.Up(); err != nil {
 				return fmt.Errorf("failed to run set job: %w", err)
 			}
 			// Increments the counter after successful job execution
@@ -416,7 +420,11 @@ func (s *TunServer) AutoConfigureNetwork() (func(), error) {
 	unset := func() {
 		// Reverts only the successfully applied jobs in LIFO order
 		for i := executedJobs - 1; i >= 0; i-- {
-			if err := newStateJobs[i].Unset(); err != nil {
+			if newStateJobs[i].Down == nil {
+				continue
+			}
+
+			if err := newStateJobs[i].Down(); err != nil {
 				s.logger.Error().Err(err).Msg("failed to run unset job")
 			}
 		}

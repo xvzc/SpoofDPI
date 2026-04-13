@@ -133,81 +133,6 @@ func (n *tunSystemNetworkDarwin) FIBID() int {
 	return 1
 }
 
-// func (n *tunSystemNetworkDarwin) cleanupNetworkConfig(state *tunStateDarwin) {
-// 	for _, target := range state.RouteTargetCIDRs {
-// 		if out, err := executil.Commandf("route -n delete -net %s -interface %s",
-// 			target, state.TUNName); err != nil {
-// 			n.logger.Debug().Err(err).Str("output", out).Msg("route delete (ignored)")
-// 		}
-// 	}
-//
-// 	if out, err := executil.Commandf("route -n delete -host %s -interface %s",
-// 		state.GatewayIP, state.PhysIfaceName); err != nil {
-// 		n.logger.Debug().Err(err).Str("output", out).Msg("route -n delete -host (ignored)")
-// 	}
-//
-// 	if out, err := executil.Commandf("route delete -ifscope %s default",
-// 		state.PhysIfaceName); err != nil {
-// 		n.logger.Debug().Err(err).Str("output", out).Msg("route delete -ifscope (ignored)")
-// 	}
-// }
-
-//	func (n *tunSystemNetworkDarwin) SetNetworkConfig() error {
-//		if state, exists, err := loadState(); err == nil && exists {
-//			n.logger.Info().Str("iface", state.TUNName).Msg("cleaning up stale state")
-//			n.cleanupNetworkConfig(state)
-//			if err := deleteState(); err != nil {
-//				return fmt.Errorf("failed to delete stale state: %w", err)
-//			}
-//		}
-//
-//		newState, err := n.createState()
-//		if err != nil {
-//			return err
-//		}
-//
-//		if err := saveState(newState); err != nil {
-//			return fmt.Errorf("failed to save state: %w", err)
-//		}
-//
-//		if out, err := executil.Commandf("ifconfig %s %s %s up",
-//			newState.TUNName, newState.TunLocalIP, newState.TunRemoteIP); err != nil {
-//			return fmt.Errorf("failed to set interface address: %s: %w", out, err)
-//		}
-//
-//		if out, err := executil.Commandf("route add -ifscope %s default %s",
-//			newState.PhysIfaceName, newState.GatewayIP); err != nil {
-//			return fmt.Errorf("failed to add scoped default route: %s: %w", out, err)
-//		}
-//
-//		if out, err := executil.Commandf("route -n add -host %s -interface %s",
-//			newState.GatewayIP, newState.PhysIfaceName); err != nil {
-//			return fmt.Errorf("failed to add host route: %s: %w", out, err)
-//		}
-//
-//		for _, target := range newState.RouteTargetCIDRs {
-//			if out, err := executil.Commandf("route -n add -net %s -interface %s",
-//				target, newState.TUNName); err != nil {
-//				return fmt.Errorf("failed to add route for %s: %s: %w", target, out, err)
-//			}
-//		}
-//
-//		return nil
-//	}
-//
-//	func (n *tunSystemNetworkDarwin) UnsetNetworkConfig() error {
-//		state, exists, err := loadState()
-//		if err != nil {
-//			return fmt.Errorf("failed to load state: %w", err)
-//		}
-//		if !exists {
-//			return nil
-//		}
-//
-//		n.cleanupNetworkConfig(state)
-//		return deleteState()
-//	}
-
 func (n *tunSystemNetworkDarwin) BindDialer(
 	dialer *net.Dialer,
 	network string,
@@ -283,95 +208,98 @@ func configurationJobs(
 	logger zerolog.Logger,
 	state *tunStateDarwin,
 ) []server.ConfigurationJob {
-	return []server.ConfigurationJob{
-		{
-			Set: func() error {
-				if out, err := executil.Commandf("ifconfig %s %s %s up",
-					state.TUNName, state.TunLocalIP, state.TunRemoteIP); err != nil {
-					return fmt.Errorf("failed to set interface address: %s: %w", out, err)
+	var jobs []server.ConfigurationJob
+
+	jobs = append(jobs, server.ConfigurationJob{
+		Up: func() error {
+			if out, err := executil.Commandf("ifconfig %s %s %s up",
+				state.TUNName, state.TunLocalIP, state.TunRemoteIP); err != nil {
+				return fmt.Errorf("failed to set interface address: %s: %w", out, err)
+			}
+
+			return nil
+		},
+		Down: func() error {
+			if out, err := executil.Commandf("ifconfig %s destroy",
+				state.TUNName,
+			); err != nil {
+				logger.Trace().Err(err).Str("out", strings.TrimSpace(out)).
+					Msg("failed to unset interface address (ignored)")
+			}
+
+			return nil
+		},
+	})
+
+	jobs = append(jobs, server.ConfigurationJob{
+		Up: func() error {
+			if out, err := executil.Commandf("route add -ifscope %s default %s",
+				state.PhysIfaceName, state.GatewayIP); err != nil {
+				return fmt.Errorf("failed to add scoped default route: %s: %w", out, err)
+			}
+
+			return nil
+		},
+		Down: func() error {
+			if out, err := executil.Commandf("route delete -ifscope %s default %s",
+				state.PhysIfaceName, state.GatewayIP,
+			); err != nil {
+				logger.Debug().
+					Err(err).
+					Str("out", out).
+					Msg("route delete -ifscope (ignored)")
+			}
+
+			return nil
+		},
+	})
+
+	jobs = append(jobs, server.ConfigurationJob{
+		Up: func() error {
+			if out, err := executil.Commandf("route -n add -host %s -interface %s",
+				state.GatewayIP, state.PhysIfaceName,
+			); err != nil {
+				return fmt.Errorf("failed to add host route: %s: %w", out, err)
+			}
+
+			return nil
+		},
+		Down: func() error {
+			if out, err := executil.Commandf("route -n delete -host %s -interface %s",
+				state.GatewayIP, state.PhysIfaceName,
+			); err != nil {
+				logger.Debug().
+					Err(err).
+					Str("out", out).
+					Msg("route -n delete -host (ignored)")
+			}
+			return nil
+		},
+	})
+
+	for _, target := range state.RouteTargetCIDRs {
+		jobs = append(jobs, server.ConfigurationJob{
+			Up: func() error {
+				if out, err := executil.Commandf("route -n add -net %s -interface %s",
+					target, state.TUNName,
+				); err != nil {
+					return fmt.Errorf("failed to add route for %s: %s: %w", target, out, err)
 				}
 
 				return nil
 			},
-			Unset: func() error {
-				if out, err := executil.Commandf("ifconfig %s destroy",
-					state.TUNName,
+			Down: func() error {
+				if out, err := executil.Commandf("route -n delete -net %s -interface %s",
+					target, state.TUNName,
 				); err != nil {
 					logger.Trace().Err(err).Str("out", strings.TrimSpace(out)).
-						Msg("failed to unset interface address (ignored)")
+						Msg("route delete (ignored)")
 				}
 
 				return nil
 			},
-		},
-		{
-			Set: func() error {
-				if out, err := executil.Commandf("route add -ifscope %s default %s",
-					state.PhysIfaceName, state.GatewayIP); err != nil {
-					return fmt.Errorf("failed to add scoped default route: %s: %w", out, err)
-				}
-
-				return nil
-			},
-			Unset: func() error {
-				if out, err := executil.Commandf("route delete -ifscope %s default %s",
-					state.PhysIfaceName, state.GatewayIP,
-				); err != nil {
-					logger.Debug().
-						Err(err).
-						Str("out", out).
-						Msg("route delete -ifscope (ignored)")
-				}
-
-				return nil
-			},
-		},
-		{
-			Set: func() error {
-				if out, err := executil.Commandf("route -n add -host %s -interface %s",
-					state.GatewayIP, state.PhysIfaceName,
-				); err != nil {
-					return fmt.Errorf("failed to add host route: %s: %w", out, err)
-				}
-
-				return nil
-			},
-			Unset: func() error {
-				if out, err := executil.Commandf("route -n delete -host %s -interface %s",
-					state.GatewayIP, state.PhysIfaceName,
-				); err != nil {
-					logger.Debug().
-						Err(err).
-						Str("out", out).
-						Msg("route -n delete -host (ignored)")
-				}
-				return nil
-			},
-		},
-		{
-			Set: func() error {
-				for _, target := range state.RouteTargetCIDRs {
-					if out, err := executil.Commandf("route -n add -net %s -interface %s",
-						target, state.TUNName,
-					); err != nil {
-						return fmt.Errorf("failed to add route for %s: %s: %w", target, out, err)
-					}
-				}
-
-				return nil
-			},
-			Unset: func() error {
-				for _, target := range state.RouteTargetCIDRs {
-					if out, err := executil.Commandf("route -n delete -net %s -interface %s",
-						target, state.TUNName,
-					); err != nil {
-						logger.Trace().Err(err).Str("out", strings.TrimSpace(out)).
-							Msg("route delete (ignored)")
-					}
-				}
-
-				return nil
-			},
-		},
+		})
 	}
+
+	return jobs
 }
