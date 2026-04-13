@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/user"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/samber/lo"
@@ -421,17 +420,17 @@ func CreateCommand(
 				os.Exit(0)
 			}
 
+			realHome := determineRealHome()
+
 			tomlCfg := NewConfig()
 			var configDir string
 			if !cmd.Bool("clean") {
 				configFilename := "spoofdpi.toml"
 
-				home := realHome()
-
 				configDirs := []string{
 					path.Join(string(os.PathSeparator), "etc", configFilename),
 					path.Join(os.Getenv("XDG_CONFIG_HOME"), "spoofdpi", configFilename),
-					path.Join(home, ".config", "spoofdpi", configFilename),
+					path.Join(realHome, ".config", "spoofdpi", configFilename),
 				}
 
 				c, err := searchTomlFile(cmd.String("config"), configDirs)
@@ -463,7 +462,8 @@ func CreateCommand(
 
 			return runFunc(
 				ctx,
-				strings.Replace(configDir, os.Getenv("HOME"), "~", 1),
+				configDir,
+				// strings.Replace(configDir, realHome, "~", 1),
 				finalCfg,
 			)
 		},
@@ -479,7 +479,7 @@ func CreateCommand(
 	return cmd
 }
 
-func realHome() string {
+func determineRealHome() string {
 	sudoUser := os.Getenv("SUDO_USER")
 	if sudoUser != "" {
 		u, err := user.Lookup(sudoUser)

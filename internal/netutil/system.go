@@ -114,7 +114,6 @@ func AddrInCIDR(cidr string, n int) (string, error) {
 	resultIP := make(net.IP, 4)
 	binary.BigEndian.PutUint32(resultIP, resultInt)
 
-	// 5. 결과가 여전히 CIDR 범위 내에 있는지 검증 (권장)
 	if !ipnet.Contains(resultIP) {
 		return "", fmt.Errorf("index %d is out of CIDR range %s", n, cidr)
 	}

@@ -364,7 +364,10 @@ func createServer(
 		tcpSniffer,
 	)
 
-	defaultRoute, _ := netutil.DefaultRoute()
+	defaultRoute, err := netutil.DefaultRoute()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find default route: %w", err)
+	}
 
 	switch *cfg.App.Mode {
 	case config.AppModeHTTP:
@@ -435,8 +438,6 @@ func createServer(
 			cfg.Policy.Clone(),
 		), nil
 	case config.AppModeTUN:
-		// Find default interface and gateway before modifying routes
-		defaultRoute, err := netutil.DefaultRoute()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get default route: %w", err)
 		}
@@ -473,13 +474,22 @@ func createServer(
 			cfg.Conn.Clone(),
 		)
 
-		return tun.NewTunServer(
+		sysNet, err := tun.NewTUNSystemNetwork(
+			logging.WithScope(logger, "sys"),
+			defaultRoute,
+			fibID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create sysnet: %w", err)
+		}
+
+		return tun.NewTUNServer(
 			logging.WithScope(logger, "srv"),
 			cfg,
 			ruleMatcher, // For IP-based matching in server.go
 			tcpHandler,
 			udpHandler,
-			tun.NewTUNSystemNetwork(logging.WithScope(logger, "sys"), defaultRoute, fibID),
+			sysNet,
 		), nil
 	default:
 		return nil, fmt.Errorf("unknown server mode: %s", *cfg.App.Mode)

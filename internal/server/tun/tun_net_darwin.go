@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/xvzc/spoofdpi/internal/executil"
 	"github.com/xvzc/spoofdpi/internal/netutil"
 	"golang.zx2c4.com/wireguard/tun"
 )
@@ -20,13 +20,16 @@ import (
 const stateFile = "/tmp/spoofdpi.darwin.tun.state"
 
 type tunStateDarwin struct {
-	GatewayIP     string    `json:"gatewayIP"`
-	PhysIfaceName string    `json:"physIfaceName"`
-	TUNName       string    `json:"tunName"`
-	CreatedAt     time.Time `json:"createdAt"`
+	GatewayIP        string    `json:"gatewayIP"`
+	PhysIfaceName    string    `json:"physIfaceName"`
+	TUNName          string    `json:"tunName"`
+	TunLocalIP       string    `json:"tunLocalIP"`
+	TunRemoteIP      string    `json:"tunRemoteIP"`
+	RouteTargetCIDRs []string  `json:"routeTargetCIDRs"`
+	CreatedAt        time.Time `json:"createdAt"`
 }
 
-func saveState(state tunStateDarwin) error {
+func saveState(state *tunStateDarwin) error {
 	data, err := json.Marshal(state)
 	if err != nil {
 		return err
@@ -34,19 +37,19 @@ func saveState(state tunStateDarwin) error {
 	return os.WriteFile(stateFile, data, 0o644)
 }
 
-func loadState() (tunStateDarwin, bool, error) {
+func loadState() (*tunStateDarwin, bool, error) {
 	data, err := os.ReadFile(stateFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return tunStateDarwin{}, false, nil
+			return nil, false, nil
 		}
-		return tunStateDarwin{}, false, err
+		return nil, false, err
 	}
 	var state tunStateDarwin
 	if err := json.Unmarshal(data, &state); err != nil {
-		return tunStateDarwin{}, false, err
+		return nil, false, err
 	}
-	return state, true, nil
+	return &state, true, nil
 }
 
 func deleteState() error {
@@ -69,17 +72,17 @@ func NewTUNSystemNetwork(
 	logger zerolog.Logger,
 	defaultRoute *netutil.Route,
 	fibID int,
-) TUNSystemNetwork {
+) (TUNSystemNetwork, error) {
 	dev, err := createTunDevice()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	return &tunSystemNetworkDarwin{
 		logger:       logger,
 		tunDevice:    dev,
 		defaultRoute: defaultRoute,
-	}
+	}, nil
 }
 
 func (n *tunSystemNetworkDarwin) TunDevice() tun.Device {
@@ -90,75 +93,101 @@ func (n *tunSystemNetworkDarwin) DefaultRoute() *netutil.Route {
 	return n.defaultRoute
 }
 
+func (n *tunSystemNetworkDarwin) createState() (*tunStateDarwin, error) {
+	tunName, err := n.tunDevice.Name()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tunName: %w", err)
+	}
+
+	cidr, err := netutil.FindSafeCIDR()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find safe subnet: %w", err)
+	}
+
+	tunLocalIP, err := netutil.AddrInCIDR(cidr, 1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get %dth ip in %s: %w", 1, cidr, err)
+	}
+	tunRemoteIP, err := netutil.AddrInCIDR(cidr, 2)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get %dth ip in %s: %w", 2, cidr, err)
+	}
+
+	_, tunCIDR, _ := net.ParseCIDR(tunLocalIP + "/30")
+	routeTargetCIDRS := []string{tunCIDR.String(), "0.0.0.0/1", "128.0.0.0/1"}
+
+	state := &tunStateDarwin{ //exhaustruct:enforce
+		GatewayIP:        n.defaultRoute.Gateway.String(),
+		PhysIfaceName:    n.defaultRoute.Iface.Name,
+		TUNName:          tunName,
+		TunLocalIP:       tunLocalIP,
+		TunRemoteIP:      tunRemoteIP,
+		RouteTargetCIDRs: routeTargetCIDRS,
+		CreatedAt:        time.Now(),
+	}
+	return state, nil
+}
+
+func (n *tunSystemNetworkDarwin) cleanupNetworkConfig(state *tunStateDarwin) {
+	for _, target := range state.RouteTargetCIDRs {
+		if out, err := executil.Commandf("route -n delete -net %s -interface %s",
+			target, state.TUNName); err != nil {
+			n.logger.Debug().Err(err).Str("output", out).Msg("route delete (ignored)")
+		}
+	}
+
+	if out, err := executil.Commandf("route -n delete -host %s -interface %s",
+		state.GatewayIP, state.PhysIfaceName); err != nil {
+		n.logger.Debug().Err(err).Str("output", out).Msg("route -n delete -host (ignored)")
+	}
+
+	if out, err := executil.Commandf("route delete -ifscope %s default",
+		state.PhysIfaceName); err != nil {
+		n.logger.Debug().Err(err).Str("output", out).Msg("route delete -ifscope (ignored)")
+	}
+}
+
 func (n *tunSystemNetworkDarwin) SetNetworkConfig() error {
 	if state, exists, err := loadState(); err == nil && exists {
 		n.logger.Info().Str("iface", state.TUNName).Msg("cleaning up stale state")
-		if err := n.cleanupNetworkConfig(state); err != nil {
-			return fmt.Errorf("failed to cleanup stale state: %w", err)
-		}
+		n.cleanupNetworkConfig(state)
 		if err := deleteState(); err != nil {
 			return fmt.Errorf("failed to delete stale state: %w", err)
 		}
 	}
 
-	cidr, err := netutil.FindSafeCIDR()
+	newState, err := n.createState()
 	if err != nil {
-		return fmt.Errorf("failed to find safe subnet: %w", err)
+		return err
 	}
 
-	newState := tunStateDarwin{}
-
-	newState.GatewayIP = n.defaultRoute.Gateway.String()
-	newState.PhysIfaceName = n.defaultRoute.Iface.Name
-	newState.TUNName, _ = n.tunDevice.Name()
-
-	local, _ := netutil.AddrInCIDR(cidr, 1)
-	remote, _ := netutil.AddrInCIDR(cidr, 2)
-
-	if err := setupInterface(
-		newState.TUNName,
-		local,
-		remote,
-	); err != nil {
-		return fmt.Errorf("failed to set interface address: %w", err)
+	if err := saveState(newState); err != nil {
+		return fmt.Errorf("failed to save state: %w", err)
 	}
 
-	cmd := exec.Command(
-		"route",
-		"add",
-		"-ifscope",
-		newState.PhysIfaceName,
-		"default",
-		newState.GatewayIP,
-	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		if !strings.Contains(string(out), "File exists") {
-			return fmt.Errorf("failed to add scoped default route: %s: %w", string(out), err)
+	if out, err := executil.Commandf("ifconfig %s %s %s up",
+		newState.TUNName, newState.TunLocalIP, newState.TunRemoteIP); err != nil {
+		return fmt.Errorf("failed to set interface address: %s: %w", out, err)
+	}
+
+	if out, err := executil.Commandf("route add -ifscope %s default %s",
+		newState.PhysIfaceName, newState.GatewayIP); err != nil {
+		return fmt.Errorf("failed to add scoped default route: %s: %w", out, err)
+	}
+
+	if out, err := executil.Commandf("route -n add -host %s -interface %s",
+		newState.GatewayIP, newState.PhysIfaceName); err != nil {
+		return fmt.Errorf("failed to add host route: %s: %w", out, err)
+	}
+
+	for _, target := range newState.RouteTargetCIDRs {
+		if out, err := executil.Commandf("route -n add -net %s -interface %s",
+			target, newState.TUNName); err != nil {
+			return fmt.Errorf("failed to add route for %s: %s: %w", target, out, err)
 		}
 	}
 
-	cmd = exec.Command(
-		"route",
-		"-n",
-		"add",
-		"-host",
-		newState.GatewayIP,
-		"-interface",
-		newState.PhysIfaceName,
-	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		if !strings.Contains(string(out), "File exists") {
-			_ = out
-		}
-	}
-
-	subnets := []string{"0.0.0.0/0"}
-	if err := addRoute(newState.TUNName, subnets); err != nil {
-		return fmt.Errorf("failed to set default route: %w", err)
-	}
-
-	newState.CreatedAt = time.Now()
-	return saveState(newState)
+	return nil
 }
 
 func (n *tunSystemNetworkDarwin) UnsetNetworkConfig() error {
@@ -170,44 +199,8 @@ func (n *tunSystemNetworkDarwin) UnsetNetworkConfig() error {
 		return nil
 	}
 
-	if err := n.cleanupNetworkConfig(state); err != nil {
-		return fmt.Errorf("failed to cleanup network config: %w", err)
-	}
-
+	n.cleanupNetworkConfig(state)
 	return deleteState()
-}
-
-func (n *tunSystemNetworkDarwin) cleanupNetworkConfig(state tunStateDarwin) error {
-	subnets := []string{"0.0.0.0/0"}
-	if err := deleteRoute(state.TUNName, subnets); err != nil {
-		return fmt.Errorf("failed to unset default route: %w", err)
-	}
-
-	cmd := exec.Command("route", "delete", "-ifscope", state.PhysIfaceName, "default")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		n.logger.Debug().
-			Err(err).
-			Str("output", string(out)).
-			Msg("route delete -ifscope (ignored)")
-	}
-
-	cmd = exec.Command(
-		"route",
-		"-n",
-		"delete",
-		"-host",
-		state.GatewayIP,
-		"-interface",
-		state.PhysIfaceName,
-	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		n.logger.Debug().
-			Err(err).
-			Str("output", string(out)).
-			Msg("route -n delete -host (ignored)")
-	}
-
-	return nil
 }
 
 func (n *tunSystemNetworkDarwin) BindDialer(
@@ -221,7 +214,6 @@ func (n *tunSystemNetworkDarwin) BindDialer(
 
 	iface := n.defaultRoute.Iface
 
-	// Find the interface's IP address to use as source
 	addrs, err := iface.Addrs()
 	if err != nil {
 		return fmt.Errorf("failed to get interface addresses: %w", err)
@@ -230,7 +222,6 @@ func (n *tunSystemNetworkDarwin) BindDialer(
 	var sourceIP net.IP
 	for _, addr := range addrs {
 		if ipnet, ok := addr.(*net.IPNet); ok {
-			// Match IP version: use IPv4 source for IPv4 target, IPv6 for IPv6
 			if targetIP.To4() != nil && ipnet.IP.To4() != nil && !ipnet.IP.IsLoopback() {
 				sourceIP = ipnet.IP
 				break
@@ -249,7 +240,6 @@ func (n *tunSystemNetworkDarwin) BindDialer(
 		)
 	}
 
-	// Set the LocalAddr for the source IP
 	if strings.HasPrefix(network, "tcp") {
 		dialer.LocalAddr = &net.TCPAddr{IP: sourceIP}
 	} else if strings.HasPrefix(network, "udp") {
@@ -258,7 +248,6 @@ func (n *tunSystemNetworkDarwin) BindDialer(
 		dialer.LocalAddr = &net.IPAddr{IP: sourceIP}
 	}
 
-	// Set IP_BOUND_IF to bind socket to interface
 	dialer.Control = func(network, address string, c syscall.RawConn) error {
 		var sockErr error
 		err := c.Control(func(fd uintptr) {
@@ -281,70 +270,160 @@ func (n *tunSystemNetworkDarwin) BindDialer(
 	return nil
 }
 
-// addRoute configures network routes for specified subnets
-func addRoute(iface string, subnets []string) error {
-	for _, subnet := range subnets {
-		targets := []string{subnet}
-
-		/* Expand default route into two /1 subnets to override the default gateway
-		   without removing the existing 0.0.0.0/0 entry.
-		*/
-		if subnet == "0.0.0.0/0" {
-			targets = []string{"0.0.0.0/1", "128.0.0.0/1"}
-		}
-
-		for _, target := range targets {
-			cmd := exec.Command("route", "-n", "add", "-net", target, "-interface", iface)
-			out, err := cmd.CombinedOutput()
-			if err != nil {
-				// Check if it's a permission error
-				if strings.Contains(string(out), "must be root") {
-					return fmt.Errorf(
-						"permission denied: must run as root to modify routing table (sudo required)",
-					)
-				}
-				return fmt.Errorf(
-					"failed to add route for %s on %s: %s: %w",
-					target,
-					iface,
-					string(out),
-					err,
-				)
-			}
-		}
-	}
-	return nil
-}
-
-// deleteRoute removes previously configured network routes
-func deleteRoute(iface string, subnets []string) error {
-	for _, subnet := range subnets {
-		targets := []string{subnet}
-
-		if subnet == "0.0.0.0/0" {
-			targets = []string{"0.0.0.0/1", "128.0.0.0/1"}
-		}
-
-		for _, target := range targets {
-			/* Delete specific routes to revert traffic flow to the original gateway. */
-			cmd := exec.Command("route", "-n", "delete", "-net", target, "-interface", iface)
-			if out, err := cmd.CombinedOutput(); err != nil {
-				_ = out
-			}
-		}
-	}
-	return nil
-}
-
-// setupInterface configures the TUN interface with local and remote endpoints
-func setupInterface(iface string, local string, remote string) error {
-	cmd := exec.Command("ifconfig", iface, local, remote, "up")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to set interface address: %s: %w", string(out), err)
-	}
-	return nil
-}
-
 func createTunDevice() (tun.Device, error) {
 	return tun.CreateTUN("utun", 1500)
+}
+
+func configurationJobs(state *tunStateDarwin) []configurationJob {
+	return []configurationJob{
+		{
+			Set: func() error {
+				if out, err := executil.Commandf("ifconfig %s %s %s up",
+					state.TUNName, state.TunLocalIP, state.TunRemoteIP); err != nil {
+					return fmt.Errorf("failed to set interface address: %s: %w", out, err)
+				}
+
+				return nil
+			},
+			Unset: func() error {
+				if out, err := executil.Commandf("ifconfig %s destroy",
+					state.TUNName,
+				); err != nil {
+					return fmt.Errorf("failed to set interface address: %s: %w", out, err)
+				}
+
+				return nil
+			},
+		},
+		{
+			Set: func() error {
+				if out, err := executil.Commandf("route add -ifscope %s default %s",
+					state.PhysIfaceName, state.GatewayIP); err != nil {
+					return fmt.Errorf("failed to add scoped default route: %s: %w", out, err)
+				}
+
+				return nil
+			},
+			Unset: func() error {
+				if out, err := executil.Commandf("route delete -ifscope %s default %s",
+					state.PhysIfaceName, state.GatewayIP,
+				); err != nil {
+					n.logger.Debug().
+						Err(err).
+						Str("output", out).
+						Msg("route delete -ifscope (ignored)")
+				}
+
+				return nil
+			},
+		},
+		{
+			Set: func() error {
+				if out, err := executil.Commandf("route -n add -host %s -interface %s",
+					state.GatewayIP, state.PhysIfaceName,
+				); err != nil {
+					return fmt.Errorf("failed to add host route: %s: %w", out, err)
+				}
+
+				return nil
+			},
+			Unset: func() error {
+				if out, err := executil.Commandf("route -n delete -host %s -interface %s",
+					state.GatewayIP, state.PhysIfaceName,
+				); err != nil {
+					n.logger.Debug().
+						Err(err).
+						Str("output", out).
+						Msg("route -n delete -host (ignored)")
+				}
+				return nil
+			},
+		},
+		{
+			Set: func() error {
+				for _, target := range state.RouteTargetCIDRs {
+					if out, err := executil.Commandf("route -n add -net %s -interface %s",
+						target, state.TUNName,
+					); err != nil {
+						return fmt.Errorf("failed to add route for %s: %s: %w", target, out, err)
+					}
+				}
+
+				return nil
+			},
+			Unset: func() error {
+				for _, target := range state.RouteTargetCIDRs {
+					if out, err := executil.Commandf("route -n delete -net %s -interface %s",
+						target, state.TUNName,
+					); err != nil {
+						n.logger.Debug().Err(err).Str("output", out).Msg("route delete (ignored)")
+					}
+				}
+
+				return nil
+			},
+		},
+	}
+}
+
+func (n *tunSystemNetworkDarwin) Configure(jobs []configurationJob) (func(), error) {
+	if staleState, exists, err := loadState(); err == nil && exists {
+		n.logger.Info().Str("iface", staleState.TUNName).Msg("cleaning up stale state")
+
+		// Reverts only the successfully applied jobs in LIFO order
+		for i := len(jobs) - 1; i >= 0; i-- {
+			if err := jobs[i].Unset(); err != nil {
+				n.logger.Error().Err(err).Msg("failed to run unset job")
+			}
+		}
+
+		// Cleans up the persisted state file to ensure complete rollback and teardown.
+		if err := deleteState(); err != nil {
+			n.logger.Error().Err(err).Msg("failed to delete stale state")
+		}
+	}
+
+	newState, err := n.createState()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := saveState(newState); err != nil {
+		return nil, fmt.Errorf("failed to save state: %w", err)
+	}
+
+	// Tracks the count of successfully executed configuration jobs
+	var executedJobs int
+
+	unset := func() {
+		// Reverts only the successfully applied jobs in LIFO order
+		for i := executedJobs - 1; i >= 0; i-- {
+			if err := jobs[i].Unset(); err != nil {
+				n.logger.Error().Err(err).Msg("failed to run unset job")
+			}
+		}
+
+		// Cleans up the persisted state file to ensure complete rollback and teardown.
+		if err := deleteState(); err != nil {
+			n.logger.Error().Err(err).Msg("failed to delete state file during cleanup")
+		}
+	}
+
+	set := func() error {
+		for i, each := range jobs {
+			if err := each.Set(); err != nil {
+				return fmt.Errorf("failed to run set job: %w", err)
+			}
+			// Increments the counter after successful job execution
+			executedJobs = i + 1 // We use index + 1 in cases none of the job was successfull
+		}
+		return nil
+	}
+
+	if err := set(); err != nil {
+		unset()
+		return nil, err
+	}
+
+	return unset, nil
 }

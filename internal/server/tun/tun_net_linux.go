@@ -7,14 +7,13 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/xvzc/spoofdpi/internal/executil"
 	"github.com/xvzc/spoofdpi/internal/netutil"
 	"golang.zx2c4.com/wireguard/tun"
 )
@@ -22,15 +21,18 @@ import (
 const stateFile = "/tmp/spoofdpi.linux.tun.state"
 
 type tunStateLinux struct {
-	RouteTableID  int       `json:"routeTableID"`
-	GatewayIP     string    `json:"gatewayIP"`
-	TUNName       string    `json:"tunName"`
-	PhysIfaceName string    `json:"physIfaceName"`
-	PhysIfaceIP   string    `json:"ifaceIP"`
-	CreatedAt     time.Time `json:"createdAt"`
+	RouteTableID     int       `json:"routeTableID"`
+	GatewayIP        string    `json:"gatewayIP"`
+	TUNName          string    `json:"tunName"`
+	PhysIfaceName    string    `json:"physIfaceName"`
+	PhysIfaceIP      string    `json:"ifaceIP"`
+	TunLocalIP       string    `json:"tunLocalIP"`
+	TunRemoteIP      string    `json:"tunRemoteIP"`
+	RouteTargetCIDRS []string  `json:"routeTargetCIDRs"`
+	CreatedAt        time.Time `json:"createdAt"`
 }
 
-func saveState(state tunStateLinux) error {
+func saveState(state *tunStateLinux) error {
 	data, err := json.Marshal(state)
 	if err != nil {
 		return err
@@ -38,19 +40,19 @@ func saveState(state tunStateLinux) error {
 	return os.WriteFile(stateFile, data, 0o644)
 }
 
-func loadState() (tunStateLinux, bool, error) {
+func loadState() (*tunStateLinux, bool, error) {
 	data, err := os.ReadFile(stateFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return tunStateLinux{}, false, nil
+			return nil, false, nil
 		}
-		return tunStateLinux{}, false, err
+		return nil, false, err
 	}
 	var state tunStateLinux
 	if err := json.Unmarshal(data, &state); err != nil {
-		return tunStateLinux{}, false, err
+		return nil, false, err
 	}
-	return state, true, nil
+	return &state, true, nil
 }
 
 func deleteState() error {
@@ -60,46 +62,40 @@ func deleteState() error {
 	return nil
 }
 
-func (n *tunSystemNetworkLinux) cleanupNetworkConfig(state tunStateLinux) error {
-	subnets := []string{"0.0.0.0/0"}
-	if err := deleteRoute(state.TUNName, subnets); err != nil {
-		return fmt.Errorf("failed to unset default route: %w", err)
+func (n *tunSystemNetworkLinux) cleanupNetworkConfig(state *tunStateLinux) error {
+	for _, target := range state.RouteTargetCIDRS {
+		if out, err := executil.Commandf("ip route del %s dev %s",
+			target,
+			state.TUNName,
+		); err != nil {
+			n.logger.Debug().Err(err).Str("output", out).Msg("ip route del (ignored)")
+		}
 	}
 
-	cmd := exec.Command(
-		"ip",
-		"rule",
-		"del",
-		"from",
+	if out, err := executil.Commandf("ip rule del from %s lookup %d",
 		state.PhysIfaceIP,
-		"lookup",
-		strconv.Itoa(state.RouteTableID),
-	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		n.logger.Debug().Err(err).Str("output", string(out)).Msg("ip rule del (ignored)")
+		state.RouteTableID,
+	); err != nil {
+		n.logger.Debug().Err(err).Str("output", out).Msg("ip rule del (ignored)")
 	}
 
-	cmd = exec.Command(
-		"ip",
-		"route",
-		"del",
-		"default",
-		"table",
-		strconv.Itoa(state.RouteTableID),
-	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		n.logger.Debug().
-			Err(err).
-			Str("output", string(out)).
-			Msg("ip route del table (ignored)")
+	if out, err := executil.Commandf("ip route del default table %d",
+		state.RouteTableID,
+	); err != nil {
+		n.logger.Debug().Err(err).Str("output", out).Msg("ip route del table (ignored)")
 	}
 
-	cmd = exec.Command("ip", "route", "del", state.GatewayIP, "dev", state.PhysIfaceName)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		n.logger.Debug().
-			Err(err).
-			Str("output", string(out)).
-			Msg("ip route del gateway (ignored)")
+	if out, err := executil.Commandf("ip route del %s dev %s",
+		state.GatewayIP,
+		state.PhysIfaceName,
+	); err != nil {
+		n.logger.Debug().Err(err).Str("output", out).Msg("ip route del gateway (ignored)")
+	}
+
+	if out, err := executil.Commandf("ip link delete %s",
+		state.TUNName,
+	); err != nil {
+		n.logger.Debug().Err(err).Str("output", out).Msg("ip link delete <tun> (ignored)")
 	}
 
 	return nil
@@ -123,17 +119,17 @@ func NewTUNSystemNetwork(
 	logger zerolog.Logger,
 	defaultRoute *netutil.Route,
 	fibID int,
-) TUNSystemNetwork {
+) (TUNSystemNetwork, error) {
 	dev, err := createTunDevice()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	return &tunSystemNetworkLinux{
 		logger:       logger,
 		tunDevice:    dev,
 		defaultRoute: defaultRoute,
-	}
+	}, nil
 }
 
 func (n *tunSystemNetworkLinux) TunDevice() tun.Device {
@@ -142,6 +138,60 @@ func (n *tunSystemNetworkLinux) TunDevice() tun.Device {
 
 func (n *tunSystemNetworkLinux) DefaultRoute() *netutil.Route {
 	return n.defaultRoute
+}
+
+func (n *tunSystemNetworkLinux) createState() (*tunStateLinux, error) {
+	var err error
+
+	tunName, err := n.tunDevice.Name()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tunName: %w", err)
+	}
+	routeTableID, err := getOrAllocateTableID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to allocate routing table ID: %w", err)
+	}
+
+	gatewayIP := n.defaultRoute.Gateway.String()
+	physIfaceName := n.defaultRoute.Iface.Name
+
+	physIfaceIP, err := getInterfaceIP(physIfaceName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get IP address for interface %s: %w",
+			physIfaceName,
+			err,
+		)
+	}
+
+	cidr, err := netutil.FindSafeCIDR()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find safe subnet: %w", err)
+	}
+
+	tunLocalIP, err := netutil.AddrInCIDR(cidr, 1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get %dth ip in %s: %w", 1, cidr, err)
+	}
+	tunRemoteIP, err := netutil.AddrInCIDR(cidr, 2)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get %dth ip in %s: %w", 2, cidr, err)
+	}
+
+	_, tunCIDR, _ := net.ParseCIDR(tunLocalIP + "/30")
+	routeTargetCIDRS := []string{tunCIDR.String(), "0.0.0.0/1", "128.0.0.0/1"}
+
+	state := &tunStateLinux{ //exhaustruct:enforce
+		RouteTableID:     routeTableID,
+		GatewayIP:        gatewayIP,
+		TUNName:          tunName,
+		PhysIfaceName:    physIfaceName,
+		PhysIfaceIP:      physIfaceIP,
+		TunLocalIP:       tunLocalIP,
+		TunRemoteIP:      tunRemoteIP,
+		RouteTargetCIDRS: routeTargetCIDRS,
+		CreatedAt:        time.Now(),
+	}
+	return state, nil
 }
 
 func (n *tunSystemNetworkLinux) SetNetworkConfig() error {
@@ -154,105 +204,54 @@ func (n *tunSystemNetworkLinux) SetNetworkConfig() error {
 		}
 	}
 
-	var err error
-
-	newState := tunStateLinux{}
-	newState.TUNName, _ = n.tunDevice.Name()
-	newState.RouteTableID, err = getOrAllocateTableID()
+	newState, err := n.createState()
 	if err != nil {
-		return fmt.Errorf("failed to allocate routing table ID: %w", err)
+		return err
 	}
 
-	newState.GatewayIP = n.defaultRoute.Gateway.String()
-	newState.PhysIfaceName = n.defaultRoute.Iface.Name
-
-	newState.PhysIfaceIP = getInterfaceIP(newState.PhysIfaceName)
-	if newState.PhysIfaceIP == "" {
-		return fmt.Errorf(
-			"failed to get IP address for interface %s",
-			newState.PhysIfaceName,
-		)
+	if err := saveState(newState); err != nil {
+		return fmt.Errorf("failed to save state: %w", err)
 	}
 
-	cidr, err := netutil.FindSafeCIDR()
-	if err != nil {
-		return fmt.Errorf("failed to find safe subnet: %w", err)
-	}
-	local, _ := netutil.AddrInCIDR(cidr, 1)
-	remote, _ := netutil.AddrInCIDR(cidr, 2)
-
-	if err := setupInterface(newState.TUNName, local, remote); err != nil {
-		return fmt.Errorf("failed to set interface address: %w", err)
-	}
-
-	cmd := exec.Command(
-		"ip",
-		"route",
-		"add",
-		newState.GatewayIP,
-		"dev",
-		newState.PhysIfaceName,
-	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		if !strings.Contains(string(out), "File exists") {
-			return fmt.Errorf("failed to add gateway route: %s: %w", string(out), err)
-		}
-	}
-
-	cmd = exec.Command(
-		"ip",
-		"route",
-		"add",
-		"default",
-		"via",
-		newState.GatewayIP,
-		"dev",
-		newState.PhysIfaceName,
-		"table",
-		strconv.Itoa(newState.RouteTableID),
-	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		if !strings.Contains(string(out), "File exists") {
-			_ = out
-		}
-	}
-
-	cmd = exec.Command(
-		"ip",
-		"rule",
-		"add",
-		"from",
-		newState.PhysIfaceIP,
-		"lookup",
-		strconv.Itoa(newState.RouteTableID),
-	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		if !strings.Contains(string(out), "File exists") {
-			return fmt.Errorf("failed to add policy rule: %s: %w", string(out), err)
-		}
-	}
-
-	localIP := net.ParseIP(local)
-	networkAddr := net.IPv4(
-		localIP[12],
-		localIP[13],
-		localIP[14],
-		localIP[15]&0xFC,
-	)
-
-	if err := addRoute(
-		newState.TUNName,
-		[]string{networkAddr.String() + "/30"},
+	if out, err := executil.Commandf("ip addr add %s peer %s dev %s",
+		newState.TunLocalIP, newState.TunRemoteIP, newState.TUNName,
 	); err != nil {
-		return fmt.Errorf("failed to set local route: %w", err)
+		return fmt.Errorf("failed to set interface address: %s: %w", out, err)
 	}
 
-	if err := addRoute(newState.TUNName, []string{"0.0.0.0/0"}); err != nil {
-		return fmt.Errorf("failed to set default route: %w", err)
+	if out, err := executil.Commandf("ip link set dev %s up",
+		newState.TUNName,
+	); err != nil {
+		return fmt.Errorf("failed to bring interface up: %s: %w", out, err)
 	}
 
-	newState.CreatedAt = time.Now()
-	return saveState(newState)
+	if out, err := executil.Commandf("ip route add %s dev %s",
+		newState.GatewayIP, newState.PhysIfaceName,
+	); err != nil {
+		return fmt.Errorf("failed to add gateway route: %s: %w", out, err)
+	}
+
+	if _, err := executil.Commandf("ip route add default via %s dev %s table %d",
+		newState.GatewayIP, newState.PhysIfaceName, newState.RouteTableID,
+	); err != nil {
+		return err
+	}
+
+	if _, err := executil.Commandf("ip rule add from %s lookup %d",
+		newState.PhysIfaceIP, newState.RouteTableID,
+	); err != nil {
+		return fmt.Errorf("failed to add policy rule: %w", err)
+	}
+
+	for _, target := range newState.RouteTargetCIDRS {
+		if out, err := executil.Commandf("ip route add %s dev %s",
+			target, newState.TUNName,
+		); err != nil {
+			return fmt.Errorf("failed to add route for %s: %w: %s", target, err, out)
+		}
+	}
+
+	return nil
 }
 
 func (n *tunSystemNetworkLinux) UnsetNetworkConfig() error {
@@ -358,8 +357,7 @@ func getOrAllocateTableID() (int, error) {
 // findAvailableTableID finds an unused routing table ID in the range 200-250.
 func findAvailableTableID() (int, error) {
 	for id := 200; id <= 250; id++ {
-		cmd := exec.Command("ip", "route", "show", "table", strconv.Itoa(id))
-		out, err := cmd.CombinedOutput()
+		out, err := executil.Commandf("ip route show table %d", id)
 		if err != nil {
 			return id, nil
 		}
@@ -368,11 +366,8 @@ func findAvailableTableID() (int, error) {
 			continue
 		}
 
-		ruleTableCmd := exec.Command("ip", "rule", "show", "table", strconv.Itoa(id))
-		ruleTableOut, _ := ruleTableCmd.CombinedOutput()
-
-		ruleLookupCmd := exec.Command("ip", "rule", "show", "lookup", strconv.Itoa(id))
-		ruleLookupOut, _ := ruleLookupCmd.CombinedOutput()
+		ruleTableOut, _ := executil.Commandf("ip rule show table %d", id)
+		ruleLookupOut, _ := executil.Commandf("ip rule show lookup %d", id)
 
 		if len(ruleTableOut) > 0 || len(ruleLookupOut) > 0 {
 			continue
@@ -383,96 +378,13 @@ func findAvailableTableID() (int, error) {
 	return 0, fmt.Errorf("no available routing table ID in range 200-250")
 }
 
-// addRoute configures network routes for specified subnets using ip route
-func addRoute(iface string, subnets []string) error {
-	for _, subnet := range subnets {
-		targets := []string{subnet}
-
-		/* Expand default route into two /1 subnets to override the default gateway
-		   without removing the existing 0.0.0.0/0 entry.
-		*/
-		if subnet == "0.0.0.0/0" {
-			targets = []string{"0.0.0.0/1", "128.0.0.0/1"}
-		}
-
-		for _, target := range targets {
-			cmd := exec.Command("ip", "route", "add", target, "dev", iface)
-			out, err := cmd.CombinedOutput()
-			if err != nil {
-				// Check if it's a permission error
-				if strings.Contains(string(out), "Operation not permitted") ||
-					strings.Contains(string(out), "RTNETLINK answers: Operation not permitted") {
-					return fmt.Errorf(
-						"permission denied: must run as root to modify routing table (sudo required)",
-					)
-				}
-				// Ignore "File exists" error - route already exists
-				if strings.Contains(string(out), "File exists") {
-					continue
-				}
-				return fmt.Errorf(
-					"failed to add route for %s on %s: %s: %w",
-					target,
-					iface,
-					string(out),
-					err,
-				)
-			}
-		}
-	}
-	return nil
-}
-
-// deleteRoute removes previously configured network routes using ip route
-func deleteRoute(iface string, subnets []string) error {
-	for _, subnet := range subnets {
-		targets := []string{subnet}
-
-		if subnet == "0.0.0.0/0" {
-			targets = []string{"0.0.0.0/1", "128.0.0.0/1"}
-		}
-
-		for _, target := range targets {
-			/* Delete specific routes to revert traffic flow to the original gateway. */
-			cmd := exec.Command("ip", "route", "del", target, "dev", iface)
-			if out, err := cmd.CombinedOutput(); err != nil {
-				_ = out
-			}
-		}
-	}
-	return nil
-}
-
-// setupInterface configures the TUN interface with local and remote endpoints using ip addr
-func setupInterface(iface string, local string, remote string) error {
-	// Add the IP address to the interface
-	cmd := exec.Command("ip", "addr", "add", local, "peer", remote, "dev", iface)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		// Ignore if address already exists
-		if !strings.Contains(string(out), "File exists") {
-			return fmt.Errorf("failed to set interface address: %s: %w", string(out), err)
-		}
-	}
-
-	// Bring the interface up
-	cmd = exec.Command("ip", "link", "set", "dev", iface, "up")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to bring interface up: %s: %w", string(out), err)
-	}
-
-	return nil
-}
-
 // getInterfaceIP returns the first IPv4 address of the given interface
-func getInterfaceIP(ifaceName string) string {
-	cmd := exec.Command("ip", "-4", "addr", "show", ifaceName)
-	out, err := cmd.Output()
+func getInterfaceIP(ifaceName string) (string, error) {
+	out, err := executil.Commandf("ip -4 addr show %s", ifaceName)
 	if err != nil {
-		return ""
+		return "", err
 	}
 
-	// Parse output to find inet line
 	lines := strings.Split(string(out), "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -480,13 +392,13 @@ func getInterfaceIP(ifaceName string) string {
 			parts := strings.Fields(line)
 			if len(parts) >= 2 {
 				ip := strings.Split(parts[1], "/")[0]
-				return ip
+				return ip, nil
 			}
 		}
 	}
-	return ""
+	return "", fmt.Errorf("IP not found for interface %s", ifaceName)
 }
 
 func createTunDevice() (tun.Device, error) {
-	return tun.CreateTUN("tun", 1500)
+	return tun.CreateTUN("tun%d", 1500)
 }

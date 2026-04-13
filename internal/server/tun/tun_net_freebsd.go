@@ -77,10 +77,10 @@ func NewTUNSystemNetwork(
 	logger zerolog.Logger,
 	defaultRoute *netutil.Route,
 	fibID int,
-) TUNSystemNetwork {
+) (TUNSystemNetwork, error) {
 	dev, err := createTunDevice()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	return &tunSystemNetworkFreeBSD{
@@ -88,7 +88,7 @@ func NewTUNSystemNetwork(
 		tunDevice:    dev,
 		defaultRoute: defaultRoute,
 		fibID:        fibID,
-	}
+	}, nil
 }
 
 func (n *tunSystemNetworkFreeBSD) TunDevice() tun.Device {
@@ -203,6 +203,15 @@ func (n *tunSystemNetworkFreeBSD) cleanupNetworkConfig(state tunStateFreeBSD) er
 
 	if err := deleteRoute(state.TUNName, []string{"0.0.0.0/0"}); err != nil {
 		n.logger.Debug().Err(err).Msg("deleteRoute tun default (ignored)")
+	}
+
+	cmd := exec.Command("ifconfig", state.TUNName, "destroy")
+	_, err := cmd.Output()
+	if err != nil {
+		n.logger.Debug().
+			Err(err).
+			Int("fib", state.FIBID).
+			Msgf("`ifconfig %s destroy` (ignored)", state.TUNName)
 	}
 
 	return nil
@@ -587,5 +596,5 @@ func setupInterface(iface string, local string, remote string) error {
 }
 
 func createTunDevice() (tun.Device, error) {
-	return tun.CreateTUN("tun", 1500)
+	return tun.CreateTUN("tun%d", 1500)
 }

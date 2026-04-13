@@ -34,12 +34,18 @@ import (
 // Ensure tcpip is used to avoid "imported and not used" error
 var _ tcpip.NetworkProtocolNumber = ipv4.ProtocolNumber
 
+type configurationJob struct {
+	Set   func() error
+	Unset func() error
+}
+
 // TUNSystemNetwork handles OS-specific network configuration for TUN mode.
 type TUNSystemNetwork interface {
 	TunDevice() tun.Device
 	DefaultRoute() *netutil.Route
-	SetNetworkConfig() error
-	UnsetNetworkConfig() error
+	InitState() error
+	// SetNetworkConfig() error
+	// UnsetNetworkConfig() error
 	BindDialer(dialer *net.Dialer, network string, targetIP net.IP) error
 }
 
@@ -54,7 +60,7 @@ type TunServer struct {
 	sysNet TUNSystemNetwork // OS-specific network configuration
 }
 
-func NewTunServer(
+func NewTUNServer(
 	logger zerolog.Logger,
 	config *config.Config,
 	matcher matcher.RuleMatcher,
@@ -178,14 +184,71 @@ func (s *TunServer) ListenAndServe(
 	return nil
 }
 
-func (s *TunServer) AutoConfigureNetwork() (func() error, error) {
+func (s *TunServer) AutoConfigureNetwork() (func(), error) {
 	if s.sysNet == nil {
 		return nil, fmt.Errorf("system network not initialized")
 	}
 
-	if err := s.sysNet.SetNetworkConfig(); err != nil {
-		return nil, fmt.Errorf("failed to configure network: %w", err)
+	if staleState, exists, err := loadState(); err == nil && exists {
+		s.logger.Info().Msg("cleaning up stale state")
+		jobs := configurationJobs(staleState)
+
+		// Reverts only the successfully applied jobs in LIFO order
+		for i := len(jobs) - 1; i >= 0; i-- {
+			if err := jobs[i].Unset(); err != nil {
+				s.logger.Error().Err(err).Msg("failed to run unset job")
+			}
+		}
+
+		// Cleans up the persisted state file to ensure complete rollback and teardown.
+		if err := deleteState(); err != nil {
+			s.logger.Error().Err(err).Msg("failed to delete stale state")
+		}
 	}
+
+	err := InitState()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := SaveState(newState); err != nil {
+		return nil, fmt.Errorf("failed to save state: %w", err)
+	}
+
+	// Tracks the count of successfully executed configuration jobs
+	var executedJobs int
+
+	unset := func() {
+		// Reverts only the successfully applied jobs in LIFO order
+		for i := executedJobs - 1; i >= 0; i-- {
+			if err := jobs[i].Unset(); err != nil {
+				s.logger.Error().Err(err).Msg("failed to run unset job")
+			}
+		}
+
+		// Cleans up the persisted state file to ensure complete rollback and teardown.
+		if err := deleteState(); err != nil {
+			s.logger.Error().Err(err).Msg("failed to delete state file during cleanup")
+		}
+	}
+
+	set := func() error {
+		for i, each := range jobs {
+			if err := each.Set(); err != nil {
+				return fmt.Errorf("failed to run set job: %w", err)
+			}
+			// Increments the counter after successful job execution
+			executedJobs = i + 1 // We use index + 1 in cases none of the job was successfull
+		}
+		return nil
+	}
+
+	if err := set(); err != nil {
+		unset()
+		return nil, err
+	}
+
+	return unset, nil
 
 	return s.sysNet.UnsetNetworkConfig, nil
 }

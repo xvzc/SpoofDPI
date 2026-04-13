@@ -33,11 +33,11 @@ type tunSystemNetworkStub struct {
 
 // NewTUNSystemNetwork creates a new TUNSystemNetwork for TUN mode on unsupported platforms
 func NewTUNSystemNetwork(
+	logger zerolog.Logger,
 	defaultRoute *netutil.Route,
 	fibID int,
-	logger zerolog.Logger,
-) TUNSystemNetwork {
-	return &tunSystemNetworkStub{logger: logger}
+) (TUNSystemNetwork, error) {
+	return &tunSystemNetworkStub{logger: logger}, nil
 }
 
 func (n *tunSystemNetworkStub) TunDevice() tun.Device {
