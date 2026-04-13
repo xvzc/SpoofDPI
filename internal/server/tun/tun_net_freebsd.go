@@ -20,8 +20,20 @@ import (
 
 const stateFile = "/tmp/spoofdpi.freebsd.tun.state"
 
+type tunStateFreeBSD struct {
+	FIBID            int       `json:"fibID"`
+	GatewayIP        string    `json:"gatewayIP"`
+	PhysIfaceName    string    `json:"physIfaceName"`
+	PhysIfaceCIDR    string    `json:"physifaceCIDR"`
+	TUNName          string    `json:"tunName"`
+	TunLocalIP       string    `json:"tunLocalIP"`
+	TunRemoteIP      string    `json:"tunRemoteIP"`
+	RouteTargetCIDRs []string  `json:"routeTargetCIDRs"`
+	CreatedAt        time.Time `json:"createdAt"`
+}
+
 func createTunDevice() (tun.Device, error) {
-	return tun.CreateTUN("tun%d", 1500)
+	return tun.CreateTUN("tun-spoofdpi", 1500)
 }
 
 func createState(sysNet TUNSystemNetwork) (*tunStateFreeBSD, error) {
@@ -30,7 +42,7 @@ func createState(sysNet TUNSystemNetwork) (*tunStateFreeBSD, error) {
 		return nil, fmt.Errorf("failed to get tunName: %w", err)
 	}
 
-	subnet, err := getInterfaceSubnet(sysNet.DefaultRoute().Iface.Name)
+	physIfaceCIDR, err := getInterfaceSubnet(sysNet.DefaultRoute().Iface.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get interface subnet: %w", err)
 	}
@@ -50,20 +62,19 @@ func createState(sysNet TUNSystemNetwork) (*tunStateFreeBSD, error) {
 	}
 
 	_, tunCIDR, _ := net.ParseCIDR(tunLocalIP + "/30")
-	routeTargetCIDRS := []string{tunCIDR.String(), "0.0.0.0/1", "128.0.0.0/1"}
+	routeTargetCIDRs := []string{tunCIDR.String(), "0.0.0.0/1", "128.0.0.0/1"}
 
-	state := &tunStateFreeBSD{
+	return &tunStateFreeBSD{ //exhaustruct:enforce
 		FIBID:            sysNet.FIBID(),
-		Gateway:          sysNet.DefaultRoute().Gateway.String(),
+		GatewayIP:        sysNet.DefaultRoute().Gateway.String(),
 		PhysIfaceName:    sysNet.DefaultRoute().Iface.Name,
-		Subnet:           subnet,
+		PhysIfaceCIDR:    physIfaceCIDR,
 		TUNName:          tunName,
 		TunLocalIP:       tunLocalIP,
 		TunRemoteIP:      tunRemoteIP,
-		RouteTargetCIDRs: routeTargetCIDRS,
+		RouteTargetCIDRs: routeTargetCIDRs,
 		CreatedAt:        time.Now(),
-	}
-	return state, nil
+	}, nil
 }
 
 func saveState(state *tunStateFreeBSD) error {
@@ -94,18 +105,6 @@ func deleteState() error {
 		return err
 	}
 	return nil
-}
-
-type tunStateFreeBSD struct {
-	FIBID            int       `json:"fibID"`
-	Gateway          string    `json:"gateway"`
-	PhysIfaceName    string    `json:"physIfaceName"`
-	Subnet           string    `json:"subnet"`
-	TUNName          string    `json:"tunName"`
-	TunLocalIP       string    `json:"tunLocalIP"`
-	TunRemoteIP      string    `json:"tunRemoteIP"`
-	RouteTargetCIDRs []string  `json:"routeTargetCIDRs"`
-	CreatedAt        time.Time `json:"createdAt"`
 }
 
 type tunSystemNetworkFreeBSD struct {
@@ -252,7 +251,7 @@ func configurationJobs(
 	jobs = append(jobs, server.ConfigurationJob{
 		Up: func() error {
 			if out, err := executil.Commandf("route add -net %s -iface %s -fib %d",
-				state.Subnet, state.PhysIfaceName, state.FIBID,
+				state.PhysIfaceCIDR, state.PhysIfaceName, state.FIBID,
 			); err != nil {
 				if !strings.Contains(out, "File exists") {
 					return fmt.Errorf("failed to add FIB subnet route: %s: %w", out, err)
@@ -262,13 +261,10 @@ func configurationJobs(
 		},
 		Down: func() error {
 			if out, err := executil.Commandf("route delete -net %s -iface %s -fib %d",
-				state.Subnet, state.PhysIfaceName, state.FIBID,
+				state.PhysIfaceCIDR, state.PhysIfaceName, state.FIBID,
 			); err != nil {
 				if !strings.Contains(out, "not in table") {
-					logger.Debug().
-						Err(err).
-						Str("out", out).
-						Msg("route delete subnet (ignored)")
+					logger.Debug().Err(err).Str("out", out).Msg("route delete subnet (ignored)")
 				}
 			}
 			return nil
@@ -278,7 +274,7 @@ func configurationJobs(
 	jobs = append(jobs, server.ConfigurationJob{
 		Up: func() error {
 			if out, err := executil.Commandf("route add default %s -fib %d",
-				state.Gateway, state.FIBID,
+				state.GatewayIP, state.FIBID,
 			); err != nil {
 				if !strings.Contains(out, "File exists") {
 					return fmt.Errorf("failed to add FIB default route: %s: %w", out, err)
@@ -288,7 +284,8 @@ func configurationJobs(
 		},
 		Down: func() error {
 			if out, err := executil.Commandf("route delete default -fib %d",
-				state.FIBID); err != nil {
+				state.FIBID,
+			); err != nil {
 				if !strings.Contains(out, "not in table") {
 					logger.Debug().
 						Err(err).
@@ -301,11 +298,11 @@ func configurationJobs(
 	})
 
 	for _, target := range state.RouteTargetCIDRs {
-		target := target
 		jobs = append(jobs, server.ConfigurationJob{
 			Up: func() error {
 				if out, err := executil.Commandf("route -n add -net %s -interface %s",
-					target, state.TUNName); err != nil {
+					target, state.TUNName,
+				); err != nil {
 					if strings.Contains(out, "must be root") {
 						return fmt.Errorf(
 							"permission denied: must run as root to modify routing table",
@@ -319,7 +316,8 @@ func configurationJobs(
 			},
 			Down: func() error {
 				if out, err := executil.Commandf("route -n delete -net %s -interface %s",
-					target, state.TUNName); err != nil {
+					target, state.TUNName,
+				); err != nil {
 					logger.Debug().
 						Err(err).
 						Str("out", out).

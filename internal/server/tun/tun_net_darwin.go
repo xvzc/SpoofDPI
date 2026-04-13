@@ -20,6 +20,16 @@ import (
 
 const stateFile = "/tmp/spoofdpi.darwin.tun.state"
 
+type tunStateDarwin struct {
+	GatewayIP        string    `json:"gatewayIP"`
+	PhysIfaceName    string    `json:"physIfaceName"`
+	TUNName          string    `json:"tunName"`
+	TunLocalIP       string    `json:"tunLocalIP"`
+	TunRemoteIP      string    `json:"tunRemoteIP"`
+	RouteTargetCIDRs []string  `json:"routeTargetCIDRs"`
+	CreatedAt        time.Time `json:"createdAt"`
+}
+
 func createTunDevice() (tun.Device, error) {
 	return tun.CreateTUN("utun", 1500)
 }
@@ -45,18 +55,17 @@ func createState(sysNet TUNSystemNetwork) (*tunStateDarwin, error) {
 	}
 
 	_, tunCIDR, _ := net.ParseCIDR(tunLocalIP + "/30")
-	routeTargetCIDRS := []string{tunCIDR.String(), "0.0.0.0/1", "128.0.0.0/1"}
+	routeTargetCIDRs := []string{tunCIDR.String(), "0.0.0.0/1", "128.0.0.0/1"}
 
-	state := &tunStateDarwin{ //exhaustruct:enforce
+	return &tunStateDarwin{ //exhaustruct:enforce
 		GatewayIP:        sysNet.DefaultRoute().Gateway.String(),
 		PhysIfaceName:    sysNet.DefaultRoute().Iface.Name,
 		TUNName:          tunName,
 		TunLocalIP:       tunLocalIP,
 		TunRemoteIP:      tunRemoteIP,
-		RouteTargetCIDRs: routeTargetCIDRS,
+		RouteTargetCIDRs: routeTargetCIDRs,
 		CreatedAt:        time.Now(),
-	}
-	return state, nil
+	}, nil
 }
 
 func saveState(state *tunStateDarwin) error {
@@ -87,16 +96,6 @@ func deleteState() error {
 		return err
 	}
 	return nil
-}
-
-type tunStateDarwin struct {
-	GatewayIP        string    `json:"gatewayIP"`
-	PhysIfaceName    string    `json:"physIfaceName"`
-	TUNName          string    `json:"tunName"`
-	TunLocalIP       string    `json:"tunLocalIP"`
-	TunRemoteIP      string    `json:"tunRemoteIP"`
-	RouteTargetCIDRs []string  `json:"routeTargetCIDRs"`
-	CreatedAt        time.Time `json:"createdAt"`
 }
 
 // tunSystemNetworkDarwin implements TUNSystemNetwork for Darwin

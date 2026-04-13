@@ -21,13 +21,25 @@ import (
 
 const stateFile = "/tmp/spoofdpi.linux.tun.state"
 
+type tunStateLinux struct {
+	RouteTableID     int       `json:"routeTableID"`
+	GatewayIP        string    `json:"gatewayIP"`
+	TUNName          string    `json:"tunName"`
+	PhysIfaceName    string    `json:"physIfaceName"`
+	PhysIfaceIP      string    `json:"ifaceIP"`
+	TunLocalIP       string    `json:"tunLocalIP"`
+	TunRemoteIP      string    `json:"tunRemoteIP"`
+	RouteTargetCIDRs []string  `json:"routeTargetCIDRs"`
+	CreatedAt        time.Time `json:"createdAt"`
+}
+
 var (
 	allocatedTableID   int
 	allocatedTableOnce sync.Once
 )
 
 func createTunDevice() (tun.Device, error) {
-	return tun.CreateTUN("tun%d", 1500)
+	return tun.CreateTUN("tun-spoofdpi", 1500)
 }
 
 func createState(sysNet TUNSystemNetwork) (*tunStateLinux, error) {
@@ -68,9 +80,9 @@ func createState(sysNet TUNSystemNetwork) (*tunStateLinux, error) {
 	}
 
 	_, tunCIDR, _ := net.ParseCIDR(tunLocalIP + "/30")
-	routeTargetCIDRS := []string{tunCIDR.String(), "0.0.0.0/1", "128.0.0.0/1"}
+	routeTargetCIDRs := []string{tunCIDR.String(), "0.0.0.0/1", "128.0.0.0/1"}
 
-	state := &tunStateLinux{
+	return &tunStateLinux{ //exhaustruct:enforce
 		RouteTableID:     routeTableID,
 		GatewayIP:        gatewayIP,
 		TUNName:          tunName,
@@ -78,10 +90,9 @@ func createState(sysNet TUNSystemNetwork) (*tunStateLinux, error) {
 		PhysIfaceIP:      physIfaceIP,
 		TunLocalIP:       tunLocalIP,
 		TunRemoteIP:      tunRemoteIP,
-		RouteTargetCIDRS: routeTargetCIDRS,
+		RouteTargetCIDRs: routeTargetCIDRs,
 		CreatedAt:        time.Now(),
-	}
-	return state, nil
+	}, nil
 }
 
 func saveState(state *tunStateLinux) error {
@@ -112,18 +123,6 @@ func deleteState() error {
 		return err
 	}
 	return nil
-}
-
-type tunStateLinux struct {
-	RouteTableID     int       `json:"routeTableID"`
-	GatewayIP        string    `json:"gatewayIP"`
-	TUNName          string    `json:"tunName"`
-	PhysIfaceName    string    `json:"physIfaceName"`
-	PhysIfaceIP      string    `json:"ifaceIP"`
-	TunLocalIP       string    `json:"tunLocalIP"`
-	TunRemoteIP      string    `json:"tunRemoteIP"`
-	RouteTargetCIDRS []string  `json:"routeTargetCIDRs"`
-	CreatedAt        time.Time `json:"createdAt"`
 }
 
 // tunSystemNetworkLinux implements TUNSystemNetwork for Linux
@@ -361,7 +360,7 @@ func configurationJobs(
 		},
 	})
 
-	for _, target := range state.RouteTargetCIDRS {
+	for _, target := range state.RouteTargetCIDRs {
 		jobs = append(jobs, server.ConfigurationJob{
 			Up: func() error {
 				if out, err := executil.Commandf("ip route add %s dev %s",
