@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net"
 	"os"
+	"os/user"
 	"path"
 	"strings"
 	"time"
@@ -424,10 +426,12 @@ func CreateCommand(
 			if !cmd.Bool("clean") {
 				configFilename := "spoofdpi.toml"
 
+				home := realHome()
+
 				configDirs := []string{
 					path.Join(string(os.PathSeparator), "etc", configFilename),
 					path.Join(os.Getenv("XDG_CONFIG_HOME"), "spoofdpi", configFilename),
-					path.Join(os.Getenv("HOME"), ".config", "spoofdpi", configFilename),
+					path.Join(home, ".config", "spoofdpi", configFilename),
 				}
 
 				c, err := searchTomlFile(cmd.String("config"), configDirs)
@@ -473,6 +477,22 @@ func CreateCommand(
 	}
 
 	return cmd
+}
+
+func realHome() string {
+	sudoUser := os.Getenv("SUDO_USER")
+	if sudoUser != "" {
+		u, err := user.Lookup(sudoUser)
+		if err == nil {
+			return u.HomeDir
+		}
+	}
+
+	u, err := user.Current()
+	if err != nil {
+		log.Fatal(err)
+	}
+	return u.HomeDir
 }
 
 func createHelpTemplate() string {
