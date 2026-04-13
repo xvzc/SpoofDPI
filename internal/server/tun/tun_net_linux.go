@@ -21,16 +21,67 @@ import (
 
 const stateFile = "/tmp/spoofdpi.linux.tun.state"
 
-type tunStateLinux struct {
-	RouteTableID     int       `json:"routeTableID"`
-	GatewayIP        string    `json:"gatewayIP"`
-	TUNName          string    `json:"tunName"`
-	PhysIfaceName    string    `json:"physIfaceName"`
-	PhysIfaceIP      string    `json:"ifaceIP"`
-	TunLocalIP       string    `json:"tunLocalIP"`
-	TunRemoteIP      string    `json:"tunRemoteIP"`
-	RouteTargetCIDRS []string  `json:"routeTargetCIDRs"`
-	CreatedAt        time.Time `json:"createdAt"`
+var (
+	allocatedTableID   int
+	allocatedTableOnce sync.Once
+)
+
+func createTunDevice() (tun.Device, error) {
+	return tun.CreateTUN("tun%d", 1500)
+}
+
+func createState(sysNet TUNSystemNetwork) (*tunStateLinux, error) {
+	var err error
+
+	tunName, err := sysNet.TunDevice().Name()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tunName: %w", err)
+	}
+	routeTableID, err := getOrAllocateTableID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to allocate routing table ID: %w", err)
+	}
+
+	gatewayIP := sysNet.DefaultRoute().Gateway.String()
+	physIfaceName := sysNet.DefaultRoute().Iface.Name
+
+	physIfaceIP, err := getInterfaceIP(physIfaceName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get IP address for interface %s: %w",
+			physIfaceName,
+			err,
+		)
+	}
+
+	cidr, err := netutil.FindSafeCIDR()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find safe subnet: %w", err)
+	}
+
+	tunLocalIP, err := netutil.AddrInCIDR(cidr, 1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get %dth ip in %s: %w", 1, cidr, err)
+	}
+	tunRemoteIP, err := netutil.AddrInCIDR(cidr, 2)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get %dth ip in %s: %w", 2, cidr, err)
+	}
+
+	_, tunCIDR, _ := net.ParseCIDR(tunLocalIP + "/30")
+	routeTargetCIDRS := []string{tunCIDR.String(), "0.0.0.0/1", "128.0.0.0/1"}
+
+	state := &tunStateLinux{
+		RouteTableID:     routeTableID,
+		GatewayIP:        gatewayIP,
+		TUNName:          tunName,
+		PhysIfaceName:    physIfaceName,
+		PhysIfaceIP:      physIfaceIP,
+		TunLocalIP:       tunLocalIP,
+		TunRemoteIP:      tunRemoteIP,
+		RouteTargetCIDRS: routeTargetCIDRS,
+		CreatedAt:        time.Now(),
+	}
+	return state, nil
 }
 
 func saveState(state *tunStateLinux) error {
@@ -63,10 +114,17 @@ func deleteState() error {
 	return nil
 }
 
-var (
-	allocatedTableID   int
-	allocatedTableOnce sync.Once
-)
+type tunStateLinux struct {
+	RouteTableID     int       `json:"routeTableID"`
+	GatewayIP        string    `json:"gatewayIP"`
+	TUNName          string    `json:"tunName"`
+	PhysIfaceName    string    `json:"physIfaceName"`
+	PhysIfaceIP      string    `json:"ifaceIP"`
+	TunLocalIP       string    `json:"tunLocalIP"`
+	TunRemoteIP      string    `json:"tunRemoteIP"`
+	RouteTargetCIDRS []string  `json:"routeTargetCIDRs"`
+	CreatedAt        time.Time `json:"createdAt"`
+}
 
 // tunSystemNetworkLinux implements TUNSystemNetwork for Linux
 type tunSystemNetworkLinux struct {
@@ -171,60 +229,6 @@ func (n *tunSystemNetworkLinux) BindDialer(
 	}
 
 	return nil
-}
-
-func createState(sysNet TUNSystemNetwork) (*tunStateLinux, error) {
-	var err error
-
-	tunName, err := sysNet.TunDevice().Name()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tunName: %w", err)
-	}
-	routeTableID, err := getOrAllocateTableID()
-	if err != nil {
-		return nil, fmt.Errorf("failed to allocate routing table ID: %w", err)
-	}
-
-	gatewayIP := sysNet.DefaultRoute().Gateway.String()
-	physIfaceName := sysNet.DefaultRoute().Iface.Name
-
-	physIfaceIP, err := getInterfaceIP(physIfaceName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get IP address for interface %s: %w",
-			physIfaceName,
-			err,
-		)
-	}
-
-	cidr, err := netutil.FindSafeCIDR()
-	if err != nil {
-		return nil, fmt.Errorf("failed to find safe subnet: %w", err)
-	}
-
-	tunLocalIP, err := netutil.AddrInCIDR(cidr, 1)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get %dth ip in %s: %w", 1, cidr, err)
-	}
-	tunRemoteIP, err := netutil.AddrInCIDR(cidr, 2)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get %dth ip in %s: %w", 2, cidr, err)
-	}
-
-	_, tunCIDR, _ := net.ParseCIDR(tunLocalIP + "/30")
-	routeTargetCIDRS := []string{tunCIDR.String(), "0.0.0.0/1", "128.0.0.0/1"}
-
-	state := &tunStateLinux{
-		RouteTableID:     routeTableID,
-		GatewayIP:        gatewayIP,
-		TUNName:          tunName,
-		PhysIfaceName:    physIfaceName,
-		PhysIfaceIP:      physIfaceIP,
-		TunLocalIP:       tunLocalIP,
-		TunRemoteIP:      tunRemoteIP,
-		RouteTargetCIDRS: routeTargetCIDRS,
-		CreatedAt:        time.Now(),
-	}
-	return state, nil
 }
 
 func configurationJobs(
@@ -434,8 +438,4 @@ func getInterfaceIP(ifaceName string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("IP not found for interface %s", ifaceName)
-}
-
-func createTunDevice() (tun.Device, error) {
-	return tun.CreateTUN("tun%d", 1500)
 }
