@@ -7,23 +7,36 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/xvzc/spoofdpi/internal/netutil"
+	"github.com/xvzc/spoofdpi/internal/server"
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-func SetRoute(iface string, subnets []string) error {
+type tunStateStub struct{}
+
+func loadState() (*tunStateStub, bool, error) {
+	return nil, false, nil
+}
+
+func createState(sysNet TUNSystemNetwork) (*tunStateStub, error) {
+	return nil, nil
+}
+
+func deleteState() error {
 	return nil
 }
 
-func UnsetRoute(iface string, subnets []string) error {
-	return nil
-}
-
-func SetInterfaceAddress(iface string, local string, remote string) error {
+func saveState(state *tunStateStub) error {
 	return nil
 }
 
 func createTunDevice() (tun.Device, error) {
 	return nil, nil
+}
+
+func configurationJobs(
+	logger zerolog.Logger, state *tunStateStub,
+) []server.ConfigurationJob {
+	return nil
 }
 
 // tunSystemNetworkStub implements TUNSystemNetwork for unsupported platforms
@@ -48,12 +61,8 @@ func (n *tunSystemNetworkStub) DefaultRoute() *netutil.Route {
 	return nil
 }
 
-func (n *tunSystemNetworkStub) SetNetworkConfig() error {
-	return nil
-}
-
-func (n *tunSystemNetworkStub) UnsetNetworkConfig() error {
-	return nil
+func (n *tunSystemNetworkStub) FIBID() int {
+	return 1
 }
 
 func (n *tunSystemNetworkStub) BindDialer(

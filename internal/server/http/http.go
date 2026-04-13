@@ -107,7 +107,7 @@ func (p *HTTPProxy) ListenAndServe(
 	return nil
 }
 
-func (p *HTTPProxy) AutoConfigureNetwork() (func() error, error) {
+func (p *HTTPProxy) AutoConfigureNetwork() (func(), error) {
 	if p.sysNet == nil {
 		return nil, fmt.Errorf("system network not initialized")
 	}
@@ -116,7 +116,11 @@ func (p *HTTPProxy) AutoConfigureNetwork() (func() error, error) {
 		return nil, fmt.Errorf("failed to configure network: %w", err)
 	}
 
-	return p.sysNet.UnsetNetworkConfig, nil
+	unset := func() {
+		_ = p.sysNet.UnsetNetworkConfig
+	}
+
+	return unset, nil
 }
 
 func (p *HTTPProxy) Addr() string {

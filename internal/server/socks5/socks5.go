@@ -110,7 +110,7 @@ func (p *SOCKS5Proxy) ListenAndServe(
 	return nil
 }
 
-func (p *SOCKS5Proxy) AutoConfigureNetwork() (func() error, error) {
+func (p *SOCKS5Proxy) AutoConfigureNetwork() (func(), error) {
 	if p.sysNet == nil {
 		return nil, fmt.Errorf("system network not initialized")
 	}
@@ -119,11 +119,11 @@ func (p *SOCKS5Proxy) AutoConfigureNetwork() (func() error, error) {
 		return nil, fmt.Errorf("failed to configure network: %w", err)
 	}
 
-	cleanup := func() error {
-		return p.sysNet.UnsetNetworkConfig()
+	unset := func() {
+		_ = p.sysNet.UnsetNetworkConfig
 	}
 
-	return cleanup, nil
+	return unset, nil
 }
 
 func (p *SOCKS5Proxy) Addr() string {

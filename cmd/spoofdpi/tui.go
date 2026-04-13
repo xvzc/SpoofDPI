@@ -24,7 +24,7 @@ var (
 	speedStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("255")).
 			Bold(true).
-			MarginLeft(41)
+			MarginLeft(26)
 
 	logStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240"))

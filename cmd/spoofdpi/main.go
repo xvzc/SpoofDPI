@@ -172,11 +172,7 @@ func runApp(mainctx context.Context, configDir string, cfg *config.Config) error
 			if err != nil {
 				logger.Error().Err(err).Msg("failed to set system network config")
 			} else if unset != nil {
-				defer func() {
-					if err := unset(); err != nil {
-						logger.Error().Err(err).Msg("failed to unset system network config")
-					}
-				}()
+				defer unset()
 			}
 		}
 	}
