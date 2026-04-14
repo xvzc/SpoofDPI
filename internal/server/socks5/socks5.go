@@ -118,7 +118,7 @@ func (p *SOCKS5Proxy) AutoConfigureNetwork(ctx context.Context) (func(), error) 
 		staleStateJobs := configurationJobs(ctx, p.logger, staleState)
 
 		for i := len(staleStateJobs) - 1; i >= 0; i-- {
-			if err := staleStateJobs[i].Down(); err != nil {
+			if err := staleStateJobs[i].Reset(); err != nil {
 				p.logger.Error().Err(err).Msg("failed to run unset job")
 			}
 		}
@@ -155,11 +155,11 @@ func (p *SOCKS5Proxy) AutoConfigureNetwork(ctx context.Context) (func(), error) 
 
 	set := func() error {
 		for i, each := range newStateJobs {
-			if each.Up == nil {
+			if each.Apply == nil {
 				continue
 			}
 
-			if err := each.Up(); err != nil {
+			if err := each.Apply(); err != nil {
 				return fmt.Errorf("failed to run set job: %w", err)
 			}
 			executedJobs = i + 1
@@ -169,11 +169,11 @@ func (p *SOCKS5Proxy) AutoConfigureNetwork(ctx context.Context) (func(), error) 
 
 	unset := func() {
 		for i := executedJobs - 1; i >= 0; i-- {
-			if newStateJobs[i].Down == nil {
+			if newStateJobs[i].Reset == nil {
 				continue
 			}
 
-			if err := newStateJobs[i].Down(); err != nil {
+			if err := newStateJobs[i].Reset(); err != nil {
 				p.logger.Error().Err(err).Msg("failed to run unset job")
 			}
 		}

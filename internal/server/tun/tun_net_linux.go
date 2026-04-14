@@ -239,8 +239,8 @@ func configurationJobs(
 	var jobs []server.ConfigurationJob
 
 	jobs = append(jobs, server.ConfigurationJob{
-		Up: nil,
-		Down: func() error {
+		Apply: nil,
+		Reset: func() error {
 			if out, err := executil.Commandf("ip link delete %s",
 				state.TUNName,
 			); err != nil {
@@ -253,7 +253,7 @@ func configurationJobs(
 	})
 
 	jobs = append(jobs, server.ConfigurationJob{
-		Up: func() error {
+		Apply: func() error {
 			if out, err := executil.Commandf("ip addr add %s peer %s dev %s",
 				state.TunLocalIP, state.TunRemoteIP, state.TUNName,
 			); err != nil {
@@ -262,7 +262,7 @@ func configurationJobs(
 
 			return nil
 		},
-		Down: func() error {
+		Reset: func() error {
 			// Remove IP address and peer from the tunnel interface.
 			if out, err := executil.Commandf("ip addr del %s peer %s dev %s",
 				state.TunLocalIP, state.TunRemoteIP, state.TUNName,
@@ -276,7 +276,7 @@ func configurationJobs(
 	})
 
 	jobs = append(jobs, server.ConfigurationJob{
-		Up: func() error {
+		Apply: func() error {
 			// Bring the tunnel interface state to up.
 			if out, err := executil.Commandf("ip link set dev %s up",
 				state.TUNName,
@@ -286,7 +286,7 @@ func configurationJobs(
 
 			return nil
 		},
-		Down: func() error {
+		Reset: func() error {
 			// Bring the tunnel interface state to down.
 			if out, err := executil.Commandf("ip link set dev %s down",
 				state.TUNName,
@@ -300,27 +300,29 @@ func configurationJobs(
 	})
 
 	jobs = append(jobs, server.ConfigurationJob{
-		Up: func() error {
+		Apply: func() error {
 			if out, err := executil.Commandf("ip route add %s dev %s",
 				state.GatewayIP, state.PhysIfaceName,
 			); err != nil {
 				return fmt.Errorf("failed to add gateway route: %s: %w", out, err)
 			}
+
 			return nil
 		},
-		Down: func() error {
+		Reset: func() error {
 			if out, err := executil.Commandf("ip route del %s dev %s",
 				state.GatewayIP, state.PhysIfaceName,
 			); err != nil {
 				logger.Trace().Err(err).Str("out", strings.TrimSpace(out)).
 					Msg("ip route del gateway (ignored)")
 			}
+
 			return nil
 		},
 	})
 
 	jobs = append(jobs, server.ConfigurationJob{
-		Up: func() error {
+		Apply: func() error {
 			if _, err := executil.Commandf("ip route add default via %s dev %s table %d",
 				state.GatewayIP, state.PhysIfaceName, state.RouteTableID,
 			); err != nil {
@@ -329,7 +331,7 @@ func configurationJobs(
 
 			return nil
 		},
-		Down: func() error {
+		Reset: func() error {
 			if out, err := executil.Commandf("ip route del default table %d",
 				state.RouteTableID,
 			); err != nil {
@@ -342,7 +344,7 @@ func configurationJobs(
 	})
 
 	jobs = append(jobs, server.ConfigurationJob{
-		Up: func() error {
+		Apply: func() error {
 			if _, err := executil.Commandf("ip rule add from %s lookup %d",
 				state.PhysIfaceIP, state.RouteTableID,
 			); err != nil {
@@ -351,20 +353,21 @@ func configurationJobs(
 
 			return nil
 		},
-		Down: func() error {
+		Reset: func() error {
 			if out, err := executil.Commandf("ip rule del from %s lookup %d",
 				state.PhysIfaceIP, state.RouteTableID,
 			); err != nil {
 				logger.Trace().Err(err).Str("out", strings.TrimSpace(out)).
 					Msg("ip rule del (ignored)")
 			}
+
 			return nil
 		},
 	})
 
 	for _, target := range state.RouteTargetCIDRs {
 		jobs = append(jobs, server.ConfigurationJob{
-			Up: func() error {
+			Apply: func() error {
 				if out, err := executil.Commandf("ip route add %s dev %s",
 					target, state.TUNName,
 				); err != nil {
@@ -372,7 +375,7 @@ func configurationJobs(
 				}
 				return nil
 			},
-			Down: func() error {
+			Reset: func() error {
 				if out, err := executil.Commandf("ip route del %s dev %s",
 					target, state.TUNName,
 				); err != nil {
@@ -395,6 +398,7 @@ func getOrAllocateTableID() (int, error) {
 	if allocatedTableID == 0 {
 		return 0, initErr
 	}
+
 	return allocatedTableID, nil
 }
 
@@ -418,6 +422,7 @@ func findAvailableTableID() (int, error) {
 
 		return id, nil
 	}
+
 	return 0, fmt.Errorf("no available routing table ID in range 200-250")
 }
 
@@ -438,5 +443,6 @@ func getInterfaceIP(ifaceName string) (string, error) {
 			}
 		}
 	}
+
 	return "", fmt.Errorf("IP not found for interface %s", ifaceName)
 }

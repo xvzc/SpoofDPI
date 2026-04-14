@@ -220,7 +220,7 @@ func configurationJobs(
 	var jobs []server.ConfigurationJob
 
 	jobs = append(jobs, server.ConfigurationJob{
-		Up: func() error {
+		Apply: func() error {
 			if _, err := executil.Commandf("setfib %d route get default",
 				state.FIBID,
 			); err == nil {
@@ -228,11 +228,11 @@ func configurationJobs(
 			}
 			return nil
 		},
-		Down: nil,
+		Reset: nil,
 	})
 
 	jobs = append(jobs, server.ConfigurationJob{
-		Up: func() error {
+		Apply: func() error {
 			if out, err := executil.Commandf("ifconfig %s %s %s up",
 				state.TUNName, state.TunLocalIP, state.TunRemoteIP,
 			); err != nil {
@@ -240,7 +240,7 @@ func configurationJobs(
 			}
 			return nil
 		},
-		Down: func() error {
+		Reset: func() error {
 			if out, err := executil.Commandf("ifconfig %s destroy",
 				state.TUNName,
 			); err != nil {
@@ -251,7 +251,7 @@ func configurationJobs(
 	})
 
 	jobs = append(jobs, server.ConfigurationJob{
-		Up: func() error {
+		Apply: func() error {
 			if out, err := executil.Commandf("route add -net %s -iface %s -fib %d",
 				state.PhysIfaceCIDR, state.PhysIfaceName, state.FIBID,
 			); err != nil {
@@ -261,7 +261,7 @@ func configurationJobs(
 			}
 			return nil
 		},
-		Down: func() error {
+		Reset: func() error {
 			if out, err := executil.Commandf("route delete -net %s -iface %s -fib %d",
 				state.PhysIfaceCIDR, state.PhysIfaceName, state.FIBID,
 			); err != nil {
@@ -274,7 +274,7 @@ func configurationJobs(
 	})
 
 	jobs = append(jobs, server.ConfigurationJob{
-		Up: func() error {
+		Apply: func() error {
 			if out, err := executil.Commandf("route add default %s -fib %d",
 				state.GatewayIP, state.FIBID,
 			); err != nil {
@@ -284,7 +284,7 @@ func configurationJobs(
 			}
 			return nil
 		},
-		Down: func() error {
+		Reset: func() error {
 			if out, err := executil.Commandf("route delete default -fib %d",
 				state.FIBID,
 			); err != nil {
@@ -301,7 +301,7 @@ func configurationJobs(
 
 	for _, target := range state.RouteTargetCIDRs {
 		jobs = append(jobs, server.ConfigurationJob{
-			Up: func() error {
+			Apply: func() error {
 				if out, err := executil.Commandf("route -n add -net %s -interface %s",
 					target, state.TUNName,
 				); err != nil {
@@ -316,7 +316,7 @@ func configurationJobs(
 				}
 				return nil
 			},
-			Down: func() error {
+			Reset: func() error {
 				if out, err := executil.Commandf("route -n delete -net %s -interface %s",
 					target, state.TUNName,
 				); err != nil {

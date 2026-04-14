@@ -25,8 +25,27 @@ type httpStateDarwin struct {
 	PACURL    string `json:"pacURL"`
 }
 
+type httpSystemNetworkDarwin struct {
+	logger       zerolog.Logger
+	defaultRoute *netutil.Route
+}
+
+func NewHTTPSystemNetwork(
+	logger zerolog.Logger,
+	defaultRoute *netutil.Route,
+) HTTPSystemNetwork {
+	return &httpSystemNetworkDarwin{
+		logger:       logger,
+		defaultRoute: defaultRoute,
+	}
+}
+
+func (n *httpSystemNetworkDarwin) DefaultRoute() *netutil.Route {
+	return n.defaultRoute
+}
+
 func getNetworkServiceFromInterface(ifaceName string) (string, error) {
-	out, err := executil.Commandf("networksetup", "-listnetworkserviceorder")
+	out, err := executil.Commandf("networksetup -listnetworkserviceorder")
 	if err != nil {
 		return "", err
 	}
@@ -101,27 +120,17 @@ func configurationJobs(
 	var jobs []server.ConfigurationJob
 
 	jobs = append(jobs, server.ConfigurationJob{
-		Up: func() error {
-			if out, err := executil.Commandf(
-				"networksetup -setautoproxyurl %s %s",
-				state.Service,
-				state.PACURL,
+		Apply: func() error {
+			if out, err := executil.Commandf("networksetup -setautoproxyurl %s %s",
+				state.Service, state.PACURL,
 			); err != nil {
 				return fmt.Errorf("setting autoproxyurl: %s: %w", out, err)
 			}
 
-			if out, err := executil.Commandf(
-				"networksetup -setproxyautodiscovery %s on",
-				state.Service,
-			); err != nil {
-				return fmt.Errorf("setting proxyautodiscovery: %s: %w", out, err)
-			}
-
 			return nil
 		},
-		Down: func() error {
-			if out, err := executil.Commandf(
-				"networksetup -setautoproxystate %s off",
+		Reset: func() error {
+			if out, err := executil.Commandf("networksetup -setautoproxystate %s off",
 				state.Service,
 			); err != nil {
 				logger.Trace().
@@ -130,8 +139,22 @@ func configurationJobs(
 					Msg("failed to unset autoproxystate (ignored)")
 			}
 
-			if out, err := executil.Commandf(
-				"networksetup -setproxyautodiscovery %s off",
+			return nil
+		},
+	})
+
+	jobs = append(jobs, server.ConfigurationJob{
+		Apply: func() error {
+			if out, err := executil.Commandf("networksetup -setproxyautodiscovery %s on",
+				state.Service,
+			); err != nil {
+				return fmt.Errorf("setting proxyautodiscovery: %s: %w", out, err)
+			}
+
+			return nil
+		},
+		Reset: func() error {
+			if out, err := executil.Commandf("networksetup -setproxyautodiscovery %s off",
 				state.Service,
 			); err != nil {
 				logger.Trace().
@@ -145,23 +168,4 @@ func configurationJobs(
 	})
 
 	return jobs
-}
-
-type httpSystemNetworkDarwin struct {
-	logger       zerolog.Logger
-	defaultRoute *netutil.Route
-}
-
-func NewHTTPSystemNetwork(
-	logger zerolog.Logger,
-	defaultRoute *netutil.Route,
-) HTTPSystemNetwork {
-	return &httpSystemNetworkDarwin{
-		logger:       logger,
-		defaultRoute: defaultRoute,
-	}
-}
-
-func (n *httpSystemNetworkDarwin) DefaultRoute() *netutil.Route {
-	return n.defaultRoute
 }

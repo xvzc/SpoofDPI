@@ -25,8 +25,27 @@ type socks5StateDarwin struct {
 	PACURL     string `json:"pacURL"`
 }
 
+type socks5SystemNetworkDarwin struct {
+	logger       zerolog.Logger
+	defaultRoute *netutil.Route
+}
+
+func NewSOCKS5SystemNetwork(
+	logger zerolog.Logger,
+	defaultRoute *netutil.Route,
+) SOCKS5SystemNetwork {
+	return &socks5SystemNetworkDarwin{
+		logger:       logger,
+		defaultRoute: defaultRoute,
+	}
+}
+
+func (n *socks5SystemNetworkDarwin) DefaultRoute() *netutil.Route {
+	return n.defaultRoute
+}
+
 func getNetworkServiceFromInterface(ifaceName string) (string, error) {
-	out, err := executil.Commandf("networksetup", "-listnetworkserviceorder")
+	out, err := executil.Commandf("networksetup -listnetworkserviceorder")
 	if err != nil {
 		return "", err
 	}
@@ -98,17 +117,29 @@ func configurationJobs(
 	var jobs []server.ConfigurationJob
 
 	jobs = append(jobs, server.ConfigurationJob{
-		Up: func() error {
-			if out, err := executil.Commandf(
-				"networksetup -setautoproxyurl %s %s",
-				state.Service,
-				state.PACURL,
+		Apply: func() error {
+			if out, err := executil.Commandf("networksetup -setautoproxyurl %s %s",
+				state.Service, state.PACURL,
 			); err != nil {
 				return fmt.Errorf("setting autoproxyurl: %s: %w", out, err)
 			}
+			return nil
+		},
+		Reset: func() error {
+			if out, err := executil.Commandf("networksetup -setautoproxystate %s off",
+				state.Service,
+			); err != nil {
+				logger.Trace().Err(err).Str("out", out).
+					Msg("failed to unset autoproxystate (ignored)")
+			}
 
-			if out, err := executil.Commandf(
-				"networksetup -setproxyautodiscovery %s on",
+			return nil
+		},
+	})
+
+	jobs = append(jobs, server.ConfigurationJob{
+		Apply: func() error {
+			if out, err := executil.Commandf("networksetup -setproxyautodiscovery %s on",
 				state.Service,
 			); err != nil {
 				return fmt.Errorf("setting proxyautodiscovery: %s: %w", out, err)
@@ -116,24 +147,11 @@ func configurationJobs(
 
 			return nil
 		},
-		Down: func() error {
-			if out, err := executil.Commandf(
-				"networksetup -setautoproxystate %s off",
+		Reset: func() error {
+			if out, err := executil.Commandf("networksetup -setproxyautodiscovery %s off",
 				state.Service,
 			); err != nil {
-				logger.Trace().
-					Err(err).
-					Str("out", out).
-					Msg("failed to unset autoproxystate (ignored)")
-			}
-
-			if out, err := executil.Commandf(
-				"networksetup -setproxyautodiscovery %s off",
-				state.Service,
-			); err != nil {
-				logger.Trace().
-					Err(err).
-					Str("out", out).
+				logger.Trace().Err(err).Str("out", out).
 					Msg("failed to unset proxyautodiscovery (ignored)")
 			}
 
@@ -142,23 +160,4 @@ func configurationJobs(
 	})
 
 	return jobs
-}
-
-type socks5SystemNetworkDarwin struct {
-	logger       zerolog.Logger
-	defaultRoute *netutil.Route
-}
-
-func NewSOCKS5SystemNetwork(
-	logger zerolog.Logger,
-	defaultRoute *netutil.Route,
-) SOCKS5SystemNetwork {
-	return &socks5SystemNetworkDarwin{
-		logger:       logger,
-		defaultRoute: defaultRoute,
-	}
-}
-
-func (n *socks5SystemNetworkDarwin) DefaultRoute() *netutil.Route {
-	return n.defaultRoute
 }

@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/rs/zerolog"
@@ -25,6 +26,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
+	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
@@ -97,6 +99,7 @@ func (s *TunServer) ListenAndServe(
 	if err := stk.CreateNIC(nicID, ep); err != nil {
 		return fmt.Errorf("failed to create NIC: %v", err)
 	}
+	stk.EnableNIC(nicID)
 
 	go func() {
 		<-appctx.Done()
@@ -106,19 +109,24 @@ func (s *TunServer) ListenAndServe(
 	// 3. Enable Promiscuous mode & Spoofing
 	stk.SetPromiscuousMode(nicID, true)
 	stk.SetSpoofing(nicID, true)
+	stk.SetForwardingDefaultAndAllNICs(ipv4.ProtocolNumber, true)
+	stk.SetForwardingDefaultAndAllNICs(ipv6.ProtocolNumber, true)
 
 	// 3.5. Add default route to the stack
 	// Define a subnet that matches all IPv4 addresses (0.0.0.0/0)
-	defaultSubnet, _ := tcpip.NewSubnet(
+	defaultSubnet4, _ := tcpip.NewSubnet(
 		tcpip.AddrFrom4([4]byte{0, 0, 0, 0}),
 		tcpip.MaskFrom("\x00\x00\x00\x00"),
 	)
 
+	defaultSubnet6, _ := tcpip.NewSubnet(
+		tcpip.AddrFrom16([16]byte{}),
+		tcpip.MaskFrom(strings.Repeat("\x00", 16)),
+	)
+
 	stk.SetRouteTable([]tcpip.Route{
-		{
-			Destination: defaultSubnet,
-			NIC:         nicID,
-		},
+		{Destination: defaultSubnet4, NIC: nicID},
+		{Destination: defaultSubnet6, NIC: nicID},
 	})
 
 	// 4. Register TCP Forwarder
@@ -126,7 +134,12 @@ func (s *TunServer) ListenAndServe(
 		var wq waiter.Queue
 		ep, err := r.CreateEndpoint(&wq)
 		if err != nil {
-			logger.Error().Msgf("failed to create tcp endpoint: %v", err)
+			logger.Error().
+				Str("type", fmt.Sprintf("%T", err)).
+				Str("local", r.ID().LocalAddress.String()).
+				Str("remote", r.ID().RemoteAddress.String()).
+				Msgf("failed to create tcp endpoint: %v", err)
+
 			r.Complete(true)
 			return
 		}
@@ -150,7 +163,9 @@ func (s *TunServer) ListenAndServe(
 		var wq waiter.Queue
 		ep, err := r.CreateEndpoint(&wq)
 		if err != nil {
-			logger.Error().Msgf("failed to create udp endpoint: %v", err)
+			logger.Error().Str("type", fmt.Sprintf("%T", err)).
+				Msgf("failed to create udp endpoint: %v", err)
+
 			return true
 		}
 
@@ -377,7 +392,7 @@ func (s *TunServer) AutoConfigureNetwork(ctx context.Context) (func(), error) {
 
 		// Reverts only the successfully applied jobs in LIFO order
 		for i := len(staleStateJobs) - 1; i >= 0; i-- {
-			if err := staleStateJobs[i].Down(); err != nil {
+			if err := staleStateJobs[i].Reset(); err != nil {
 				s.logger.Error().Err(err).Msg("failed to run unset job")
 			}
 		}
@@ -404,11 +419,11 @@ func (s *TunServer) AutoConfigureNetwork(ctx context.Context) (func(), error) {
 
 	set := func() error {
 		for i, each := range newStateJobs {
-			if each.Up == nil {
+			if each.Apply == nil {
 				continue
 			}
 
-			if err := each.Up(); err != nil {
+			if err := each.Apply(); err != nil {
 				return fmt.Errorf("failed to run set job: %w", err)
 			}
 			// Increments the counter after successful job execution
@@ -420,11 +435,11 @@ func (s *TunServer) AutoConfigureNetwork(ctx context.Context) (func(), error) {
 	unset := func() {
 		// Reverts only the successfully applied jobs in LIFO order
 		for i := executedJobs - 1; i >= 0; i-- {
-			if newStateJobs[i].Down == nil {
+			if newStateJobs[i].Reset == nil {
 				continue
 			}
 
-			if err := newStateJobs[i].Down(); err != nil {
+			if err := newStateJobs[i].Reset(); err != nil {
 				s.logger.Error().Err(err).Msg("failed to run unset job")
 			}
 		}
