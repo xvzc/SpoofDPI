@@ -3,6 +3,7 @@
 package tun
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -212,6 +213,7 @@ func (n *tunSystemNetworkFreeBSD) BindDialer(
 }
 
 func configurationJobs(
+	ctx context.Context,
 	logger zerolog.Logger,
 	state *tunStateFreeBSD,
 ) []server.ConfigurationJob {

@@ -29,8 +29,7 @@ type TLSDesyncer struct {
 }
 
 func NewTLSDesyncer(
-	writer packet.Writer,
-	sniffer packet.Sniffer,
+	writer packet.Writer, sniffer packet.Sniffer,
 ) *TLSDesyncer {
 	return &TLSDesyncer{
 		writer:  writer,

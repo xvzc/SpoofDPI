@@ -23,8 +23,6 @@ import (
 // HTTPSystemNetwork handles OS-specific network configuration for HTTP proxy.
 type HTTPSystemNetwork interface {
 	DefaultRoute() *netutil.Route
-	SetNetworkConfig() error
-	UnsetNetworkConfig() error
 }
 
 type HTTPProxy struct {
@@ -39,8 +37,6 @@ type HTTPProxy struct {
 	appOpts    *config.AppOptions
 	connOpts   *config.ConnOptions
 	policyOpts *config.PolicyOptions
-
-	listener net.Listener
 }
 
 func NewHTTPProxy(
@@ -78,7 +74,6 @@ func (p *HTTPProxy) ListenAndServe(
 			err,
 		)
 	}
-	p.listener = listener
 
 	go func() {
 		<-appctx.Done()
@@ -107,17 +102,86 @@ func (p *HTTPProxy) ListenAndServe(
 	return nil
 }
 
-func (p *HTTPProxy) AutoConfigureNetwork() (func(), error) {
+func (p *HTTPProxy) AutoConfigureNetwork(ctx context.Context) (func(), error) {
 	if p.sysNet == nil {
 		return nil, fmt.Errorf("system network not initialized")
 	}
 
-	if err := p.sysNet.SetNetworkConfig(); err != nil {
-		return nil, fmt.Errorf("failed to configure network: %w", err)
+	if staleState, exists, err := loadState(); err == nil && exists {
+		p.logger.Info().Msg("cleaning up stale state")
+		staleStateJobs := configurationJobs(ctx, p.logger, staleState)
+
+		for i := len(staleStateJobs) - 1; i >= 0; i-- {
+			if err := staleStateJobs[i].Down(); err != nil {
+				p.logger.Error().Err(err).Msg("failed to run unset job")
+			}
+		}
+
+		if err := deleteState(); err != nil {
+			p.logger.Error().Err(err).Msg("failed to delete stale state")
+		}
+	}
+
+	pacContent := fmt.Sprintf(`function FindProxyForURL(url, host) {
+    return "PROXY 127.0.0.1:%d; DIRECT";
+}`, p.appOpts.ListenAddr.Port)
+
+	pacURL, pacServer, err := netutil.RunPACServer(pacContent)
+	if err != nil {
+		return nil, fmt.Errorf("error creating pac server: %w", err)
+	}
+
+	newState, err := createState(
+		p.sysNet.DefaultRoute(), uint16(p.appOpts.ListenAddr.Port), pacURL,
+	)
+	if err != nil {
+		_ = pacServer.Close()
+		return nil, err
+	}
+
+	if err := saveState(newState); err != nil {
+		_ = pacServer.Close()
+		return nil, fmt.Errorf("failed to save state: %w", err)
+	}
+
+	newStateJobs := configurationJobs(ctx, p.logger, newState)
+	var executedJobs int
+
+	set := func() error {
+		for i, each := range newStateJobs {
+			if each.Up == nil {
+				continue
+			}
+
+			if err := each.Up(); err != nil {
+				return fmt.Errorf("failed to run set job: %w", err)
+			}
+			executedJobs = i + 1
+		}
+		return nil
 	}
 
 	unset := func() {
-		_ = p.sysNet.UnsetNetworkConfig
+		for i := executedJobs - 1; i >= 0; i-- {
+			if newStateJobs[i].Down == nil {
+				continue
+			}
+
+			if err := newStateJobs[i].Down(); err != nil {
+				p.logger.Error().Err(err).Msg("failed to run unset job")
+			}
+		}
+
+		_ = pacServer.Close()
+
+		if err := deleteState(); err != nil {
+			p.logger.Error().Err(err).Msg("failed to delete state file during cleanup")
+		}
+	}
+
+	if err := set(); err != nil {
+		unset()
+		return nil, err
 	}
 
 	return unset, nil

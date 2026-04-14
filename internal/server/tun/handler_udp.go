@@ -50,10 +50,6 @@ func (h *UDPHandler) Handle(
 	}
 	port, _ := strconv.Atoi(portStr)
 
-	if route := sysNet.DefaultRoute(); route != nil && route.Iface.Name != "" {
-		logger.Debug().Str("iface", route.Iface.Name).Msg("using interface for dial")
-	}
-
 	dst := &netutil.Destination{
 		Domain: host,
 		Port:   port,

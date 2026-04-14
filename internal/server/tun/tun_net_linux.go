@@ -3,6 +3,7 @@
 package tun
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -231,6 +232,7 @@ func (n *tunSystemNetworkLinux) BindDialer(
 }
 
 func configurationJobs(
+	ctx context.Context,
 	logger zerolog.Logger,
 	state *tunStateLinux,
 ) []server.ConfigurationJob {

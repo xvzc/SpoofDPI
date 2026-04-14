@@ -22,7 +22,7 @@ linters:
 formatters:
   enable:
     - gci
-    - gofmt
+    # - gofmt
     - gofumpt
     - goimports
     - golines

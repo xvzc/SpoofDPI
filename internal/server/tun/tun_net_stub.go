@@ -3,6 +3,7 @@
 package tun
 
 import (
+	"context"
 	"net"
 
 	"github.com/rs/zerolog"
@@ -34,7 +35,9 @@ func createTunDevice() (tun.Device, error) {
 }
 
 func configurationJobs(
-	logger zerolog.Logger, state *tunStateStub,
+	ctx context.Context,
+	logger zerolog.Logger,
+	state *tunStateStub,
 ) []server.ConfigurationJob {
 	return nil
 }

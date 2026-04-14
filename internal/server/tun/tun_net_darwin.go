@@ -3,6 +3,7 @@
 package tun
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -204,6 +205,7 @@ func (n *tunSystemNetworkDarwin) BindDialer(
 }
 
 func configurationJobs(
+	ctx context.Context,
 	logger zerolog.Logger,
 	state *tunStateDarwin,
 ) []server.ConfigurationJob {

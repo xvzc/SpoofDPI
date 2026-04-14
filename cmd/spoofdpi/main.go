@@ -168,7 +168,7 @@ func runApp(mainctx context.Context, configDir string, cfg *config.Config) error
 	} else {
 		logger.Info().Msgf("server started on %s", srv.Addr())
 		if *cfg.App.AutoConfigureNetwork {
-			unset, err := srv.AutoConfigureNetwork()
+			unset, err := srv.AutoConfigureNetwork(appctx)
 			if err != nil {
 				logger.Error().Err(err).Msg("failed to set system network config")
 			} else if unset != nil {
@@ -378,7 +378,6 @@ func createServer(
 
 		sysNet := http.NewHTTPSystemNetwork(
 			logging.WithScope(logger, "sys"),
-			uint16(cfg.App.ListenAddr.Port),
 			defaultRoute,
 		)
 
@@ -426,7 +425,6 @@ func createServer(
 			udpAssociateHandler,
 			socks5.NewSOCKS5SystemNetwork(
 				logging.WithScope(logger, "sys"),
-				uint16(cfg.App.ListenAddr.Port),
 				defaultRoute,
 			),
 			cfg.App.Clone(),

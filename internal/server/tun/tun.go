@@ -366,14 +366,14 @@ func (s *TunServer) stackToTun(
 	}
 }
 
-func (s *TunServer) AutoConfigureNetwork() (func(), error) {
+func (s *TunServer) AutoConfigureNetwork(ctx context.Context) (func(), error) {
 	if s.sysNet == nil {
 		return nil, fmt.Errorf("system network not initialized")
 	}
 
 	if staleState, exists, err := loadState(); err == nil && exists {
 		s.logger.Info().Msg("cleaning up stale state")
-		staleStateJobs := configurationJobs(s.logger, staleState)
+		staleStateJobs := configurationJobs(ctx, s.logger, staleState)
 
 		// Reverts only the successfully applied jobs in LIFO order
 		for i := len(staleStateJobs) - 1; i >= 0; i-- {
@@ -399,7 +399,7 @@ func (s *TunServer) AutoConfigureNetwork() (func(), error) {
 
 	// Tracks the count of successfully executed configuration jobs
 
-	newStateJobs := configurationJobs(s.logger, newState)
+	newStateJobs := configurationJobs(ctx, s.logger, newState)
 	var executedJobs int
 
 	set := func() error {

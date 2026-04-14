@@ -74,11 +74,6 @@ func (h *TCPHandler) Handle(
 	port, _ := strconv.Atoi(portStr)
 
 	ip := net.ParseIP(host)
-	if route := sysNet.DefaultRoute(); route != nil && route.Iface.Name != "" {
-		logger.Debug().Str("iface", route.Iface.Name).Msg("using interface for dial")
-	} else {
-		logger.Debug().Msg("no interface specified for dial")
-	}
 
 	dst := &netutil.Destination{
 		Domain: host,
