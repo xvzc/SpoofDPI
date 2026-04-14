@@ -113,6 +113,13 @@ func runApp(mainctx context.Context, configDir string, cfg *config.Config) error
 
 	logger.Info().Str("mode", cfg.App.Mode.String()).Msgf("app")
 
+	switch *cfg.App.Mode {
+	case config.AppModeSOCKS5:
+		logger.Warn().Msg(" 'socks5' mode is an experimental feature")
+	case config.AppModeTUN:
+		logger.Warn().Msg(" 'tun' mode is an experimental feature")
+	}
+
 	resolver := createResolver(logger, cfg)
 	srv, err := createServer(appctx, logger, cfg, resolver)
 	if err != nil {
@@ -152,13 +159,6 @@ func runApp(mainctx context.Context, configDir string, cfg *config.Config) error
 		logger.Info().
 			Str("value", fmt.Sprintf("%dms", cfg.Conn.UDPIdleTimeout.Milliseconds())).
 			Msgf("udp idle timeout")
-	}
-
-	switch *cfg.App.Mode {
-	case config.AppModeSOCKS5:
-		logger.Warn().Msg("'socks5' mode is an experimental feature")
-	case config.AppModeTUN:
-		logger.Warn().Msg("'tun' mode is an experimental feature")
 	}
 
 	time.Sleep(300 * time.Millisecond)
