@@ -414,12 +414,12 @@ func TestFindSliceFrom(t *testing.T) {
 func TestFromTomlFile(t *testing.T) {
 	t.Run("full valid config", func(t *testing.T) {
 		tomlContent := `
-					[app]
-					log-level = "debug"
-					silent = true
-					auto-configure-network = true
-					mode = "socks5"
-					listen-addr = "127.0.0.1:8080"
+				[app]
+				log-level = "debug"
+				no-tui = true
+				auto-configure-network = true
+				mode = "socks5"
+				listen-addr = "127.0.0.1:8080"
 			[connection]
 				dns-timeout = 1000
 				tcp-timeout = 1000
@@ -488,7 +488,7 @@ func TestFromTomlFile(t *testing.T) {
 		assert.Equal(t, time.Duration(1000*time.Millisecond), *cfg.Conn.TCPTimeout)
 		assert.Equal(t, time.Duration(1000*time.Millisecond), *cfg.Conn.UDPIdleTimeout)
 		assert.Equal(t, zerolog.DebugLevel, *cfg.App.LogLevel)
-		assert.True(t, *cfg.App.Silent)
+		assert.True(t, *cfg.App.NoTUI)
 		assert.True(t, *cfg.App.AutoConfigureNetwork)
 		assert.Equal(t, AppModeSOCKS5, *cfg.App.Mode)
 		assert.Equal(t, "8.8.8.8:53", cfg.DNS.Addr.String())

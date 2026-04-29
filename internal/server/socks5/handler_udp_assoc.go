@@ -155,7 +155,7 @@ func (h *UdpAssociateHandler) Handle(
 			Port:  dstAddr.Port,
 		}
 
-		rRawConn, err := netutil.DialFastest(ctx, "udp", dst)
+		rRawConn, err := netutil.DialFastest(ctx, "udp", dst, nil)
 		if err != nil {
 			logger.Warn().Err(err).Str("addr", dstAddrStr).Msg("failed to dial udp target")
 			continue

@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net"
 	"os"
+	"os/user"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/samber/lo"
@@ -17,7 +18,7 @@ import (
 )
 
 func CreateCommand(
-	runFunc func(ctx context.Context, configDir string, cfg *Config),
+	runFunc func(ctx context.Context, configDir string, cfg *Config) error,
 	version string,
 	commit string,
 	build string,
@@ -345,14 +346,14 @@ func CreateCommand(
 			},
 
 			&cli.BoolFlag{
-				Name: "silent",
+				Name: "no-tui",
 				Usage: fmt.Sprintf(`
-				Do not show the banner at start up (default: %v)`,
-					*defaultCfg.App.Silent,
+				Disable TUI and run in headless mode. (default: %v)`,
+					*defaultCfg.App.NoTUI,
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.App.Silent = lo.ToPtr(v)
+					argsCfg.App.NoTUI = lo.ToPtr(v)
 					return nil
 				},
 			},
@@ -389,6 +390,21 @@ func CreateCommand(
 				},
 			},
 
+			&cli.Int64Flag{
+				Name: "freebsd-fib",
+				Usage: fmt.Sprintf(`
+				FIB ID for FreeBSD routing table (1-15). (default: %v)`,
+					1,
+				),
+				Value:     1,
+				OnlyOnce:  true,
+				Validator: checkFreeBSDFibID,
+				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
+					argsCfg.App.FreebsdFIB = lo.ToPtr(int(v))
+					return nil
+				},
+			},
+
 			&cli.BoolFlag{
 				Name: "version",
 				Usage: `
@@ -404,6 +420,8 @@ func CreateCommand(
 				os.Exit(0)
 			}
 
+			realHome := determineRealHome()
+
 			tomlCfg := NewConfig()
 			var configDir string
 			if !cmd.Bool("clean") {
@@ -412,7 +430,7 @@ func CreateCommand(
 				configDirs := []string{
 					path.Join(string(os.PathSeparator), "etc", configFilename),
 					path.Join(os.Getenv("XDG_CONFIG_HOME"), "spoofdpi", configFilename),
-					path.Join(os.Getenv("HOME"), ".config", "spoofdpi", configFilename),
+					path.Join(realHome, ".config", "spoofdpi", configFilename),
 				}
 
 				c, err := searchTomlFile(cmd.String("config"), configDirs)
@@ -442,8 +460,12 @@ func CreateCommand(
 				}
 			}
 
-			runFunc(ctx, strings.Replace(configDir, os.Getenv("HOME"), "~", 1), finalCfg)
-			return nil
+			return runFunc(
+				ctx,
+				configDir,
+				// strings.Replace(configDir, realHome, "~", 1),
+				finalCfg,
+			)
 		},
 	}
 
@@ -455,6 +477,22 @@ func CreateCommand(
 	}
 
 	return cmd
+}
+
+func determineRealHome() string {
+	sudoUser := os.Getenv("SUDO_USER")
+	if sudoUser != "" {
+		u, err := user.Lookup(sudoUser)
+		if err == nil {
+			return u.HomeDir
+		}
+	}
+
+	u, err := user.Current()
+	if err != nil {
+		log.Fatal(err)
+	}
+	return u.HomeDir
 }
 
 func createHelpTemplate() string {

@@ -12,28 +12,23 @@ type Destination struct {
 	Addrs   []net.IP
 	Port    int
 	Timeout time.Duration
-	Iface   *net.Interface
-	Gateway string
 }
 
 func (d *Destination) String() string {
 	return net.JoinHostPort(d.Domain, strconv.Itoa(d.Port))
 }
 
-func ValidateDestination(
-	dstAddrs []net.IP,
-	dstPort int,
-	listenAddr *net.TCPAddr,
-) (bool, error) {
-	if dstPort != int(listenAddr.Port) {
+func (d *Destination) IsValid(listenAddr *net.TCPAddr) (bool, error) {
+	if d.Port != listenAddr.Port {
 		return true, nil
 	}
 
-	var err error
-	var ifAddrs []net.Addr
-	ifAddrs, err = net.InterfaceAddrs()
+	ifAddrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return false, err
+	}
 
-	for _, dstAddr := range dstAddrs {
+	for _, dstAddr := range d.Addrs {
 		ip := dstAddr
 		if ip.IsLoopback() {
 			return false, fmt.Errorf("loopback addr detected %v", ip.String())
@@ -48,5 +43,5 @@ func ValidateDestination(
 		}
 	}
 
-	return true, err
+	return true, nil
 }

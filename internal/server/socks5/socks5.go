@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
@@ -22,6 +23,11 @@ import (
 	"github.com/xvzc/spoofdpi/internal/session"
 )
 
+// SOCKS5SystemNetwork handles OS-specific network configuration for SOCKS5 proxy.
+type SOCKS5SystemNetwork interface {
+	DefaultRoute() *netutil.Route
+}
+
 type SOCKS5Proxy struct {
 	logger zerolog.Logger
 
@@ -30,6 +36,7 @@ type SOCKS5Proxy struct {
 	connectHandler      *ConnectHandler
 	bindHandler         *BindHandler
 	udpAssociateHandler *UdpAssociateHandler
+	sysNet              SOCKS5SystemNetwork
 
 	appOpts    *config.AppOptions
 	connOpts   *config.ConnOptions
@@ -43,6 +50,7 @@ func NewSOCKS5Proxy(
 	connectHandler *ConnectHandler,
 	bindHandler *BindHandler,
 	udpAssociateHandler *UdpAssociateHandler,
+	sysNet SOCKS5SystemNetwork,
 	appOpts *config.AppOptions,
 	connOpts *config.ConnOptions,
 	policyOpts *config.PolicyOptions,
@@ -54,6 +62,7 @@ func NewSOCKS5Proxy(
 		connectHandler:      connectHandler,
 		bindHandler:         bindHandler,
 		udpAssociateHandler: udpAssociateHandler,
+		sysNet:              sysNet,
 		appOpts:             appOpts,
 		connOpts:            connOpts,
 		policyOpts:          policyOpts,
@@ -62,7 +71,6 @@ func NewSOCKS5Proxy(
 
 func (p *SOCKS5Proxy) ListenAndServe(
 	appctx context.Context,
-	ready chan<- struct{},
 ) error {
 	listener, err := net.ListenTCP("tcp", p.appOpts.ListenAddr)
 	if err != nil {
@@ -78,28 +86,111 @@ func (p *SOCKS5Proxy) ListenAndServe(
 		_ = listener.Close()
 	}()
 
-	if ready != nil {
-		close(ready)
-	}
+	go func() {
+		var delay time.Duration
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					return // Normal shutdown
+				}
 
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			if errors.Is(err, net.ErrClosed) {
-				return nil
+				p.logger.Error().Err(err).Msg("failed to accept new connection")
+				server.BackoffOnError(delay)
+
+				continue
 			}
-			p.logger.Error().
-				Err(err).
-				Msg("failed to accept new connection")
-			continue
-		}
 
-		go p.handleConnection(session.WithNewTraceID(appctx), conn)
-	}
+			go p.handleConnection(session.WithNewTraceID(appctx), conn)
+		}
+	}()
+
+	return nil
 }
 
-func (p *SOCKS5Proxy) SetNetworkConfig() (func() error, error) {
-	return setSystemProxy(p.logger, uint16(p.appOpts.ListenAddr.Port))
+func (p *SOCKS5Proxy) AutoConfigureNetwork(ctx context.Context) (func(), error) {
+	if p.sysNet == nil {
+		return nil, fmt.Errorf("system network not initialized")
+	}
+
+	if staleState, exists, err := loadState(); err == nil && exists {
+		p.logger.Info().Msg("cleaning up stale state")
+		staleStateJobs := configurationJobs(ctx, p.logger, staleState)
+
+		for i := len(staleStateJobs) - 1; i >= 0; i-- {
+			if err := staleStateJobs[i].Reset(); err != nil {
+				p.logger.Error().Err(err).Msg("failed to run unset job")
+			}
+		}
+
+		if err := deleteState(); err != nil {
+			p.logger.Error().Err(err).Msg("failed to delete stale state")
+		}
+	}
+
+	pacContent := fmt.Sprintf(`function FindProxyForURL(url, host) {
+    return "SOCKS5 127.0.0.1:%d; DIRECT";
+}`, p.appOpts.ListenAddr.Port)
+
+	pacURL, pacServer, err := netutil.RunPACServer(pacContent)
+	if err != nil {
+		return nil, fmt.Errorf("error creating pac server: %w", err)
+	}
+
+	newState, err := createState(
+		p.sysNet.DefaultRoute(), uint16(p.appOpts.ListenAddr.Port), pacURL,
+	)
+	if err != nil {
+		_ = pacServer.Close()
+		return nil, err
+	}
+
+	if err := saveState(newState); err != nil {
+		_ = pacServer.Close()
+		return nil, fmt.Errorf("failed to save state: %w", err)
+	}
+
+	newStateJobs := configurationJobs(ctx, p.logger, newState)
+	var executedJobs int
+
+	set := func() error {
+		for i, each := range newStateJobs {
+			if each.Apply == nil {
+				continue
+			}
+
+			if err := each.Apply(); err != nil {
+				return fmt.Errorf("failed to run set job: %w", err)
+			}
+			executedJobs = i + 1
+		}
+		return nil
+	}
+
+	unset := func() {
+		for i := executedJobs - 1; i >= 0; i-- {
+			if newStateJobs[i].Reset == nil {
+				continue
+			}
+
+			if err := newStateJobs[i].Reset(); err != nil {
+				p.logger.Error().Err(err).Msg("failed to run unset job")
+			}
+		}
+
+		_ = pacServer.Close()
+
+		if err := deleteState(); err != nil {
+			p.logger.Error().Err(err).Msg("failed to delete state file during cleanup")
+		}
+	}
+
+	if err := set(); err != nil {
+		unset()
+		return nil, err
+	}
+
+	return unset, nil
 }
 
 func (p *SOCKS5Proxy) Addr() string {

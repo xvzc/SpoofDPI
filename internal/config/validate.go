@@ -57,6 +57,7 @@ var (
 	checkHTTPSSplitMode = checkOneOf(availableHTTPSModeValues...)
 	checkLogLevel       = checkOneOf(availableLogLevelValues...)
 	checkSegmentFrom    = checkOneOf(availableSegmentFromValues...)
+	checkFreeBSDFibID   = int64Range(1, 15)
 )
 
 func checkDomainPattern(v string) error {

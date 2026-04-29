@@ -84,25 +84,25 @@ log-level = "trace"
 
 ---
 
-## `silent`
+## `no-tui`
 
 `type: boolean`
 
 ### Description
 
-Suppresses the ASCII art banner at startup. `(default: false)`
+Disables the TUI and runs in headless mode. When set, the ASCII art banner is also suppressed. `(default: false)`
 
 ### Usage
 
 **Command-Line Flag**
 ```console
-$ spoofdpi --silent
+$ spoofdpi --no-tui
 ```
 
 **TOML Config**
 ```toml
 [app]
-silent = true
+no-tui = true
 ```
 
 ---
@@ -175,6 +175,31 @@ $ spoofdpi --clean
 **TOML Config**
 ```toml
 # This option is not available in TOML config
+```
+
+---
+
+## `freebsd-fib`
+
+`type: integer`
+
+### Description
+
+Specifies the FIB (Forwarding Information Base) ID for FreeBSD routing table. `(default: 1)`
+
+Valid range is 1-15. This option is only applicable on **FreeBSD** systems when using TUN mode.
+
+### Usage
+
+**Command-Line Flag**
+```console
+$ spoofdpi --freebsd-fib 3
+```
+
+**TOML Config**
+```toml
+[app]
+freebsd-fib = 3
 ```
 
 ---

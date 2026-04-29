@@ -26,14 +26,14 @@ func TestAppOptions_UnmarshalTOML(t *testing.T) {
 			name: "valid general options",
 			input: map[string]any{
 				"log-level":              "debug",
-				"silent":                 true,
+				"no-tui":                 true,
 				"auto-configure-network": true,
 				"mode":                   "socks5",
 			},
 			wantErr: false,
 			assert: func(t *testing.T, o AppOptions) {
 				assert.Equal(t, zerolog.DebugLevel, *o.LogLevel)
-				assert.True(t, *o.Silent)
+				assert.True(t, *o.NoTUI)
 				assert.True(t, *o.AutoConfigureNetwork)
 				assert.Equal(t, AppModeSOCKS5, *o.Mode)
 			},
@@ -78,12 +78,12 @@ func TestAppOptions_Clone(t *testing.T) {
 			name: "non-nil receiver",
 			input: &AppOptions{
 				LogLevel: lo.ToPtr(zerolog.DebugLevel),
-				Silent:   lo.ToPtr(true),
+				NoTUI:    lo.ToPtr(true),
 			},
 			assert: func(t *testing.T, input *AppOptions, output *AppOptions) {
 				assert.NotNil(t, output)
 				assert.Equal(t, zerolog.DebugLevel, *output.LogLevel)
-				assert.True(t, *output.Silent)
+				assert.True(t, *output.NoTUI)
 				assert.NotSame(t, input, output)
 			},
 		},
@@ -107,30 +107,30 @@ func TestAppOptions_Merge(t *testing.T) {
 		{
 			name:     "nil receiver",
 			base:     nil,
-			override: &AppOptions{Silent: lo.ToPtr(true)},
+			override: &AppOptions{NoTUI: lo.ToPtr(true)},
 			assert: func(t *testing.T, output *AppOptions) {
-				assert.True(t, *output.Silent)
+				assert.True(t, *output.NoTUI)
 			},
 		},
 		{
 			name:     "nil override",
-			base:     &AppOptions{Silent: lo.ToPtr(false)},
+			base:     &AppOptions{NoTUI: lo.ToPtr(false)},
 			override: nil,
 			assert: func(t *testing.T, output *AppOptions) {
-				assert.False(t, *output.Silent)
+				assert.False(t, *output.NoTUI)
 			},
 		},
 		{
 			name: "merge values",
 			base: &AppOptions{
-				Silent:   lo.ToPtr(false),
+				NoTUI:    lo.ToPtr(false),
 				LogLevel: lo.ToPtr(zerolog.InfoLevel),
 			},
 			override: &AppOptions{
-				Silent: lo.ToPtr(true),
+				NoTUI: lo.ToPtr(true),
 			},
 			assert: func(t *testing.T, output *AppOptions) {
-				assert.True(t, *output.Silent)
+				assert.True(t, *output.NoTUI)
 				assert.Equal(t, zerolog.InfoLevel, *output.LogLevel)
 			},
 		},

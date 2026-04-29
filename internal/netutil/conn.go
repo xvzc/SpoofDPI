@@ -16,6 +16,11 @@ import (
 	"github.com/rs/zerolog"
 )
 
+var (
+	txBytes uint64
+	rxBytes uint64
+)
+
 type TunnelDirType int
 
 const (
@@ -82,9 +87,9 @@ func TunnelConns(
 	resCh <- TransferResult{Written: n, Dir: dir, Err: nil}
 }
 
-// WaitAndLogTunnel aggregates results and logs the summary.
+// WaitForTunnelCompletion aggregates results and logs the summary.
 // errHandler processes the list of errors to determine the final error.
-func WaitAndLogTunnel(
+func WaitForTunnelCompletion(
 	ctx context.Context,
 	logger zerolog.Logger,
 	resCh <-chan TransferResult,
@@ -160,6 +165,9 @@ func CloseConns(closers ...io.Closer) {
 // SetTTL configures the TTL or Hop Limit depending on the IP version.
 // The isIPv4 parameter is determined by examining the remote address of the connection.
 func SetTTL(conn net.Conn, isIPv4 bool, ttl uint8) error {
+	if tc, ok := conn.(*TrackingConn); ok {
+		conn = tc.Conn
+	}
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
 		return errors.New("failed to cast to TCPConn")
@@ -315,4 +323,32 @@ func (c *IdleTimeoutConn) Close() error {
 		c.onClose()
 	}
 	return c.Conn.Close()
+}
+
+type TrackingConn struct {
+	net.Conn
+}
+
+func (c *TrackingConn) Read(b []byte) (n int, err error) {
+	n, err = c.Conn.Read(b)
+	if n > 0 {
+		atomic.AddUint64(&rxBytes, uint64(n))
+	}
+	return
+}
+
+func (c *TrackingConn) Write(b []byte) (n int, err error) {
+	n, err = c.Conn.Write(b)
+	if n > 0 {
+		atomic.AddUint64(&txBytes, uint64(n))
+	}
+	return
+}
+
+func GetRxBytes() uint64 {
+	return atomic.LoadUint64(&rxBytes)
+}
+
+func GetTxBytes() uint64 {
+	return atomic.LoadUint64(&txBytes)
 }

@@ -44,11 +44,13 @@ var availableLogLevelValues = []string{
 }
 
 type AppOptions struct {
+	NoTUI                *bool          `toml:"no-tui"`
 	LogLevel             *zerolog.Level `toml:"log-level"`
 	Silent               *bool          `toml:"silent"`
 	AutoConfigureNetwork *bool          `toml:"auto-configure-network"`
 	Mode                 *AppModeType   `toml:"mode"`
 	ListenAddr           *net.TCPAddr   `toml:"listen-addr"`
+	FreebsdFIB           *int           `toml:"freebsd-fib"` // FreeBSD only: FIB ID for routing (2-15)
 }
 
 func (o *AppOptions) UnmarshalTOML(data any) (err error) {
@@ -57,6 +59,7 @@ func (o *AppOptions) UnmarshalTOML(data any) (err error) {
 		return fmt.Errorf("non-table type general config")
 	}
 
+	o.NoTUI = findFrom(m, "no-tui", parseBoolFn(), &err)
 	o.Silent = findFrom(m, "silent", parseBoolFn(), &err)
 	o.AutoConfigureNetwork = findFrom(m, "auto-configure-network", parseBoolFn(), &err)
 	if p := findFrom(m, "log-level", parseStringFn(checkLogLevel), &err); isOk(p, err) {
@@ -68,6 +71,7 @@ func (o *AppOptions) UnmarshalTOML(data any) (err error) {
 	if p := findFrom(m, "listen-addr", parseStringFn(checkHostPort), &err); isOk(p, err) {
 		o.ListenAddr = lo.ToPtr(MustParseTCPAddr(*p))
 	}
+	o.FreebsdFIB = findFrom(m, "freebsd-fib", parseIntFn[int](checkFreeBSDFibID), &err)
 
 	return err
 }
@@ -92,11 +96,13 @@ func (o *AppOptions) Clone() *AppOptions {
 	}
 
 	return &AppOptions{
+		NoTUI:                clonePrimitive(o.NoTUI),
 		LogLevel:             newLevel,
 		Silent:               clonePrimitive(o.Silent),
 		AutoConfigureNetwork: clonePrimitive(o.AutoConfigureNetwork),
 		Mode:                 clonePrimitive(o.Mode),
 		ListenAddr:           newAddr,
+		FreebsdFIB:           clonePrimitive(o.FreebsdFIB),
 	}
 }
 
@@ -110,6 +116,7 @@ func (origin *AppOptions) Merge(overrides *AppOptions) *AppOptions {
 	}
 
 	return &AppOptions{
+		NoTUI:    lo.CoalesceOrEmpty(overrides.NoTUI, origin.NoTUI),
 		LogLevel: lo.CoalesceOrEmpty(overrides.LogLevel, origin.LogLevel),
 		Silent:   lo.CoalesceOrEmpty(overrides.Silent, origin.Silent),
 		AutoConfigureNetwork: lo.CoalesceOrEmpty(
@@ -118,12 +125,13 @@ func (origin *AppOptions) Merge(overrides *AppOptions) *AppOptions {
 		),
 		Mode:       lo.CoalesceOrEmpty(overrides.Mode, origin.Mode),
 		ListenAddr: lo.CoalesceOrEmpty(overrides.ListenAddr, origin.ListenAddr),
+		FreebsdFIB: lo.CoalesceOrEmpty(overrides.FreebsdFIB, origin.FreebsdFIB),
 	}
 }
 
-// ┌──────────────────────┐
-// │ CONNECTION OPTIONS   │
-// └──────────────────────┘
+// ┌────────────────────┐
+// │ CONNECTION OPTIONS │
+// └────────────────────┘
 var _ merger[*ConnOptions] = (*ConnOptions)(nil)
 
 type AppModeType int

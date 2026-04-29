@@ -2,70 +2,304 @@ package http
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/samber/lo"
 	"github.com/xvzc/spoofdpi/internal/config"
+	"github.com/xvzc/spoofdpi/internal/dns"
 	"github.com/xvzc/spoofdpi/internal/logging"
+	"github.com/xvzc/spoofdpi/internal/matcher"
 	"github.com/xvzc/spoofdpi/internal/netutil"
 	"github.com/xvzc/spoofdpi/internal/proto"
+	"github.com/xvzc/spoofdpi/internal/server"
+	"github.com/xvzc/spoofdpi/internal/session"
 )
 
-type HTTPHandler struct {
+// HTTPSystemNetwork handles OS-specific network configuration for HTTP proxy.
+type HTTPSystemNetwork interface {
+	DefaultRoute() *netutil.Route
+}
+
+type HTTPProxy struct {
 	logger zerolog.Logger
+
+	resolver     dns.Resolver
+	httpHandler  *HTTPHandler
+	httpsHandler *HTTPSHandler
+	ruleMatcher  matcher.RuleMatcher
+	sysNet       HTTPSystemNetwork
+
+	appOpts    *config.AppOptions
+	connOpts   *config.ConnOptions
+	policyOpts *config.PolicyOptions
 }
 
-func NewHTTPHandler(logger zerolog.Logger) *HTTPHandler {
-	return &HTTPHandler{
-		logger: logger,
+func NewHTTPProxy(
+	logger zerolog.Logger,
+	resolver dns.Resolver,
+	httpHandler *HTTPHandler,
+	httpsHandler *HTTPSHandler,
+	ruleMatcher matcher.RuleMatcher,
+	sysNet HTTPSystemNetwork,
+	appOpts *config.AppOptions,
+	connOpts *config.ConnOptions,
+	policyOpts *config.PolicyOptions,
+) server.Server {
+	return &HTTPProxy{
+		logger:       logger,
+		resolver:     resolver,
+		httpHandler:  httpHandler,
+		httpsHandler: httpsHandler,
+		ruleMatcher:  ruleMatcher,
+		sysNet:       sysNet,
+		appOpts:      appOpts,
+		connOpts:     connOpts,
+		policyOpts:   policyOpts,
 	}
 }
 
-func (h *HTTPHandler) HandleRequest(
-	ctx context.Context,
-	lConn net.Conn, // Use the net.Conn interface, not a concrete *net.TCPConn.
-	req *proto.HTTPRequest, // Assumes HttpRequest is a custom type for request parsing.
-	dst *netutil.Destination,
-	rule *config.Rule,
+func (p *HTTPProxy) ListenAndServe(
+	appctx context.Context,
 ) error {
-	logger := logging.WithLocalScope(ctx, h.logger, "http")
-
-	rConn, err := netutil.DialFastest(ctx, "tcp", dst)
+	listener, err := net.ListenTCP("tcp", p.appOpts.ListenAddr)
 	if err != nil {
-		_ = proto.HTTPBadGatewayResponse().Write(lConn)
-		return err
+		return fmt.Errorf(
+			"error creating listener on %s: %w",
+			p.appOpts.ListenAddr.String(),
+			err,
+		)
 	}
 
-	// Ensure the remote connection is also closed on exit.
-	defer netutil.CloseConns(rConn)
+	go func() {
+		<-appctx.Done()
+		_ = listener.Close()
+	}()
 
-	logger.Debug().Msgf("new remote conn -> %s", rConn.RemoteAddr())
+	go func() {
+		var delay time.Duration
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					return
+				}
 
-	// Assumes our custom HttpRequest type has a WriteProxy method
-	// (like net/http.Request.WriteProxy) that correctly formats the
-	// request for the origin server (e.g., "GET /path" instead of "GET http://...").
-	if err := req.WriteProxy(rConn); err != nil {
-		return fmt.Errorf("failed to send request: %w", err)
+				p.logger.Error().Err(err).Msgf("failed to accept new connection")
+				delay = server.BackoffOnError(delay)
+
+				continue
+			}
+
+			go p.handleNewConnection(session.WithNewTraceID(context.Background()), conn)
+		}
+	}()
+
+	return nil
+}
+
+func (p *HTTPProxy) AutoConfigureNetwork(ctx context.Context) (func(), error) {
+	if p.sysNet == nil {
+		return nil, fmt.Errorf("system network not initialized")
 	}
 
-	// Start bi-directional tunneling
-	resCh := make(chan netutil.TransferResult, 2)
+	if staleState, exists, err := loadState(); err == nil && exists {
+		p.logger.Info().Msg("cleaning up stale state")
+		staleStateJobs := configurationJobs(ctx, p.logger, staleState)
+
+		for i := len(staleStateJobs) - 1; i >= 0; i-- {
+			if err := staleStateJobs[i].Reset(); err != nil {
+				p.logger.Error().Err(err).Msg("failed to run unset job")
+			}
+		}
+
+		if err := deleteState(); err != nil {
+			p.logger.Error().Err(err).Msg("failed to delete stale state")
+		}
+	}
+
+	pacContent := fmt.Sprintf(`function FindProxyForURL(url, host) {
+    return "PROXY 127.0.0.1:%d; DIRECT";
+}`, p.appOpts.ListenAddr.Port)
+
+	pacURL, pacServer, err := netutil.RunPACServer(pacContent)
+	if err != nil {
+		return nil, fmt.Errorf("error creating pac server: %w", err)
+	}
+
+	newState, err := createState(
+		p.sysNet.DefaultRoute(), uint16(p.appOpts.ListenAddr.Port), pacURL,
+	)
+	if err != nil {
+		_ = pacServer.Close()
+		return nil, err
+	}
+
+	if err := saveState(newState); err != nil {
+		_ = pacServer.Close()
+		return nil, fmt.Errorf("failed to save state: %w", err)
+	}
+
+	newStateJobs := configurationJobs(ctx, p.logger, newState)
+	var executedJobs int
+
+	set := func() error {
+		for i, each := range newStateJobs {
+			if each.Apply == nil {
+				continue
+			}
+
+			if err := each.Apply(); err != nil {
+				return fmt.Errorf("failed to run set job: %w", err)
+			}
+			executedJobs = i + 1
+		}
+		return nil
+	}
+
+	unset := func() {
+		for i := executedJobs - 1; i >= 0; i-- {
+			if newStateJobs[i].Reset == nil {
+				continue
+			}
+
+			if err := newStateJobs[i].Reset(); err != nil {
+				p.logger.Error().Err(err).Msg("failed to run unset job")
+			}
+		}
+
+		_ = pacServer.Close()
+
+		if err := deleteState(); err != nil {
+			p.logger.Error().Err(err).Msg("failed to delete state file during cleanup")
+		}
+	}
+
+	if err := set(); err != nil {
+		unset()
+		return nil, err
+	}
+
+	return unset, nil
+}
+
+func (p *HTTPProxy) Addr() string {
+	return p.appOpts.ListenAddr.String()
+}
+
+func (p *HTTPProxy) handleNewConnection(ctx context.Context, conn net.Conn) {
+	logger := logging.WithLocalScope(ctx, p.logger, "conn_init")
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	defer netutil.CloseConns(conn)
 
-	startedAt := time.Now()
-	go netutil.TunnelConns(ctx, resCh, lConn, rConn, netutil.TunnelDirOut)
-	go netutil.TunnelConns(ctx, resCh, rConn, lConn, netutil.TunnelDirIn)
+	req, err := proto.ReadHttpRequest(conn)
+	if err != nil {
+		if err != io.EOF {
+			logger.Warn().Err(err).Msg("failed to read http request")
+		}
 
-	return netutil.WaitAndLogTunnel(
-		ctx,
-		logger,
-		resCh,
-		startedAt,
-		netutil.DescribeRoute(lConn, rConn),
-		nil,
-	)
+		return
+	}
+
+	logger.Debug().Str("from", conn.RemoteAddr().String()).Str("host", req.Host).
+		Msg("new request")
+
+	if !req.IsValidMethod() {
+		logger.Warn().Str("method", req.Method).Msg("unsupported method. abort")
+		_ = proto.HTTPNotImplementedResponse().Write(conn)
+
+		return
+	}
+
+	host := req.ExtractHost()
+	dstPort, err := req.ExtractPort()
+	if err != nil {
+		logger.Warn().Str("host", req.Host).Msg("failed to extract port")
+		_ = proto.HTTPBadRequestResponse().Write(conn)
+
+		return
+	}
+
+	logger.Debug().
+		Str("method", req.Method).
+		Str("from", conn.RemoteAddr().String()).
+		Msg("new request")
+
+	var addrs []net.IP
+	var nameMatch *config.Rule
+	if net.ParseIP(host) != nil {
+		addrs = []net.IP{net.ParseIP(host)}
+		logger.Trace().Msgf("skipping dns lookup for non-domain host %q", host)
+	} else {
+		nameMatch = p.ruleMatcher.Search(
+			&matcher.Selector{Kind: matcher.MatchKindDomain, Domain: lo.ToPtr(host)},
+		)
+
+		rSet, err := p.resolver.Resolve(ctx, host, nil, nameMatch)
+		if err != nil {
+			_ = proto.HTTPBadGatewayResponse().Write(conn)
+			// logging.ErrorUnwrapped is not available, using standard error logging
+			logger.Error().Err(err).Msgf("dns lookup failed for %s", host)
+
+			return
+		}
+
+		addrs = rSet.Addrs
+	}
+
+	dst := &netutil.Destination{
+		Domain:  host, // Updated from Domain to Host
+		Addrs:   addrs,
+		Port:    dstPort,
+		Timeout: *p.connOpts.TCPTimeout,
+	}
+
+	// Avoid recursively querying self.
+	ok, err := dst.IsValid(p.appOpts.ListenAddr)
+	if err != nil {
+		logger.Debug().Err(err).Msg("error validating dst addrs")
+		if !ok {
+			_ = proto.HTTPForbiddenResponse().Write(conn)
+		}
+	}
+
+	var selectors []*matcher.Selector
+	for _, v := range addrs {
+		selectors = append(selectors, &matcher.Selector{
+			Kind: matcher.MatchKindAddr,
+			IP:   lo.ToPtr(v),
+			Port: lo.ToPtr(uint16(dst.Port)),
+		})
+	}
+
+	addrMatch := p.ruleMatcher.SearchAll(selectors)
+
+	bestMatch := matcher.GetHigherPriorityRule(addrMatch, nameMatch)
+	if bestMatch != nil && logger.GetLevel() == zerolog.TraceLevel {
+		logger.Trace().RawJSON("summary", bestMatch.JSON()).Msg("match")
+	}
+
+	if bestMatch != nil && *bestMatch.Block {
+		logger.Debug().Msg("request is blocked by policy")
+		return
+	}
+
+	var handleErr error
+	if req.IsConnectMethod() {
+		handleErr = p.httpsHandler.HandleRequest(ctx, conn, dst, bestMatch)
+	} else {
+		handleErr = p.httpHandler.HandleRequest(ctx, conn, req, dst, bestMatch)
+	}
+
+	if handleErr == nil { // Early exit if no error found
+		return
+	}
+
+	logger.Warn().Err(handleErr).Msg("error handling request")
 }

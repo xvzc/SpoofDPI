@@ -24,8 +24,6 @@ type TCPHandler struct {
 	defaultConnOpts  *config.ConnOptions
 	desyncer         *desync.TLSDesyncer
 	sniffer          packet.Sniffer // For TTL tracking
-	iface            string
-	gateway          string
 }
 
 func NewTCPHandler(
@@ -35,8 +33,6 @@ func NewTCPHandler(
 	defaultConnOpts *config.ConnOptions,
 	desyncer *desync.TLSDesyncer,
 	sniffer packet.Sniffer,
-	iface string,
-	gateway string,
 ) *TCPHandler {
 	return &TCPHandler{
 		logger:           logger,
@@ -45,12 +41,15 @@ func NewTCPHandler(
 		defaultConnOpts:  defaultConnOpts,
 		desyncer:         desyncer,
 		sniffer:          sniffer,
-		iface:            iface,
-		gateway:          gateway,
 	}
 }
 
-func (h *TCPHandler) Handle(ctx context.Context, lConn net.Conn, rule *config.Rule) {
+func (h *TCPHandler) Handle(
+	ctx context.Context,
+	sysNet TUNSystemNetwork,
+	lConn net.Conn,
+	rule *config.Rule,
+) {
 	logger := logging.WithLocalScope(ctx, h.logger, "tcp")
 
 	defer netutil.CloseConns(lConn)
@@ -75,20 +74,11 @@ func (h *TCPHandler) Handle(ctx context.Context, lConn net.Conn, rule *config.Ru
 	port, _ := strconv.Atoi(portStr)
 
 	ip := net.ParseIP(host)
-	var iface *net.Interface
-	if h.iface != "" {
-		iface, _ = net.InterfaceByName(h.iface)
-		logger.Debug().Str("iface", h.iface).Msg("using interface for dial")
-	} else {
-		logger.Debug().Msg("no interface specified for dial")
-	}
 
 	dst := &netutil.Destination{
-		Domain:  host,
-		Port:    port,
-		Addrs:   []net.IP{},
-		Iface:   iface,
-		Gateway: h.gateway,
+		Domain: host,
+		Port:   port,
+		Addrs:  []net.IP{},
 	}
 	if h.defaultConnOpts != nil && h.defaultConnOpts.TCPTimeout != nil {
 		dst.Timeout = *h.defaultConnOpts.TCPTimeout
@@ -100,14 +90,14 @@ func (h *TCPHandler) Handle(ctx context.Context, lConn net.Conn, rule *config.Ru
 	// Check if it's a TLS Handshake (Content Type 0x16)
 	if buf[0] == 0x16 {
 		logger.Debug().Msg("detected tls handshake")
-		if err := h.handleTLS(ctx, logger, lBufferedConn, dst, rule); err != nil {
+		if err := h.handleTLS(ctx, logger, lBufferedConn, dst, rule, sysNet); err != nil {
 			logger.Debug().Err(err).Msg("tls handler failed")
 		}
 		return
 	}
 
 	// Handle as plain TCP
-	rConn, err := netutil.DialFastest(ctx, "tcp", dst)
+	rConn, err := netutil.DialFastest(ctx, "tcp", dst, sysNet.BindDialer)
 	if err != nil {
 		logger.Error().Msgf("failed to dial %v", err)
 		return
@@ -124,7 +114,7 @@ func (h *TCPHandler) Handle(ctx context.Context, lConn net.Conn, rule *config.Ru
 	go netutil.TunnelConns(ctx, resCh, lBufferedConn, rConn, netutil.TunnelDirOut)
 	go netutil.TunnelConns(ctx, resCh, rConn, lBufferedConn, netutil.TunnelDirIn)
 
-	err = netutil.WaitAndLogTunnel(
+	err = netutil.WaitForTunnelCompletion(
 		ctx,
 		logger,
 		resCh,
@@ -143,6 +133,7 @@ func (h *TCPHandler) handleTLS(
 	lConn net.Conn,
 	dst *netutil.Destination,
 	addrRule *config.Rule, // Rule matched by IP in server.go
+	sysNet TUNSystemNetwork,
 ) error {
 	// Read ClientHello
 	tlsMsg, err := proto.ReadTLSMessage(lConn)
@@ -197,7 +188,7 @@ func (h *TCPHandler) handleTLS(
 	if h.sniffer != nil {
 		h.sniffer.RegisterUntracked(dst.Addrs)
 	}
-	rConn, err := netutil.DialFastest(ctx, "tcp", dst)
+	rConn, err := netutil.DialFastest(ctx, "tcp", dst, sysNet.BindDialer)
 	if err != nil {
 		return err
 	}
@@ -221,7 +212,7 @@ func (h *TCPHandler) handleTLS(
 	go netutil.TunnelConns(ctx, resCh, lConn, rConn, netutil.TunnelDirOut)
 	go netutil.TunnelConns(ctx, resCh, rConn, lConn, netutil.TunnelDirIn)
 
-	return netutil.WaitAndLogTunnel(
+	return netutil.WaitForTunnelCompletion(
 		ctx,
 		logger,
 		resCh,
@@ -229,9 +220,4 @@ func (h *TCPHandler) handleTLS(
 		netutil.DescribeRoute(lConn, rConn),
 		nil,
 	)
-}
-
-func (h *TCPHandler) SetNetworkInfo(iface, gateway string) {
-	h.iface = iface
-	h.gateway = gateway
 }

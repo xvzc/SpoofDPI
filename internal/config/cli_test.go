@@ -25,7 +25,7 @@ func TestCreateCommand_Flags(t *testing.T) {
 			assert: func(t *testing.T, cfg *Config) {
 				// Verify defaults are preserved
 				assert.Equal(t, zerolog.InfoLevel, *cfg.App.LogLevel)
-				assert.False(t, *cfg.App.Silent)
+				assert.False(t, *cfg.App.NoTUI)
 				assert.False(t, *cfg.App.AutoConfigureNetwork)
 				assert.Equal(t, "127.0.0.1:8080", cfg.App.ListenAddr.String())
 				assert.Equal(t, uint8(8), *cfg.Conn.DefaultFakeTTL)
@@ -52,7 +52,7 @@ func TestCreateCommand_Flags(t *testing.T) {
 				"spoofdpi",
 				"--clean", // Ensure no config file interferes
 				"--log-level", "debug",
-				"--silent",
+				"--no-tui",
 				"--auto-configure-network",
 				"--listen-addr", "127.0.0.1:9090",
 				"--default-fake-ttl", "128",
@@ -76,7 +76,7 @@ func TestCreateCommand_Flags(t *testing.T) {
 			assert: func(t *testing.T, cfg *Config) {
 				// General
 				assert.Equal(t, zerolog.DebugLevel, *cfg.App.LogLevel)
-				assert.True(t, *cfg.App.Silent)
+				assert.True(t, *cfg.App.NoTUI)
 				assert.True(t, *cfg.App.AutoConfigureNetwork)
 
 				// Server
@@ -153,8 +153,9 @@ func TestCreateCommand_Flags(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			var capturedCfg *Config
-			runFunc := func(ctx context.Context, configDir string, cfg *Config) {
+			runFunc := func(ctx context.Context, configDir string, cfg *Config) error {
 				capturedCfg = cfg
+				return nil
 			}
 
 			cmd := CreateCommand(runFunc, "v0.0.0", "commit", "build")
@@ -235,8 +236,9 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 	require.NoError(t, err)
 
 	var capturedCfg *Config
-	runFunc := func(ctx context.Context, configDir string, cfg *Config) {
+	runFunc := func(ctx context.Context, configDir string, cfg *Config) error {
 		capturedCfg = cfg
+		return nil
 	}
 
 	cmd := CreateCommand(runFunc, "v0.0.0", "commit", "build")
@@ -245,7 +247,7 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 		"spoofdpi",
 		"--config", configPath,
 		"--log-level", "error",
-		"--silent=false",
+		"--no-tui=false",
 		"--auto-configure-network=false",
 		"--listen-addr", "127.0.0.1:9090",
 		"--dns-timeout", "2000",
@@ -274,7 +276,7 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 	// Verify Overrides
 	// General
 	assert.Equal(t, zerolog.ErrorLevel, *capturedCfg.App.LogLevel)
-	assert.False(t, *capturedCfg.App.Silent)
+	assert.False(t, *capturedCfg.App.NoTUI)
 	assert.False(t, *capturedCfg.App.AutoConfigureNetwork)
 
 	// Server

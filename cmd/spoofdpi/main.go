@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -32,48 +33,98 @@ var (
 	build   = "unknown"
 )
 
+type SwitchableWriter struct {
+	// target is a pointer to an interface, or just the interface itself.
+	// We use a pointer to the interface for direct updates.
+	target io.Writer
+}
+
+func (sw *SwitchableWriter) SetWriter(w io.Writer) {
+	// Update the underlying value that the pointer references
+	sw.target = w
+}
+
+func (sw *SwitchableWriter) Write(p []byte) (n int, err error) {
+	// Access the current writer through the pointer
+	return sw.target.Write(p)
+}
+
+type DelayedWriter struct {
+	writer io.Writer
+	delay  time.Duration
+}
+
+// DelayedWriter is stateless, so value receiver is technically fine,
+// but pointer receiver is preferred for consistency in Go.
+func (dw *DelayedWriter) Write(p []byte) (n int, err error) {
+	if dw.delay > 0 {
+		time.Sleep(dw.delay)
+	}
+	return dw.writer.Write(p)
+}
+
 func main() {
 	cmd := config.CreateCommand(runApp, version, commit, build)
-	appctx, cancel := signal.NotifyContext(
-		session.WithNewTraceID(context.Background()),
-		syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP,
-	)
-	defer cancel()
-	if err := cmd.Run(appctx, os.Args); err != nil {
+	if err := cmd.Run(context.Background(), os.Args); err != nil {
+		fmt.Println("application failed to start")
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func runApp(appctx context.Context, configDir string, cfg *config.Config) {
-	if !*cfg.App.Silent {
-		printBanner()
+func runApp(mainctx context.Context, configDir string, cfg *config.Config) error {
+	appctx, cancel := signal.NotifyContext(
+		session.WithNewTraceID(mainctx),
+		syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP,
+	)
+	defer cancel()
+
+	var writer io.Writer
+	// Channel to capture critical TUI execution failures
+	if !*cfg.App.NoTUI {
+		if err := startTUI(cancel); err != nil {
+			return fmt.Errorf("failed to start tui: %w", err)
+		}
+		writer = TUIWriter{}
+	} else {
+		writer = os.Stdout
 	}
 
-	logging.SetGlobalLogger(appctx, *cfg.App.LogLevel)
+	dw := &DelayedWriter{
+		writer: writer,
+		delay:  29 * time.Millisecond,
+	}
+	sw := &SwitchableWriter{target: dw}
 
+	logging.SetGlobalLogger(appctx, *cfg.App.LogLevel, sw)
 	logger := log.Logger.With().Ctx(appctx).Logger()
-	logger.Info().Str("version", version).Msg("started spoofdpi")
+
+	logger.Info().Str("version", version).Msg("spoofdpi")
 	if configDir != "" {
 		logger.Info().
 			Str("dir", configDir).
-			Msgf("config file loaded")
+			Msgf("loaded config file")
+	} else {
+		logger.Warn().
+			Msg("config file not found")
+		logger.Warn().
+			Msg(" please try 'sudo -E spoofdpi' if you expect a configuration to be loaded")
+	}
+
+	logger.Info().Str("mode", cfg.App.Mode.String()).Msgf("app")
+
+	switch *cfg.App.Mode {
+	case config.AppModeSOCKS5:
+		logger.Warn().Msg(" 'socks5' mode is an experimental feature")
+	case config.AppModeTUN:
+		logger.Warn().Msg(" 'tun' mode is an experimental feature")
 	}
 
 	resolver := createResolver(logger, cfg)
-
 	srv, err := createServer(appctx, logger, cfg, resolver)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to create server")
+		logger.Error().Err(err).Msg("failed to create server")
 	}
-
-	// Start server
-	ready := make(chan struct{})
-	go func() {
-		if err := srv.ListenAndServe(appctx, ready); err != nil {
-			logger.Fatal().Err(err).Msgf("failed to start server: %T", srv)
-		}
-	}()
 
 	logger.Info().Msg("dns info")
 	logger.Info().Msgf(" query type '%s'", cfg.DNS.QType.String())
@@ -110,35 +161,27 @@ func runApp(appctx context.Context, configDir string, cfg *config.Config) {
 			Msgf("udp idle timeout")
 	}
 
-	logger.Info().Msgf("app-mode: %s", cfg.App.Mode.String())
-
-	switch *cfg.App.Mode {
-	case config.AppModeSOCKS5:
-		logger.Warn().Msg("SOCKS5 mode is an EXPERIMENTAL feature")
-	case config.AppModeTUN:
-		logger.Warn().Msg("TUN mode is an EXPERIMENTAL feature")
-	}
-
-	logger.Info().Msgf("server started on %s", srv.Addr())
-
-	<-ready
-
-	// System Proxy Config
-	if *cfg.App.AutoConfigureNetwork {
-		unset, err := srv.SetNetworkConfig()
-		if err != nil {
-			logger.Fatal().Err(err).Msg("failed to set system network config")
-		}
-		if unset != nil {
-			defer func() {
-				if err := unset(); err != nil {
-					logger.Error().Err(err).Msg("failed to unset system network config")
-				}
-			}()
+	time.Sleep(300 * time.Millisecond)
+	err = srv.ListenAndServe(appctx)
+	if err != nil {
+		logger.Error().Err(err).Msg("server failed to start")
+	} else {
+		logger.Info().Msgf("server started on %s", srv.Addr())
+		if *cfg.App.AutoConfigureNetwork {
+			unset, err := srv.AutoConfigureNetwork(appctx)
+			if err != nil {
+				logger.Error().Err(err).Msg("failed to set system network config")
+			} else if unset != nil {
+				defer unset()
+			}
 		}
 	}
+
+	sw.SetWriter(writer)
 
 	<-appctx.Done()
+
+	return nil
 }
 
 func createResolver(logger zerolog.Logger, cfg *config.Config) dns.Resolver {
@@ -317,6 +360,11 @@ func createServer(
 		tcpSniffer,
 	)
 
+	defaultRoute, err := netutil.DefaultRoute()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find default route: %w", err)
+	}
+
 	switch *cfg.App.Mode {
 	case config.AppModeHTTP:
 		httpHandler := http.NewHTTPHandler(logging.WithScope(logger, "hnd"))
@@ -328,12 +376,18 @@ func createServer(
 			cfg.Conn.Clone(),
 		)
 
+		sysNet := http.NewHTTPSystemNetwork(
+			logging.WithScope(logger, "sys"),
+			defaultRoute,
+		)
+
 		return http.NewHTTPProxy(
 			logging.WithScope(logger, "srv"),
 			resolver,
 			httpHandler,
 			httpsHandler,
 			ruleMatcher,
+			sysNet,
 			cfg.App.Clone(),
 			cfg.Conn.Clone(),
 			cfg.Policy.Clone(),
@@ -369,27 +423,29 @@ func createServer(
 			connectHandler,
 			bindHandler,
 			udpAssociateHandler,
+			socks5.NewSOCKS5SystemNetwork(
+				logging.WithScope(logger, "sys"),
+				defaultRoute,
+			),
 			cfg.App.Clone(),
 			cfg.Conn.Clone(),
 			cfg.Policy.Clone(),
 		), nil
 	case config.AppModeTUN:
-		// Find default interface and gateway before modifying routes
-		defaultIface, defaultGateway, err := netutil.GetDefaultInterfaceAndGateway()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get default interface: %w", err)
+			return nil, fmt.Errorf("failed to get default route: %w", err)
 		}
 		logger.Info().
-			Str("interface", defaultIface).
-			Str("gateway", defaultGateway).
+			Str("interface", defaultRoute.Iface.Name).
+			Str("gateway", defaultRoute.Gateway.String()).
 			Msg("determined default interface and gateway")
-		// s.defaultIface = defaultIface
-		// s.defaultGateway = defaultGateway
 
-		// Update handlers with network info
-		// s.tcpHandler.SetNetworkInfo(defaultIface, defaultGateway)
-		// s.udpHandler.SetNetworkInfo(defaultIface, defaultGateway)
-		//
+		// Get FIB ID from config (FreeBSD only, default to 1)
+		fibID := 1
+		if cfg.App.FreebsdFIB != nil {
+			fibID = *cfg.App.FreebsdFIB
+		}
+
 		tcpHandler := tun.NewTCPHandler(
 			logging.WithScope(logger, "hnd"),
 			ruleMatcher, // For domain-based TLS matching
@@ -397,8 +453,6 @@ func createServer(
 			cfg.Conn.Clone(),
 			desyncer,
 			tcpSniffer, // For TTL tracking
-			defaultIface,
-			defaultGateway,
 		)
 
 		udpDesyncer := desync.NewUDPDesyncer(
@@ -412,41 +466,26 @@ func createServer(
 			udpDesyncer,
 			cfg.UDP.Clone(),
 			cfg.Conn.Clone(),
-			defaultIface,
-			defaultGateway,
 		)
 
-		return tun.NewTunServer(
+		sysNet, err := tun.NewTUNSystemNetwork(
+			logging.WithScope(logger, "sys"),
+			defaultRoute,
+			fibID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create sysnet: %w", err)
+		}
+
+		return tun.NewTUNServer(
 			logging.WithScope(logger, "srv"),
 			cfg,
 			ruleMatcher, // For IP-based matching in server.go
 			tcpHandler,
 			udpHandler,
-			defaultIface,
-			defaultGateway,
+			sysNet,
 		), nil
 	default:
 		return nil, fmt.Errorf("unknown server mode: %s", *cfg.App.Mode)
 	}
-}
-
-func printBanner() {
-	const banner = `
- .d8888b.                              .d888 8888888b.  8888888b. 8888888
-d88P  Y88b                            d88P'  888  'Y88b 888   Y88b  888
-Y88b.                                 888    888    888 888    888  888
- 'Y888b.   88888b.   .d88b.   .d88b.  888888 888    888 888   d88P  888
-    'Y88b. 888 '88b d88''88b d88''88b 888    888    888 8888888P'   888
-      '888 888  888 888  888 888  888 888    888    888 888         888
-Y88b  d88P 888 d88P Y88..88P Y88..88P 888    888  .d88P 888         888
- 'Y8888P'  88888P'   'Y88P'   'Y88P'  888    8888888P'  888       8888888
-           888
-           888
-           888
-
-`
-
-	fmt.Print(banner)
-	fmt.Printf("Press 'CTRL + c' to quit\n")
-	fmt.Printf("\n")
 }

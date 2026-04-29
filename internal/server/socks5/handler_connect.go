@@ -61,7 +61,7 @@ func (h *ConnectHandler) Handle(
 	logger := logging.WithLocalScope(ctx, h.logger, "connect")
 
 	// 1. Validate Destination
-	ok, err := netutil.ValidateDestination(dst.Addrs, dst.Port, h.appOpts.ListenAddr)
+	ok, err := dst.IsValid(h.appOpts.ListenAddr)
 	if err != nil {
 		logger.Debug().Err(err).Msg("error determining if valid destination")
 		if !ok {
@@ -79,7 +79,7 @@ func (h *ConnectHandler) Handle(
 
 	dst.Timeout = *connOpts.TCPTimeout
 
-	rConn, err := netutil.DialFastest(ctx, "tcp", dst)
+	rConn, err := netutil.DialFastest(ctx, "tcp", dst, nil)
 	if err != nil {
 		_ = proto.SOCKS5FailureResponse().Write(lConn)
 		return err
@@ -121,7 +121,7 @@ func (h *ConnectHandler) Handle(
 	go netutil.TunnelConns(ctx, resCh, rConn, bufConn, netutil.TunnelDirOut)
 	go netutil.TunnelConns(ctx, resCh, bufConn, rConn, netutil.TunnelDirIn)
 
-	return netutil.WaitAndLogTunnel(
+	return netutil.WaitForTunnelCompletion(
 		ctx,
 		logger,
 		resCh,
@@ -183,7 +183,7 @@ func (h *ConnectHandler) handleHTTPS(
 	go netutil.TunnelConns(ctx, resCh, rConn, lConn, netutil.TunnelDirOut)
 	go netutil.TunnelConns(ctx, resCh, lConn, rConn, netutil.TunnelDirIn)
 
-	return netutil.WaitAndLogTunnel(
+	return netutil.WaitForTunnelCompletion(
 		ctx,
 		logger,
 		resCh,
