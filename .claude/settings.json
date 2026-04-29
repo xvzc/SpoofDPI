@@ -7,9 +7,9 @@
           {
             "type": "command",
             "if": "Bash(git commit*)",
-            "command": "go test ./... && test -z \"$(gofmt -l .)\" && golangci-lint run",
+            "command": "task pre-commit",
             "timeout": 180,
-            "statusMessage": "Running Go tests, format check, and golangci-lint..."
+            "statusMessage": "Running pre-commit task (test + fmt-check + lint)..."
           }
         ]
       }
