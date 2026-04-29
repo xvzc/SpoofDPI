@@ -5,17 +5,6 @@ on:
     types: [opened, reopened, edited, synchronize]
 
 jobs:
-  auto-label:
-    name: auto-label
-    permissions:
-      contents: read
-      pull-requests: write
-    runs-on: ubuntu-latest
-    steps:
-      - uses: release-drafter/release-drafter@v6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   lint-title:
     name: lint-title
     permissions:
@@ -44,26 +33,3 @@ jobs:
             **Examples:**
             - (Good) `docs: update README with new instructions`
             - (Bad)  `docs: Update README with new instructions`
-
-  require-labels:
-    name: require-labels
-    needs: [auto-label]
-    permissions:
-      pull-requests: read
-    runs-on: ubuntu-latest
-    steps:
-      - uses: mheap/github-action-required-labels@v5
-        with:
-          mode: minimum
-          count: 1
-          labels: |
-            feature
-            bug
-            documentation
-            style
-            refactor
-            performance
-            test
-            chore
-            ci
-            revert

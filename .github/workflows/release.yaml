@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       tag_name:
@@ -16,40 +14,38 @@ on:
 permissions:
   contents: write
   id-token: write
+  pull-requests: write
 
 env:
   GO_VERSION: '1.26'
 
 jobs:
-  update-draft:
-    # Run only on push to main to update the release draft
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    name: update-draft
-    permissions:
-      contents: write
-      pull-requests: read
+  release-please:
+    if: github.event_name == 'push'
+    name: release-please
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name:        ${{ steps.rp.outputs.tag_name }}
     steps:
-      - uses: release-drafter/release-drafter@v6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: googleapis/release-please-action@v4
+        id: rp
+        with:
+          config-file: .github/release-please-config.json
+          manifest-file: .release-please-manifest.json
 
   build-and-publish:
-    if: >-
-      (github.event_name == 'release' && github.event.action == 'published') ||
-      github.event_name == 'workflow_dispatch'
+    needs: release-please
+    if: |
+      !cancelled() && (
+        (github.event_name == 'push' && needs.release-please.outputs.release_created == 'true') ||
+        github.event_name == 'workflow_dispatch'
+      )
     name: build-and-publish
     runs-on: macos-latest
+    env:
+      RELEASE_TAG: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
     steps:
-      - name: Determine Tag
-        id: tag
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "RELEASE_TAG=${{ inputs.tag_name }}" >> $GITHUB_ENV
-          else
-            echo "RELEASE_TAG=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
-          fi
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -81,14 +77,15 @@ jobs:
           GORELEASER_CURRENT_TAG: ${{ env.RELEASE_TAG }}
 
       # Upload all generated artifacts to the release.
+      # GitHub auto-marks this as latest by semver rules (no prerelease/draft).
       - name: Upload Artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG_NAME="${{ env.RELEASE_TAG }}"
-          
+
           echo "Uploading artifacts to release: $TAG_NAME"
-          
+
           gh release upload "$TAG_NAME" \
             dist/*.tar.gz \
             dist/*.json \
