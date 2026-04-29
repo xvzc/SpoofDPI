@@ -26,7 +26,7 @@ func CreateCommand(
 	cli.RootCommandHelpTemplate = createHelpTemplate()
 
 	argsCfg := NewConfig()
-	defaultCfg := getDefault()
+	defaultCfg := DefaultConfig()
 
 	cmd := &cli.Command{
 		Name:        "spoofdpi",

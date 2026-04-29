@@ -130,46 +130,86 @@ func (c *Config) ShouldEnablePcap() bool {
 	return false
 }
 
-func getDefault() *Config { //exhaustruct:enforce
+// DefaultConfig returns a fully-populated Config with default values for
+// every field across every section. Used as the starting point of the
+// load pipeline (defaults → TOML → CLI → Finalize → Validate).
+func DefaultConfig() *Config { //exhaustruct:enforce
 	return &Config{
-		App: &AppOptions{
-			NoTUI:                lo.ToPtr(false),
-			LogLevel:             lo.ToPtr(zerolog.InfoLevel),
-			Silent:               lo.ToPtr(false),
-			AutoConfigureNetwork: lo.ToPtr(false),
-			Mode:                 lo.ToPtr(AppModeHTTP),
-			ListenAddr:           nil,
-			FreebsdFIB:           lo.ToPtr(1),
-		},
-		Conn: &ConnOptions{
-			DefaultFakeTTL: lo.ToPtr(uint8(8)),
-			DNSTimeout:     lo.ToPtr(time.Duration(5000) * time.Millisecond),
-			TCPTimeout:     lo.ToPtr(time.Duration(10000) * time.Millisecond),
-			UDPIdleTimeout: lo.ToPtr(time.Duration(25000) * time.Millisecond),
-		},
-		DNS: &DNSOptions{
-			Mode:     lo.ToPtr(DNSModeUDP),
-			Addr:     &net.TCPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53, Zone: ""},
-			HTTPSURL: lo.ToPtr("https://dns.google/dns-query"),
-			QType:    lo.ToPtr(DNSQueryIPv4),
-			Cache:    lo.ToPtr(false),
-		},
-		HTTPS: &HTTPSOptions{
-			Disorder:           lo.ToPtr(false),
-			FakeCount:          lo.ToPtr(uint8(0)),
-			FakePacket:         proto.NewFakeTLSMessage([]byte(FakeClientHello)),
-			SplitMode:          lo.ToPtr(HTTPSSplitModeSNI),
-			ChunkSize:          lo.ToPtr(uint8(35)),
-			CustomSegmentPlans: []SegmentPlan{},
-			Skip:               lo.ToPtr(false),
-		},
-		UDP: &UDPOptions{
-			FakeCount:  lo.ToPtr(0),
-			FakePacket: make([]byte, 64),
-		},
-		Policy: &PolicyOptions{
-			Template:  &Rule{},
-			Overrides: []Rule{},
-		},
+		App:    DefaultAppOptions(),
+		Conn:   DefaultConnOptions(),
+		DNS:    DefaultDNSOptions(),
+		HTTPS:  DefaultHTTPSOptions(),
+		UDP:    DefaultUDPOptions(),
+		Policy: DefaultPolicyOptions(),
 	}
+}
+
+// DefaultAppOptions returns the default values for the [app] section.
+func DefaultAppOptions() *AppOptions { //exhaustruct:enforce
+	return &AppOptions{
+		NoTUI:                lo.ToPtr(false),
+		LogLevel:             lo.ToPtr(zerolog.InfoLevel),
+		Silent:               lo.ToPtr(false),
+		AutoConfigureNetwork: lo.ToPtr(false),
+		Mode:                 lo.ToPtr(AppModeHTTP),
+		ListenAddr:           nil,
+		FreebsdFIB:           lo.ToPtr(1),
+	}
+}
+
+// DefaultConnOptions returns the default values for the [connection] section.
+func DefaultConnOptions() *ConnOptions { //exhaustruct:enforce
+	return &ConnOptions{
+		DefaultFakeTTL: lo.ToPtr(uint8(8)),
+		DNSTimeout:     lo.ToPtr(time.Duration(5000) * time.Millisecond),
+		TCPTimeout:     lo.ToPtr(time.Duration(10000) * time.Millisecond),
+		UDPIdleTimeout: lo.ToPtr(time.Duration(25000) * time.Millisecond),
+	}
+}
+
+// DefaultDNSOptions returns the default values for the [dns] section.
+func DefaultDNSOptions() *DNSOptions { //exhaustruct:enforce
+	return &DNSOptions{
+		Mode:     lo.ToPtr(DNSModeUDP),
+		Addr:     &net.TCPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53, Zone: ""},
+		HTTPSURL: lo.ToPtr("https://dns.google/dns-query"),
+		QType:    lo.ToPtr(DNSQueryIPv4),
+		Cache:    lo.ToPtr(false),
+	}
+}
+
+// DefaultHTTPSOptions returns the default values for the [https] section.
+func DefaultHTTPSOptions() *HTTPSOptions { //exhaustruct:enforce
+	return &HTTPSOptions{
+		Disorder:           lo.ToPtr(false),
+		FakeCount:          lo.ToPtr(uint8(0)),
+		FakePacket:         proto.NewFakeTLSMessage([]byte(FakeClientHello)),
+		SplitMode:          lo.ToPtr(HTTPSSplitModeSNI),
+		ChunkSize:          lo.ToPtr(uint8(35)),
+		CustomSegmentPlans: []SegmentPlan{},
+		Skip:               lo.ToPtr(false),
+	}
+}
+
+// DefaultUDPOptions returns the default values for the [udp] section.
+func DefaultUDPOptions() *UDPOptions { //exhaustruct:enforce
+	return &UDPOptions{
+		FakeCount:  lo.ToPtr(0),
+		FakePacket: make([]byte, 64),
+	}
+}
+
+// DefaultPolicyOptions returns the default values for the [policy] section.
+func DefaultPolicyOptions() *PolicyOptions { //exhaustruct:enforce
+	return &PolicyOptions{
+		Template:  &Rule{},
+		Overrides: []Rule{},
+	}
+}
+
+// Finalize applies defaults that depend on other fields (e.g. ListenAddr
+// per Mode). Called after defaults+TOML+CLI layers are merged, before
+// Validate. Currently a stub; concrete derivations land in a follow-up.
+func (c *Config) Finalize() {
+	// no-op stub
 }

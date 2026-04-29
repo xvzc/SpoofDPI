@@ -167,7 +167,7 @@ func TestConfig_Merge(t *testing.T) {
 			tomlCfg: &Config{},
 			argsCfg: &Config{},
 			assert: func(t *testing.T, merged *Config) {
-				defaultCfg := getDefault()
+				defaultCfg := DefaultConfig()
 				assert.Equal(t, 64, len(defaultCfg.UDP.FakePacket))
 				for _, b := range defaultCfg.UDP.FakePacket {
 					assert.Equal(t, byte(0), b)
