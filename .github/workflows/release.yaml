@@ -32,7 +32,7 @@ jobs:
         id: rp
         with:
           config-file: .github/release-please-config.json
-          manifest-file: .release-please-manifest.json
+          manifest-file: .manifest.json
 
   build-and-publish:
     needs: release-please

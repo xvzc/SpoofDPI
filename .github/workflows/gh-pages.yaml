@@ -1,8 +1,9 @@
 name: Publish Docs
 
 on:
-  release:
-    types: [released]
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
