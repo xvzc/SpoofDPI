@@ -9,13 +9,33 @@ import (
 	"github.com/xvzc/spoofdpi/internal/proto"
 )
 
+// Config groups configuration by lifecycle:
+//
+//   - Startup is read once at boot (logger setup, mode selection, building
+//     the matcher from policy overrides) and is not needed at request time.
+//   - Runtime is read on every request (per-traffic decisions about DPI
+//     bypass, DNS resolution, timeouts) and travels with handlers.
 type Config struct {
-	App    AppOptions    `toml:"app"`
-	Conn   ConnOptions   `toml:"connection"`
-	DNS    DNSOptions    `toml:"dns"`
-	HTTPS  HTTPSOptions  `toml:"https"`
-	UDP    UDPOptions    `toml:"udp"`
-	Policy PolicyOptions `toml:"policy"`
+	Startup StartupConfig
+	Runtime RuntimeConfig
+}
+
+// StartupConfig holds the sections consumed only during server bootstrap.
+// After the server is up and the matcher is built, this can be discarded.
+type StartupConfig struct {
+	App    AppOptions
+	Policy PolicyOptions
+}
+
+// RuntimeConfig holds the sections accessed on the request hot path.
+// Handlers take a pointer to RuntimeConfig (not the individual *XOptions)
+// so adding a new section doesn't require touching every signature, and
+// rule overrides can swap the whole RuntimeConfig in a single assignment.
+type RuntimeConfig struct {
+	Conn  ConnOptions
+	DNS   DNSOptions
+	HTTPS HTTPSOptions
+	UDP   UDPOptions
 }
 
 func (c *Config) UnmarshalTOML(data any) (err error) {
@@ -25,39 +45,39 @@ func (c *Config) UnmarshalTOML(data any) (err error) {
 	}
 
 	if app := findStructFrom[AppOptions](m, "app", &err); app != nil {
-		c.App = *app
+		c.Startup.App = *app
 	}
 	if conn := findStructFrom[ConnOptions](m, "connection", &err); conn != nil {
-		c.Conn = *conn
+		c.Runtime.Conn = *conn
 	}
 	if dns := findStructFrom[DNSOptions](m, "dns", &err); dns != nil {
-		c.DNS = *dns
+		c.Runtime.DNS = *dns
 	}
 	if https := findStructFrom[HTTPSOptions](m, "https", &err); https != nil {
-		c.HTTPS = *https
+		c.Runtime.HTTPS = *https
 	}
 	if udp := findStructFrom[UDPOptions](m, "udp", &err); udp != nil {
-		c.UDP = *udp
+		c.Runtime.UDP = *udp
 	}
 	if policy := findStructFrom[PolicyOptions](m, "policy", &err); policy != nil {
-		c.Policy = *policy
+		c.Startup.Policy = *policy
 	}
 
 	return
 }
 
 func (c *Config) ShouldEnablePcap() bool {
-	if c.HTTPS.FakeCount > 0 {
+	if c.Runtime.HTTPS.FakeCount > 0 {
 		return true
 	}
-	if c.UDP.FakeCount > 0 {
+	if c.Runtime.UDP.FakeCount > 0 {
 		return true
 	}
-	for _, r := range c.Policy.Overrides {
-		if r.HTTPS.FakeCount > 0 {
+	for _, r := range c.Startup.Policy.Overrides {
+		if r.Runtime.HTTPS.FakeCount > 0 {
 			return true
 		}
-		if r.UDP.FakeCount > 0 {
+		if r.Runtime.UDP.FakeCount > 0 {
 			return true
 		}
 	}
@@ -65,16 +85,30 @@ func (c *Config) ShouldEnablePcap() bool {
 }
 
 // DefaultConfig returns a fully-populated Config with default values for
-// every field across every section. Used as the starting point of the
-// load pipeline (defaults → TOML → CLI → Finalize → Validate).
+// every field. Used as the starting point of the load pipeline
+// (defaults → TOML → CLI → Finalize → Validate).
 func DefaultConfig() *Config { //exhaustruct:enforce
 	return &Config{
+		Startup: DefaultStartupConfig(),
+		Runtime: DefaultRuntimeConfig(),
+	}
+}
+
+// DefaultStartupConfig returns the default startup-time configuration.
+func DefaultStartupConfig() StartupConfig { //exhaustruct:enforce
+	return StartupConfig{
 		App:    DefaultAppOptions(),
-		Conn:   DefaultConnOptions(),
-		DNS:    DefaultDNSOptions(),
-		HTTPS:  DefaultHTTPSOptions(),
-		UDP:    DefaultUDPOptions(),
 		Policy: DefaultPolicyOptions(),
+	}
+}
+
+// DefaultRuntimeConfig returns the default runtime configuration.
+func DefaultRuntimeConfig() RuntimeConfig { //exhaustruct:enforce
+	return RuntimeConfig{
+		Conn:  DefaultConnOptions(),
+		DNS:   DefaultDNSOptions(),
+		HTTPS: DefaultHTTPSOptions(),
+		UDP:   DefaultUDPOptions(),
 	}
 }
 
@@ -136,92 +170,25 @@ func DefaultUDPOptions() UDPOptions { //exhaustruct:enforce
 // DefaultPolicyOptions returns the default values for the [policy] section.
 func DefaultPolicyOptions() PolicyOptions { //exhaustruct:enforce
 	return PolicyOptions{
-		Overrides:    []Rule{},
-		rawOverrides: nil,
+		Overrides: []Rule{},
 	}
 }
 
-// Finalize applies defaults that depend on other fields and expands the
-// captured rule overrides into fully-populated Rules. Called after
-// defaults+TOML+CLI layers are merged, before Validate.
+// Finalize applies defaults that depend on other fields (e.g. ListenAddr
+// per Mode). Called after defaults+TOML+CLI layers are merged, before
+// Validate. Rule resolution is handled separately by Load via
+// resolveRules so PolicyOptions doesn't need to carry load-time scratch
+// state into the runtime config.
 func (c *Config) Finalize() error {
-	if c.App.ListenAddr.IP == nil && c.App.ListenAddr.Port == 0 {
+	if c.Startup.App.ListenAddr.IP == nil && c.Startup.App.ListenAddr.Port == 0 {
 		port := 8080
-		if c.App.Mode == AppModeSOCKS5 {
+		if c.Startup.App.Mode == AppModeSOCKS5 {
 			port = 1080
 		}
-		c.App.ListenAddr = net.TCPAddr{
+		c.Startup.App.ListenAddr = net.TCPAddr{
 			IP:   net.ParseIP("127.0.0.1"),
 			Port: port,
 		}
 	}
-	return c.resolveRules()
-}
-
-// resolveRules expands the raw [[policy.overrides]] tables captured during
-// TOML decoding into a slice of fully-populated Rules. Each rule's
-// HTTPS/DNS/UDP/Conn sections are pre-filled from the corresponding base
-// Config sections, then the rule's own TOML is decoded on top — this is
-// the eager-resolve pattern that lets consumers use rule.X directly at
-// request time without re-merging.
-func (c *Config) resolveRules() error {
-	rules := make([]Rule, 0, len(c.Policy.rawOverrides))
-	for i, raw := range c.Policy.rawOverrides {
-		r := Rule{ //exhaustruct:enforce
-			Name:     "",
-			Priority: 0,
-			Block:    false,
-			Match:    nil,
-			HTTPS:    c.HTTPS,
-			DNS:      c.DNS,
-			UDP:      c.UDP,
-			Conn:     c.Conn,
-		}
-
-		var err error
-		if v, ok := raw["name"].(string); ok {
-			r.Name = v
-		}
-		if v, ok := raw["priority"]; ok {
-			pv, perr := parseIntFn[uint16](checkUint16)(v)
-			if perr != nil {
-				return fmt.Errorf("rule %d: priority: %w", i, perr)
-			}
-			r.Priority = pv
-		}
-		if v, ok := raw["block"].(bool); ok {
-			r.Block = v
-		}
-		if v, ok := raw["match"]; ok {
-			r.Match = &MatchAttrs{} //exhaustruct:enforce
-			if err = r.Match.UnmarshalTOML(v); err != nil {
-				return fmt.Errorf("rule %d: match: %w", i, err)
-			}
-		}
-		if v, ok := raw["dns"]; ok {
-			if err = r.DNS.UnmarshalTOML(v); err != nil {
-				return fmt.Errorf("rule %d: dns: %w", i, err)
-			}
-		}
-		if v, ok := raw["https"]; ok {
-			if err = r.HTTPS.UnmarshalTOML(v); err != nil {
-				return fmt.Errorf("rule %d: https: %w", i, err)
-			}
-		}
-		if v, ok := raw["udp"]; ok {
-			if err = r.UDP.UnmarshalTOML(v); err != nil {
-				return fmt.Errorf("rule %d: udp: %w", i, err)
-			}
-		}
-		if v, ok := raw["connection"]; ok {
-			if err = r.Conn.UnmarshalTOML(v); err != nil {
-				return fmt.Errorf("rule %d: connection: %w", i, err)
-			}
-		}
-
-		rules = append(rules, r)
-	}
-	c.Policy.Overrides = rules
-	c.Policy.rawOverrides = nil
 	return nil
 }

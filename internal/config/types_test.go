@@ -227,22 +227,25 @@ func TestPolicyOptions_UnmarshalTOML(t *testing.T) {
 				"overrides": []map[string]any{
 					{
 						"name": "rule1",
-						"match": map[string]any{
-							"domain": []any{"example.com"},
-						},
 					},
 				},
 			},
 			wantErr: false,
 			assert: func(t *testing.T, o PolicyOptions) {
-				// PolicyOptions.UnmarshalTOML captures raw overrides for
-				// deferred resolution by Config.Finalize; Overrides itself
-				// is populated only after resolveRules runs.
+				// PolicyOptions.UnmarshalTOML deliberately ignores the
+				// overrides table — load.extractRawOverrides reads the
+				// raw entries separately so resolveRules can apply them
+				// after the base RuntimeConfig is finalized. The Overrides
+				// slice stays empty until resolveRules populates it.
 				assert.Empty(t, o.Overrides)
-				if assert.Len(t, o.rawOverrides, 1) {
-					assert.Equal(t, "rule1", o.rawOverrides[0]["name"])
-				}
 			},
+		},
+		{
+			name: "rejects template",
+			input: map[string]any{
+				"template": map[string]any{},
+			},
+			wantErr: true,
 		},
 		{
 			name:    "invalid type",
@@ -380,7 +383,7 @@ func TestRule_UnmarshalTOML(t *testing.T) {
 			},
 		},
 		{
-			name: "valid rule with connection options",
+			name: "ignores runtime sections",
 			input: map[string]any{
 				"name": "rule2",
 				"connection": map[string]any{
@@ -390,7 +393,10 @@ func TestRule_UnmarshalTOML(t *testing.T) {
 			wantErr: false,
 			assert: func(t *testing.T, r Rule) {
 				assert.Equal(t, "rule2", r.Name)
-				assert.Equal(t, time.Duration(500*time.Millisecond), r.Conn.TCPTimeout)
+				// Rule.UnmarshalTOML deliberately ignores the runtime
+				// section keys (dns/https/udp/connection); resolveRules
+				// in load.go applies them on top of the base RuntimeConfig.
+				assert.Equal(t, time.Duration(0), r.Runtime.Conn.TCPTimeout)
 			},
 		},
 		{

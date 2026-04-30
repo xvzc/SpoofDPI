@@ -51,7 +51,7 @@ func (ur *UDPResolver) Resolve(
 ) (*RecordSet, error) {
 	opts := ur.defaultDNSOpts
 	if rule != nil {
-		opts = &rule.DNS
+		opts = &rule.Runtime.DNS
 	}
 
 	resCh := lookupAllTypes(

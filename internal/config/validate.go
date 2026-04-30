@@ -215,7 +215,7 @@ func checkMatchAttrs(m MatchAttrs) error {
 // can only be detected once defaults+TOML+CLI are merged and rule
 // overrides are eager-resolved.
 func (c *Config) Validate() error {
-	for i, rule := range c.Policy.Overrides {
+	for i, rule := range c.Startup.Policy.Overrides {
 		if err := checkRule(rule); err != nil {
 			return fmt.Errorf("policy.overrides[%d]: %w", i, err)
 		}

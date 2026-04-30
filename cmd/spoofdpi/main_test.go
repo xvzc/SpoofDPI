@@ -15,14 +15,14 @@ import (
 
 func TestCreateResolver(t *testing.T) {
 	cfg := &config.Config{}
-	cfg.DNS = config.DNSOptions{
+	cfg.Runtime.DNS = config.DNSOptions{
 		Mode:     config.DNSModeUDP,
 		Addr:     net.TCPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53},
 		HTTPSURL: "https://dns.google/dns-query",
 		QType:    config.DNSQueryIPv4,
 		Cache:    true,
 	}
-	cfg.Conn = config.ConnOptions{
+	cfg.Runtime.Conn = config.ConnOptions{
 		DNSTimeout:     time.Duration(0),
 		TCPTimeout:     time.Duration(0),
 		UDPIdleTimeout: time.Duration(0),
@@ -39,13 +39,13 @@ func TestCreateProxy_NoPcap(t *testing.T) {
 	cfg := &config.Config{}
 
 	// App Config
-	cfg.App = config.AppOptions{
+	cfg.Startup.App = config.AppOptions{
 		Mode:       config.AppModeHTTP,
 		ListenAddr: net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0},
 	}
 
 	// Conn Config
-	cfg.Conn = config.ConnOptions{
+	cfg.Runtime.Conn = config.ConnOptions{
 		DefaultFakeTTL: uint8(64),
 		DNSTimeout:     time.Duration(0),
 		TCPTimeout:     time.Duration(0),
@@ -53,7 +53,7 @@ func TestCreateProxy_NoPcap(t *testing.T) {
 	}
 
 	// HTTPS Config (Ensure FakeCount is 0 to disable PCAP)
-	cfg.HTTPS = config.HTTPSOptions{
+	cfg.Runtime.HTTPS = config.HTTPSOptions{
 		Disorder:   false,
 		FakeCount:  uint8(0),
 		FakePacket: proto.NewFakeTLSMessage([]byte{}),
@@ -63,10 +63,10 @@ func TestCreateProxy_NoPcap(t *testing.T) {
 	}
 
 	// Policy Config
-	cfg.Policy = config.PolicyOptions{}
+	cfg.Startup.Policy = config.PolicyOptions{}
 
 	// DNS Config
-	cfg.DNS = config.DNSOptions{
+	cfg.Runtime.DNS = config.DNSOptions{
 		Mode:     config.DNSModeUDP,
 		Addr:     net.TCPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53},
 		HTTPSURL: "https://dns.google/dns-query",
@@ -86,13 +86,13 @@ func TestCreateProxy_WithPolicy(t *testing.T) {
 	cfg := &config.Config{}
 
 	// App Config
-	cfg.App = config.AppOptions{
+	cfg.Startup.App = config.AppOptions{
 		Mode:       config.AppModeHTTP,
 		ListenAddr: net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0},
 	}
 
 	// Conn Config
-	cfg.Conn = config.ConnOptions{
+	cfg.Runtime.Conn = config.ConnOptions{
 		DefaultFakeTTL: uint8(64),
 		DNSTimeout:     time.Duration(0),
 		TCPTimeout:     time.Duration(0),
@@ -100,30 +100,32 @@ func TestCreateProxy_WithPolicy(t *testing.T) {
 	}
 
 	// HTTPS Config
-	cfg.HTTPS = config.HTTPSOptions{
+	cfg.Runtime.HTTPS = config.HTTPSOptions{
 		FakeCount: uint8(0),
 	}
 
 	// Policy Config with one override
-	cfg.Policy = config.PolicyOptions{
+	cfg.Startup.Policy = config.PolicyOptions{
 		Overrides: []config.Rule{
 			{
 				Name: "test-rule",
 				Match: &config.MatchAttrs{
 					Domains: []string{"example.com"},
 				},
-				DNS: config.DNSOptions{
-					Mode: config.DNSModeSystem,
-				},
-				HTTPS: config.HTTPSOptions{
-					Skip: true,
+				Runtime: config.RuntimeConfig{
+					DNS: config.DNSOptions{
+						Mode: config.DNSModeSystem,
+					},
+					HTTPS: config.HTTPSOptions{
+						Skip: true,
+					},
 				},
 			},
 		},
 	}
 
 	// DNS Config
-	cfg.DNS = config.DNSOptions{
+	cfg.Runtime.DNS = config.DNSOptions{
 		Mode:     config.DNSModeUDP,
 		Addr:     net.TCPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53},
 		HTTPSURL: "https://dns.google/dns-query",

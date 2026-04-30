@@ -39,11 +39,10 @@ func TestConfig_UnmarshalTOML(t *testing.T) {
 			},
 			wantErr: false,
 			assert: func(t *testing.T, c Config) {
-				assert.Equal(t, "127.0.0.1:9090", c.App.ListenAddr.String())
-				assert.Equal(t, "1.1.1.1:53", c.DNS.Addr.String())
-				if assert.Len(t, c.Policy.Overrides, 1) {
-					assert.Equal(t, "test", c.Policy.Overrides[0].Name)
-				}
+				assert.Equal(t, "127.0.0.1:9090", c.Startup.App.ListenAddr.String())
+				assert.Equal(t, "1.1.1.1:53", c.Runtime.DNS.Addr.String())
+				// Policy.Overrides is populated by Load via resolveRules,
+				// not by Config.UnmarshalTOML; see TestResolveRules_*.
 			},
 		},
 		{
@@ -71,7 +70,6 @@ func TestConfig_UnmarshalTOML(t *testing.T) {
 				return
 			}
 			assert.NoError(t, err)
-			// Finalize promotes captured raw overrides into resolved Rules.
 			require.NoError(t, c.Finalize())
 			if tc.assert != nil {
 				tc.assert(t, *c)
@@ -89,8 +87,8 @@ func TestConfig_ShouldEnablePcap(t *testing.T) {
 		{
 			name: "global fake count > 0",
 			config: Config{
-				HTTPS: HTTPSOptions{
-					FakeCount: uint8(1),
+				Runtime: RuntimeConfig{
+					HTTPS: HTTPSOptions{FakeCount: uint8(1)},
 				},
 			},
 			expect: true,
@@ -98,14 +96,16 @@ func TestConfig_ShouldEnablePcap(t *testing.T) {
 		{
 			name: "rule fake count > 0",
 			config: Config{
-				HTTPS: HTTPSOptions{
-					FakeCount: uint8(0),
+				Runtime: RuntimeConfig{
+					HTTPS: HTTPSOptions{FakeCount: uint8(0)},
 				},
-				Policy: PolicyOptions{
-					Overrides: []Rule{
-						{
-							HTTPS: HTTPSOptions{
-								FakeCount: uint8(1),
+				Startup: StartupConfig{
+					Policy: PolicyOptions{
+						Overrides: []Rule{
+							{
+								Runtime: RuntimeConfig{
+									HTTPS: HTTPSOptions{FakeCount: uint8(1)},
+								},
 							},
 						},
 					},
@@ -116,14 +116,16 @@ func TestConfig_ShouldEnablePcap(t *testing.T) {
 		{
 			name: "none",
 			config: Config{
-				HTTPS: HTTPSOptions{
-					FakeCount: uint8(0),
+				Runtime: RuntimeConfig{
+					HTTPS: HTTPSOptions{FakeCount: uint8(0)},
 				},
-				Policy: PolicyOptions{
-					Overrides: []Rule{
-						{
-							HTTPS: HTTPSOptions{
-								FakeCount: uint8(0),
+				Startup: StartupConfig{
+					Policy: PolicyOptions{
+						Overrides: []Rule{
+							{
+								Runtime: RuntimeConfig{
+									HTTPS: HTTPSOptions{FakeCount: uint8(0)},
+								},
 							},
 						},
 					},
@@ -142,7 +144,7 @@ func TestConfig_ShouldEnablePcap(t *testing.T) {
 
 func TestConfig_Validate_rejectsRuleWithoutMatch(t *testing.T) {
 	c := DefaultConfig()
-	c.Policy.Overrides = []Rule{
+	c.Startup.Policy.Overrides = []Rule{
 		{
 			Name:  "no-match",
 			Match: nil, // missing match attribute
@@ -156,7 +158,7 @@ func TestConfig_Validate_rejectsRuleWithoutMatch(t *testing.T) {
 
 func TestConfig_Validate_acceptsValidRule(t *testing.T) {
 	c := DefaultConfig()
-	c.Policy.Overrides = []Rule{
+	c.Startup.Policy.Overrides = []Rule{
 		{
 			Name: "ok",
 			Match: &MatchAttrs{
@@ -167,12 +169,13 @@ func TestConfig_Validate_acceptsValidRule(t *testing.T) {
 	assert.NoError(t, c.Validate())
 }
 
-func TestConfig_resolveRules_inheritsFromBase(t *testing.T) {
-	c := DefaultConfig()
-	c.HTTPS.FakeCount = 5
-	c.HTTPS.SplitMode = HTTPSSplitModeChunk
-	c.HTTPS.ChunkSize = 99
-	c.Policy.rawOverrides = []map[string]any{
+func TestResolveRules_inheritsFromBase(t *testing.T) {
+	base := DefaultRuntimeConfig()
+	base.HTTPS.FakeCount = 5
+	base.HTTPS.SplitMode = HTTPSSplitModeChunk
+	base.HTTPS.ChunkSize = 99
+
+	raw := []map[string]any{
 		{
 			"name": "rule1",
 			"match": map[string]any{
@@ -180,22 +183,26 @@ func TestConfig_resolveRules_inheritsFromBase(t *testing.T) {
 			},
 			"https": map[string]any{
 				// Only override fake-count; other HTTPS fields should
-				// inherit from the base config (eager-resolve at load).
+				// inherit from the base RuntimeConfig (eager-resolve at load).
 				"fake-count": int64(2),
 			},
 		},
 	}
 
-	require.NoError(t, c.Finalize())
-	require.Len(t, c.Policy.Overrides, 1)
-	rule := c.Policy.Overrides[0]
+	rules, err := resolveRules(raw, base)
+	require.NoError(t, err)
+	require.Len(t, rules, 1)
+	rule := rules[0]
 	assert.Equal(t, "rule1", rule.Name)
-	assert.Equal(t, uint8(2), rule.HTTPS.FakeCount, "rule overrides fake-count")
+	assert.Equal(t, uint8(2), rule.Runtime.HTTPS.FakeCount, "rule overrides fake-count")
 	assert.Equal(
-		t, HTTPSSplitModeChunk, rule.HTTPS.SplitMode,
+		t, HTTPSSplitModeChunk, rule.Runtime.HTTPS.SplitMode,
 		"rule inherits split-mode from base",
 	)
-	assert.Equal(t, uint8(99), rule.HTTPS.ChunkSize, "rule inherits chunk-size from base")
-	// rawOverrides should be cleared after resolution
-	assert.Nil(t, c.Policy.rawOverrides)
+	assert.Equal(
+		t,
+		uint8(99),
+		rule.Runtime.HTTPS.ChunkSize,
+		"rule inherits chunk-size from base",
+	)
 }

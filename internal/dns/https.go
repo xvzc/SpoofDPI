@@ -81,7 +81,7 @@ func (dr *HTTPSResolver) Resolve(
 ) (*RecordSet, error) {
 	opts := dr.defaultDNSOpts
 	if rule != nil {
-		opts = &rule.DNS
+		opts = &rule.Runtime.DNS
 	}
 
 	upstream := opts.HTTPSURL

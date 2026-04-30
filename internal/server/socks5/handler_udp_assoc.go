@@ -168,7 +168,7 @@ func (h *UdpAssociateHandler) Handle(
 		// Apply UDP options from rule if matched
 		udpOpts := h.defaultUDPOpts
 		if rule != nil {
-			udpOpts = &rule.UDP
+			udpOpts = &rule.Runtime.UDP
 		}
 
 		// Send fake packets before real payload (UDP desync)

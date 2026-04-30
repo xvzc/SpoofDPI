@@ -63,8 +63,8 @@ func (h *UDPHandler) Handle(
 	connOpts := h.defaultConnOpts
 	if rule != nil {
 		logger.Trace().RawJSON("summary", rule.JSON()).Msg("match")
-		udpOpts = &rule.UDP
-		connOpts = &rule.Conn
+		udpOpts = &rule.Runtime.UDP
+		connOpts = &rule.Runtime.Conn
 	}
 
 	// Dial remote connection

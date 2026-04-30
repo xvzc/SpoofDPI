@@ -53,8 +53,8 @@ func (h *ConnectHandler) Handle(
 	httpsOpts := h.defaultHTTPSOpts
 	connOpts := h.defaultConnOpts
 	if rule != nil {
-		httpsOpts = &rule.HTTPS
-		connOpts = &rule.Conn
+		httpsOpts = &rule.Runtime.HTTPS
+		connOpts = &rule.Runtime.Conn
 	}
 
 	logger := logging.WithLocalScope(ctx, h.logger, "connect")

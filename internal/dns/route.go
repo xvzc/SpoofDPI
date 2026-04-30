@@ -56,7 +56,7 @@ func (rr *RouteResolver) Resolve(
 ) (*RecordSet, error) {
 	opts := rr.defaultDNSOpts
 	if rule != nil {
-		opts = &rule.DNS
+		opts = &rule.Runtime.DNS
 	}
 
 	logger := logging.WithLocalScope(ctx, rr.logger, "route")

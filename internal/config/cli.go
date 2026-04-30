@@ -40,12 +40,12 @@ func CreateCommand(
 				Specifies the proxy mode.
 				Note that 'socks5' and 'tun' modes are currently experimental.
 				(default: %q)`,
-					defaultCfg.App.Mode.String(),
+					defaultCfg.Startup.App.Mode.String(),
 				),
 				OnlyOnce:  true,
 				Validator: checkAppMode,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.App.Mode = MustParseServerModeType(v)
+					argsCfg.Startup.App.Mode = MustParseServerModeType(v)
 					return nil
 				},
 			},
@@ -71,12 +71,12 @@ func CreateCommand(
 				Name: "default-fake-ttl",
 				Usage: fmt.Sprintf(`
 				Default TTL value for fake packets. (default: %v)`,
-					defaultCfg.Conn.DefaultFakeTTL,
+					defaultCfg.Runtime.Conn.DefaultFakeTTL,
 				),
 				OnlyOnce:  true,
 				Validator: checkUint8NonZero,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.Conn.DefaultFakeTTL = uint8(v)
+					argsCfg.Runtime.Conn.DefaultFakeTTL = uint8(v)
 					return nil
 				},
 			},
@@ -85,12 +85,12 @@ func CreateCommand(
 				Name: "dns-addr",
 				Usage: fmt.Sprintf(`<ip:port>
 				Upstream DNS server address for standard UDP queries. (default: %v)`,
-					defaultCfg.DNS.Addr.String(),
+					defaultCfg.Runtime.DNS.Addr.String(),
 				),
 				OnlyOnce:  true,
 				Validator: checkHostPort,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.DNS.Addr = MustParseTCPAddr(v)
+					argsCfg.Runtime.DNS.Addr = MustParseTCPAddr(v)
 					return nil
 				},
 			},
@@ -99,12 +99,12 @@ func CreateCommand(
 				Name: "dns-cache",
 				Usage: fmt.Sprintf(`
 				If set, DNS records will be cached. (default: %v)`,
-					defaultCfg.DNS.Cache,
+					defaultCfg.Runtime.DNS.Cache,
 				),
 				Value:    false,
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.DNS.Cache = v
+					argsCfg.Runtime.DNS.Cache = v
 					return nil
 				},
 			},
@@ -114,13 +114,13 @@ func CreateCommand(
 				Usage: fmt.Sprintf(`<"udp"|"doh"|"sys">
 				Default resolution mode for domains that do not match any specific rule.
 				(default: %q)`,
-					defaultCfg.DNS.Mode.String(),
+					defaultCfg.Runtime.DNS.Mode.String(),
 				),
 				Value:     "udp",
 				OnlyOnce:  true,
 				Validator: checkDNSMode,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.DNS.Mode = MustParseDNSModeType(v)
+					argsCfg.Runtime.DNS.Mode = MustParseDNSModeType(v)
 					return nil
 				},
 			},
@@ -130,13 +130,13 @@ func CreateCommand(
 				Usage: fmt.Sprintf(`<https_url>
 				Endpoint URL for DNS over HTTPS (DoH) queries. 
 				(default: %q)`,
-					defaultCfg.DNS.HTTPSURL,
+					defaultCfg.Runtime.DNS.HTTPSURL,
 				),
 				Value:     "https://dns.google/dns-query",
 				OnlyOnce:  true,
 				Validator: checkHTTPSEndpoint,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.DNS.HTTPSURL = v
+					argsCfg.Runtime.DNS.HTTPSURL = v
 					return nil
 				},
 			},
@@ -146,13 +146,13 @@ func CreateCommand(
 				Usage: fmt.Sprintf(`<"ipv4"|"ipv6"|"all">
 				Filters DNS queries by record type (A for IPv4, AAAA for IPv6).
 				(default: %q)`,
-					defaultCfg.DNS.QType.String(),
+					defaultCfg.Runtime.DNS.QType.String(),
 				),
 				Value:     "ipv4",
 				OnlyOnce:  true,
 				Validator: checkDNSQueryType,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.DNS.QType = MustParseDNSQueryType(v)
+					argsCfg.Runtime.DNS.QType = MustParseDNSQueryType(v)
 					return nil
 				},
 			},
@@ -162,14 +162,14 @@ func CreateCommand(
 				Usage: fmt.Sprintf(`
 				Timeout for dns connection in milliseconds. 
 				No effect when the value is 0 (default: %v, max: %v)`,
-					defaultCfg.Conn.DNSTimeout.Milliseconds(),
+					defaultCfg.Runtime.Conn.DNSTimeout.Milliseconds(),
 					math.MaxUint16,
 				),
 				Value:     0,
 				OnlyOnce:  true,
 				Validator: checkUint16,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.Conn.DNSTimeout = time.Duration(v * int64(time.Millisecond))
+					argsCfg.Runtime.Conn.DNSTimeout = time.Duration(v * int64(time.Millisecond))
 					return nil
 				},
 			},
@@ -179,13 +179,13 @@ func CreateCommand(
 				Usage: fmt.Sprintf(`
 				Number of fake packets to be sent before the Client Hello.
 				Requires 'https-chunk-size' > 0 for fragmentation. (default: %v)`,
-					defaultCfg.HTTPS.FakeCount,
+					defaultCfg.Runtime.HTTPS.FakeCount,
 				),
 				Value:     0,
 				OnlyOnce:  true,
 				Validator: checkUint8,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.HTTPS.FakeCount = uint8(v)
+					argsCfg.Runtime.HTTPS.FakeCount = uint8(v)
 					return nil
 				},
 			},
@@ -199,7 +199,7 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkHexBytesStr,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.HTTPS.FakePacket = proto.NewFakeTLSMessage(MustParseBytes(v))
+					argsCfg.Runtime.HTTPS.FakePacket = proto.NewFakeTLSMessage(MustParseBytes(v))
 					return nil
 				},
 			},
@@ -208,11 +208,11 @@ func CreateCommand(
 				Name: "https-disorder",
 				Usage: fmt.Sprintf(`
 				If set, sends fragmented Client Hello packets out-of-order. (default: %v)`,
-					defaultCfg.HTTPS.Disorder,
+					defaultCfg.Runtime.HTTPS.Disorder,
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.HTTPS.Disorder = v
+					argsCfg.Runtime.HTTPS.Disorder = v
 					return nil
 				},
 			},
@@ -221,13 +221,13 @@ func CreateCommand(
 				Name: "https-split-mode",
 				Usage: fmt.Sprintf(`<"sni"|"random"|"chunk"|"sni"|"custom"|"none">
 				Specifies the default packet fragmentation strategy to use. (default: %q)`,
-					defaultCfg.HTTPS.SplitMode.String(),
+					defaultCfg.Runtime.HTTPS.SplitMode.String(),
 				),
 				Value:     "chunk",
 				OnlyOnce:  true,
 				Validator: checkHTTPSSplitMode,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.HTTPS.SplitMode = mustParseHTTPSSplitModeType(v)
+					argsCfg.Runtime.HTTPS.SplitMode = mustParseHTTPSSplitModeType(v)
 					return nil
 				},
 			},
@@ -237,11 +237,11 @@ func CreateCommand(
 				Usage: fmt.Sprintf(`
 				If set, HTTPS traffic will be processed without any DPI bypass techniques. 
 				(default: %v)`,
-					defaultCfg.HTTPS.Skip,
+					defaultCfg.Runtime.HTTPS.Skip,
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.HTTPS.Skip = v
+					argsCfg.Runtime.HTTPS.Skip = v
 					return nil
 				},
 			},
@@ -254,13 +254,13 @@ func CreateCommand(
 				disables fragmentation (to avoid division-by-zero errors), you should set 
 				'https-split-default' to 'none' to disable the feature cleanly.
 				(default: %v, max: %v)`,
-					defaultCfg.HTTPS.ChunkSize,
+					defaultCfg.Runtime.HTTPS.ChunkSize,
 					math.MaxUint8,
 				),
 				OnlyOnce:  true,
 				Validator: checkUint8NonZero,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.HTTPS.ChunkSize = uint8(v)
+					argsCfg.Runtime.HTTPS.ChunkSize = uint8(v)
 					return nil
 				},
 			},
@@ -269,13 +269,13 @@ func CreateCommand(
 				Name: "udp-fake-count",
 				Usage: fmt.Sprintf(`
 				Number of fake packets to be sent. (default: %v)`,
-					defaultCfg.UDP.FakeCount,
+					defaultCfg.Runtime.UDP.FakeCount,
 				),
 				Value:     0,
 				OnlyOnce:  true,
 				Validator: int64Range(0, math.MaxInt),
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.UDP.FakeCount = int(v)
+					argsCfg.Runtime.UDP.FakeCount = int(v)
 					return nil
 				},
 			},
@@ -285,11 +285,11 @@ func CreateCommand(
 				Usage: `<byte_array>
 				Comma-separated hexadecimal byte array used for fake packet. 
 				(default: built-in fake packet)`,
-				Value:     MustParseHexCSV(defaultCfg.UDP.FakePacket),
+				Value:     MustParseHexCSV(defaultCfg.Runtime.UDP.FakePacket),
 				OnlyOnce:  true,
 				Validator: checkHexBytesStr,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.UDP.FakePacket = MustParseBytes(v)
+					argsCfg.Runtime.UDP.FakePacket = MustParseBytes(v)
 					return nil
 				},
 			},
@@ -299,14 +299,16 @@ func CreateCommand(
 				Usage: fmt.Sprintf(`
 				Idle timeout for udp connection in milliseconds. 
 				No effect when the value is 0 (default: %v, max: %v)`,
-					defaultCfg.Conn.UDPIdleTimeout.Milliseconds(),
+					defaultCfg.Runtime.Conn.UDPIdleTimeout.Milliseconds(),
 					math.MaxUint16,
 				),
 				Value:     0,
 				OnlyOnce:  true,
 				Validator: checkUint16,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.Conn.UDPIdleTimeout = time.Duration(v * int64(time.Millisecond))
+					argsCfg.Runtime.Conn.UDPIdleTimeout = time.Duration(
+						v * int64(time.Millisecond),
+					)
 					return nil
 				},
 			},
@@ -321,7 +323,7 @@ func CreateCommand(
 					if v == "" {
 						return nil
 					}
-					argsCfg.App.ListenAddr = MustParseTCPAddr(v)
+					argsCfg.Startup.App.ListenAddr = MustParseTCPAddr(v)
 					return nil
 				},
 			},
@@ -333,7 +335,7 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkLogLevel,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.App.LogLevel = MustParseLogLevel(v)
+					argsCfg.Startup.App.LogLevel = MustParseLogLevel(v)
 					return nil
 				},
 			},
@@ -342,11 +344,11 @@ func CreateCommand(
 				Name: "no-tui",
 				Usage: fmt.Sprintf(`
 				Disable TUI and run in headless mode. (default: %v)`,
-					defaultCfg.App.NoTUI,
+					defaultCfg.Startup.App.NoTUI,
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.App.NoTUI = v
+					argsCfg.Startup.App.NoTUI = v
 					return nil
 				},
 			},
@@ -355,11 +357,11 @@ func CreateCommand(
 				Name: "auto-configure-network",
 				Usage: fmt.Sprintf(`
 				Automatically set system-wide proxy configuration (default: %v)`,
-					defaultCfg.App.AutoConfigureNetwork,
+					defaultCfg.Startup.App.AutoConfigureNetwork,
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.App.AutoConfigureNetwork = v
+					argsCfg.Startup.App.AutoConfigureNetwork = v
 					return nil
 				},
 			},
@@ -369,14 +371,14 @@ func CreateCommand(
 				Usage: fmt.Sprintf(`
 				Timeout for tcp connection in milliseconds. 
 				No effect when the value is 0 (default: %v, max: %v)`,
-					defaultCfg.Conn.TCPTimeout.Milliseconds(),
+					defaultCfg.Runtime.Conn.TCPTimeout.Milliseconds(),
 					math.MaxUint16,
 				),
 				Value:     0,
 				OnlyOnce:  true,
 				Validator: checkUint16,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.Conn.TCPTimeout = time.Duration(v * int64(time.Millisecond))
+					argsCfg.Runtime.Conn.TCPTimeout = time.Duration(v * int64(time.Millisecond))
 					return nil
 				},
 			},
@@ -391,7 +393,7 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkFreeBSDFibID,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.App.FreebsdFIB = int(v)
+					argsCfg.Startup.App.FreebsdFIB = int(v)
 					return nil
 				},
 			},
@@ -473,72 +475,72 @@ GLOBAL OPTIONS:
 // that cmd.IsSet reports as set. Layered after defaults+TOML so CLI wins.
 func applyCLIOverrides(cfg *Config, cmd *cli.Command, args *Config) {
 	if cmd.IsSet("app-mode") {
-		cfg.App.Mode = args.App.Mode
+		cfg.Startup.App.Mode = args.Startup.App.Mode
 	}
 	if cmd.IsSet("default-fake-ttl") {
-		cfg.Conn.DefaultFakeTTL = args.Conn.DefaultFakeTTL
+		cfg.Runtime.Conn.DefaultFakeTTL = args.Runtime.Conn.DefaultFakeTTL
 	}
 	if cmd.IsSet("dns-addr") {
-		cfg.DNS.Addr = args.DNS.Addr
+		cfg.Runtime.DNS.Addr = args.Runtime.DNS.Addr
 	}
 	if cmd.IsSet("dns-cache") {
-		cfg.DNS.Cache = args.DNS.Cache
+		cfg.Runtime.DNS.Cache = args.Runtime.DNS.Cache
 	}
 	if cmd.IsSet("dns-mode") {
-		cfg.DNS.Mode = args.DNS.Mode
+		cfg.Runtime.DNS.Mode = args.Runtime.DNS.Mode
 	}
 	if cmd.IsSet("dns-https-url") {
-		cfg.DNS.HTTPSURL = args.DNS.HTTPSURL
+		cfg.Runtime.DNS.HTTPSURL = args.Runtime.DNS.HTTPSURL
 	}
 	if cmd.IsSet("dns-qtype") {
-		cfg.DNS.QType = args.DNS.QType
+		cfg.Runtime.DNS.QType = args.Runtime.DNS.QType
 	}
 	if cmd.IsSet("dns-timeout") {
-		cfg.Conn.DNSTimeout = args.Conn.DNSTimeout
+		cfg.Runtime.Conn.DNSTimeout = args.Runtime.Conn.DNSTimeout
 	}
 	if cmd.IsSet("https-fake-count") {
-		cfg.HTTPS.FakeCount = args.HTTPS.FakeCount
+		cfg.Runtime.HTTPS.FakeCount = args.Runtime.HTTPS.FakeCount
 	}
 	if cmd.IsSet("https-fake-packet") {
-		cfg.HTTPS.FakePacket = args.HTTPS.FakePacket
+		cfg.Runtime.HTTPS.FakePacket = args.Runtime.HTTPS.FakePacket
 	}
 	if cmd.IsSet("https-disorder") {
-		cfg.HTTPS.Disorder = args.HTTPS.Disorder
+		cfg.Runtime.HTTPS.Disorder = args.Runtime.HTTPS.Disorder
 	}
 	if cmd.IsSet("https-split-mode") {
-		cfg.HTTPS.SplitMode = args.HTTPS.SplitMode
+		cfg.Runtime.HTTPS.SplitMode = args.Runtime.HTTPS.SplitMode
 	}
 	if cmd.IsSet("https-skip") {
-		cfg.HTTPS.Skip = args.HTTPS.Skip
+		cfg.Runtime.HTTPS.Skip = args.Runtime.HTTPS.Skip
 	}
 	if cmd.IsSet("https-chunk-size") {
-		cfg.HTTPS.ChunkSize = args.HTTPS.ChunkSize
+		cfg.Runtime.HTTPS.ChunkSize = args.Runtime.HTTPS.ChunkSize
 	}
 	if cmd.IsSet("udp-fake-count") {
-		cfg.UDP.FakeCount = args.UDP.FakeCount
+		cfg.Runtime.UDP.FakeCount = args.Runtime.UDP.FakeCount
 	}
 	if cmd.IsSet("udp-fake-packet") {
-		cfg.UDP.FakePacket = args.UDP.FakePacket
+		cfg.Runtime.UDP.FakePacket = args.Runtime.UDP.FakePacket
 	}
 	if cmd.IsSet("udp-idle-timeout") {
-		cfg.Conn.UDPIdleTimeout = args.Conn.UDPIdleTimeout
+		cfg.Runtime.Conn.UDPIdleTimeout = args.Runtime.Conn.UDPIdleTimeout
 	}
 	if cmd.IsSet("listen-addr") {
-		cfg.App.ListenAddr = args.App.ListenAddr
+		cfg.Startup.App.ListenAddr = args.Startup.App.ListenAddr
 	}
 	if cmd.IsSet("log-level") {
-		cfg.App.LogLevel = args.App.LogLevel
+		cfg.Startup.App.LogLevel = args.Startup.App.LogLevel
 	}
 	if cmd.IsSet("no-tui") {
-		cfg.App.NoTUI = args.App.NoTUI
+		cfg.Startup.App.NoTUI = args.Startup.App.NoTUI
 	}
 	if cmd.IsSet("auto-configure-network") {
-		cfg.App.AutoConfigureNetwork = args.App.AutoConfigureNetwork
+		cfg.Startup.App.AutoConfigureNetwork = args.Startup.App.AutoConfigureNetwork
 	}
 	if cmd.IsSet("tcp-timeout") {
-		cfg.Conn.TCPTimeout = args.Conn.TCPTimeout
+		cfg.Runtime.Conn.TCPTimeout = args.Runtime.Conn.TCPTimeout
 	}
 	if cmd.IsSet("freebsd-fib") {
-		cfg.App.FreebsdFIB = args.App.FreebsdFIB
+		cfg.Startup.App.FreebsdFIB = args.Startup.App.FreebsdFIB
 	}
 }
