@@ -515,7 +515,8 @@ func TestFromTomlFile(t *testing.T) {
 		// Resolve policy overrides on top of the finalized base RuntimeConfig.
 		raw, err := extractRawOverrides(configPath)
 		assert.NoError(t, err)
-		rules, err := resolveRules(raw, cfg.Runtime)
+		var warns []string
+		rules, err := resolveRules(raw, cfg.Runtime, &warns)
 		assert.NoError(t, err)
 		assert.Len(t, rules, 1)
 

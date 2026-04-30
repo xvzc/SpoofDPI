@@ -142,6 +142,18 @@ func TestConfig_ShouldEnablePcap(t *testing.T) {
 	}
 }
 
+func TestConfig_UnmarshalTOML_warnsOnPolicyTemplate(t *testing.T) {
+	c := DefaultConfig()
+	err := c.UnmarshalTOML(map[string]any{
+		"policy": map[string]any{
+			"template": map[string]any{},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, c.WarnMsgs, 1)
+	assert.Contains(t, c.WarnMsgs[0], "policy.template")
+}
+
 func TestConfig_Validate_rejectsRuleWithoutMatch(t *testing.T) {
 	c := DefaultConfig()
 	c.Startup.Policy.Overrides = []Rule{
@@ -189,7 +201,8 @@ func TestResolveRules_inheritsFromBase(t *testing.T) {
 		},
 	}
 
-	rules, err := resolveRules(raw, base)
+	var warns []string
+	rules, err := resolveRules(raw, base, &warns)
 	require.NoError(t, err)
 	require.Len(t, rules, 1)
 	rule := rules[0]
@@ -213,36 +226,42 @@ func TestResolveRules_skipAutoResetWhenBaseSkipTrue(t *testing.T) {
 		baseSkip  bool
 		ruleHTTPS map[string]any
 		wantSkip  bool
+		wantWarn  bool
 	}{
 		{
-			name:      "base skip=true, rule omits skip → reset to false",
+			name:      "base skip=true, rule omits skip → reset to false + warn",
 			baseSkip:  true,
 			ruleHTTPS: map[string]any{"chunk-size": int64(8)},
 			wantSkip:  false,
+			wantWarn:  true,
 		},
 		{
-			name:      "base skip=true, rule has no https section → reset to false",
+			name:      "base skip=true, rule has no https section → reset to false + warn",
 			baseSkip:  true,
 			ruleHTTPS: nil,
 			wantSkip:  false,
+			wantWarn:  true,
 		},
 		{
-			name:      "base skip=true, rule explicitly skip=true → kept",
+			name:      "base skip=true, rule explicitly skip=true → kept, no warn",
 			baseSkip:  true,
 			ruleHTTPS: map[string]any{"skip": true},
 			wantSkip:  true,
+			wantWarn:  false,
 		},
 		{
-			name:      "base skip=true, rule explicitly skip=false → kept",
+			name:      "base skip=true, rule explicitly skip=false → kept, no warn",
 			baseSkip:  true,
 			ruleHTTPS: map[string]any{"skip": false},
 			wantSkip:  false,
+			wantWarn:  false,
 		},
 		{
-			name:      "base skip=false, rule omits skip → false (no warning)",
+			name:      "base skip=false, rule omits skip → false, no warn",
 			baseSkip:  false,
 			ruleHTTPS: map[string]any{"chunk-size": int64(8)},
 			wantSkip:  false,
+			wantWarn:  false,
 		},
 	}
 
@@ -259,10 +278,18 @@ func TestResolveRules_skipAutoResetWhenBaseSkipTrue(t *testing.T) {
 				item["https"] = tc.ruleHTTPS
 			}
 
-			rules, err := resolveRules([]map[string]any{item}, base)
+			var warns []string
+			rules, err := resolveRules([]map[string]any{item}, base, &warns)
 			require.NoError(t, err)
 			require.Len(t, rules, 1)
 			assert.Equal(t, tc.wantSkip, rules[0].Runtime.HTTPS.Skip)
+			if tc.wantWarn {
+				require.Len(t, warns, 1)
+				assert.Contains(t, warns[0], `"r"`)
+				assert.Contains(t, warns[0], "https.skip")
+			} else {
+				assert.Empty(t, warns)
+			}
 		})
 	}
 }

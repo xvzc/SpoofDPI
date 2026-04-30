@@ -111,6 +111,10 @@ func runApp(mainctx context.Context, configDir string, cfg *config.Config) error
 			Msg(" please try 'sudo -E spoofdpi' if you expect a configuration to be loaded")
 	}
 
+	for _, m := range cfg.WarnMsgs {
+		logger.Warn().Msg(m)
+	}
+
 	logger.Info().Str("mode", cfg.Startup.App.Mode.String()).Msgf("app")
 
 	switch cfg.Startup.App.Mode {

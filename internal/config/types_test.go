@@ -241,11 +241,14 @@ func TestPolicyOptions_UnmarshalTOML(t *testing.T) {
 			},
 		},
 		{
-			name: "rejects template",
+			name: "ignores deprecated template (warning surfaced via Config.UnmarshalTOML)",
 			input: map[string]any{
 				"template": map[string]any{},
 			},
-			wantErr: true,
+			wantErr: false,
+			assert: func(t *testing.T, o PolicyOptions) {
+				assert.Empty(t, o.Overrides)
+			},
 		},
 		{
 			name:    "invalid type",

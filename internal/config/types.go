@@ -481,21 +481,16 @@ type PolicyOptions struct {
 }
 
 func (o *PolicyOptions) UnmarshalTOML(data any) error {
-	m, ok := data.(map[string]any)
-	if !ok {
+	if _, ok := data.(map[string]any); !ok {
 		return fmt.Errorf("non-table type policy config")
-	}
-
-	if _, hasTemplate := m["template"]; hasTemplate {
-		return fmt.Errorf(
-			"'policy.template' was removed; move template fields to top-level [app]/[connection]/[dns]/[https]/[udp] sections",
-		)
 	}
 
 	// Overrides themselves are intentionally NOT decoded here. Load
 	// extracts the raw [[policy.overrides]] entries separately and
 	// resolves them on top of the finalized base RuntimeConfig — see
-	// resolveRules in load.go.
+	// resolveRules in load.go. The deprecated 'policy.template' is also
+	// surfaced from Config.UnmarshalTOML, not here, so PolicyOptions can
+	// stay free of warning-collection state.
 	return nil
 }
 

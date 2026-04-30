@@ -18,6 +18,12 @@ import (
 type Config struct {
 	Startup StartupConfig
 	Runtime RuntimeConfig
+
+	// WarnMsgs accumulates non-fatal advisories produced during Load
+	// (deprecations, transitional behaviors, etc.). main surfaces them
+	// through the configured logger after TUI/log setup, so they don't
+	// race the TUI taking over stdout/stderr.
+	WarnMsgs []string
 }
 
 // StartupConfig holds the sections consumed only during server bootstrap.
@@ -63,6 +69,15 @@ func (c *Config) UnmarshalTOML(data any) (err error) {
 		c.Startup.Policy = *policy
 	}
 
+	if policyMap, ok := m["policy"].(map[string]any); ok {
+		if _, hasTemplate := policyMap["template"]; hasTemplate {
+			c.WarnMsgs = append(
+				c.WarnMsgs,
+				"'policy.template' is deprecated and ignored; move template fields to top-level [app]/[connection]/[dns]/[https]/[udp] sections",
+			)
+		}
+	}
+
 	return
 }
 
@@ -89,8 +104,9 @@ func (c *Config) ShouldEnablePcap() bool {
 // (defaults → TOML → CLI → Finalize → Validate).
 func DefaultConfig() *Config { //exhaustruct:enforce
 	return &Config{
-		Startup: DefaultStartupConfig(),
-		Runtime: DefaultRuntimeConfig(),
+		Startup:  DefaultStartupConfig(),
+		Runtime:  DefaultRuntimeConfig(),
+		WarnMsgs: nil,
 	}
 }
 

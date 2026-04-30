@@ -6,7 +6,6 @@ import (
 	"path"
 
 	"github.com/BurntSushi/toml"
-	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v3"
 )
 
@@ -34,7 +33,7 @@ func Load(cmd *cli.Command, argsCfg *Config) (*Config, string, error) {
 		return nil, "", err
 	}
 
-	rules, err := resolveRules(rawRules, cfg.Runtime)
+	rules, err := resolveRules(rawRules, cfg.Runtime, &cfg.WarnMsgs)
 	if err != nil {
 		return nil, "", err
 	}
@@ -115,7 +114,11 @@ func extractRawOverrides(path string) ([]map[string]any, error) {
 // preserves existing values for absent keys, sparse rule overrides
 // inherit unset fields from base — that's the point of doing this
 // after Finalize rather than at decode time.
-func resolveRules(raw []map[string]any, base RuntimeConfig) ([]Rule, error) {
+func resolveRules(
+	raw []map[string]any,
+	base RuntimeConfig,
+	warnMsgs *[]string,
+) ([]Rule, error) {
 	rules := make([]Rule, 0, len(raw))
 	for i, item := range raw {
 		r := Rule{ //exhaustruct:enforce
@@ -172,10 +175,14 @@ func resolveRules(raw []map[string]any, base RuntimeConfig) ([]Rule, error) {
 		// when no explicit skip is present and warn the user — eventually
 		// resolveRules will require https.skip to be set explicitly.
 		if !hasExplicitKey(item, "https", "skip") && base.HTTPS.Skip {
-			log.Warn().
-				Int("rule", i).
-				Str("name", r.Name).
-				Msg("policy override inherits https.skip=true from base; auto-resetting to false. Set [policy.overrides.https].skip explicitly — this auto-reset will be removed in a future version.")
+			label := r.Name
+			if label == "" {
+				label = fmt.Sprintf("#%d", i)
+			}
+			*warnMsgs = append(*warnMsgs, fmt.Sprintf(
+				"policy override %q inherits https.skip=true from base; auto-resetting to false. Set [policy.overrides.https].skip explicitly — this auto-reset will be removed in a future version.",
+				label,
+			))
 			r.Runtime.HTTPS.Skip = false
 		}
 
