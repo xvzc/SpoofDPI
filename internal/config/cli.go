@@ -22,7 +22,9 @@ func CreateCommand(
 ) *cli.Command {
 	cli.RootCommandHelpTemplate = createHelpTemplate()
 
-	argsCfg := &Config{}
+	// cliOverrides is appended to by Flag.Action below — once per flag the
+	// user actually sets. Load applies them after loadTOML so CLI wins.
+	var cliOverrides []func(*Config)
 	defaultCfg := DefaultConfig()
 
 	cmd := &cli.Command{
@@ -45,7 +47,10 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkAppMode,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.Startup.App.Mode = MustParseServerModeType(v)
+					mode := MustParseServerModeType(v)
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Startup.App.Mode = mode
+					})
 					return nil
 				},
 			},
@@ -76,7 +81,10 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkUint8NonZero,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.Runtime.Conn.DefaultFakeTTL = uint8(v)
+					ttl := uint8(v)
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Runtime.Conn.DefaultFakeTTL = ttl
+					})
 					return nil
 				},
 			},
@@ -90,7 +98,10 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkHostPort,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.Runtime.DNS.Addr = MustParseTCPAddr(v)
+					addr := MustParseTCPAddr(v)
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Runtime.DNS.Addr = addr
+					})
 					return nil
 				},
 			},
@@ -104,7 +115,10 @@ func CreateCommand(
 				Value:    false,
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.Runtime.DNS.Cache = v
+					cache := v
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Runtime.DNS.Cache = cache
+					})
 					return nil
 				},
 			},
@@ -120,7 +134,10 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkDNSMode,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.Runtime.DNS.Mode = MustParseDNSModeType(v)
+					mode := MustParseDNSModeType(v)
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Runtime.DNS.Mode = mode
+					})
 					return nil
 				},
 			},
@@ -136,7 +153,10 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkHTTPSEndpoint,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.Runtime.DNS.HTTPSURL = v
+					url := v
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Runtime.DNS.HTTPSURL = url
+					})
 					return nil
 				},
 			},
@@ -152,7 +172,10 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkDNSQueryType,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.Runtime.DNS.QType = MustParseDNSQueryType(v)
+					qtype := MustParseDNSQueryType(v)
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Runtime.DNS.QType = qtype
+					})
 					return nil
 				},
 			},
@@ -169,7 +192,10 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkUint16,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.Runtime.Conn.DNSTimeout = time.Duration(v * int64(time.Millisecond))
+					dur := time.Duration(v * int64(time.Millisecond))
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Runtime.Conn.DNSTimeout = dur
+					})
 					return nil
 				},
 			},
@@ -185,7 +211,10 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkUint8,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.Runtime.HTTPS.FakeCount = uint8(v)
+					n := uint8(v)
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Runtime.HTTPS.FakeCount = n
+					})
 					return nil
 				},
 			},
@@ -199,7 +228,10 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkHexBytesStr,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.Runtime.HTTPS.FakePacket = proto.NewFakeTLSMessage(MustParseBytes(v))
+					pkt := proto.NewFakeTLSMessage(MustParseBytes(v))
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Runtime.HTTPS.FakePacket = pkt
+					})
 					return nil
 				},
 			},
@@ -212,7 +244,10 @@ func CreateCommand(
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.Runtime.HTTPS.Disorder = v
+					disorder := v
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Runtime.HTTPS.Disorder = disorder
+					})
 					return nil
 				},
 			},
@@ -227,7 +262,10 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkHTTPSSplitMode,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.Runtime.HTTPS.SplitMode = mustParseHTTPSSplitModeType(v)
+					mode := mustParseHTTPSSplitModeType(v)
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Runtime.HTTPS.SplitMode = mode
+					})
 					return nil
 				},
 			},
@@ -241,7 +279,10 @@ func CreateCommand(
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.Runtime.HTTPS.Skip = v
+					skip := v
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Runtime.HTTPS.Skip = skip
+					})
 					return nil
 				},
 			},
@@ -260,7 +301,10 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkUint8NonZero,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.Runtime.HTTPS.ChunkSize = uint8(v)
+					sz := uint8(v)
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Runtime.HTTPS.ChunkSize = sz
+					})
 					return nil
 				},
 			},
@@ -275,7 +319,10 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: int64Range(0, math.MaxInt),
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.Runtime.UDP.FakeCount = int(v)
+					n := int(v)
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Runtime.UDP.FakeCount = n
+					})
 					return nil
 				},
 			},
@@ -289,7 +336,10 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkHexBytesStr,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.Runtime.UDP.FakePacket = MustParseBytes(v)
+					pkt := MustParseBytes(v)
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Runtime.UDP.FakePacket = pkt
+					})
 					return nil
 				},
 			},
@@ -306,9 +356,10 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkUint16,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.Runtime.Conn.UDPIdleTimeout = time.Duration(
-						v * int64(time.Millisecond),
-					)
+					dur := time.Duration(v * int64(time.Millisecond))
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Runtime.Conn.UDPIdleTimeout = dur
+					})
 					return nil
 				},
 			},
@@ -323,7 +374,10 @@ func CreateCommand(
 					if v == "" {
 						return nil
 					}
-					argsCfg.Startup.App.ListenAddr = MustParseTCPAddr(v)
+					addr := MustParseTCPAddr(v)
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Startup.App.ListenAddr = addr
+					})
 					return nil
 				},
 			},
@@ -335,7 +389,10 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkLogLevel,
 				Action: func(ctx context.Context, cmd *cli.Command, v string) error {
-					argsCfg.Startup.App.LogLevel = MustParseLogLevel(v)
+					level := MustParseLogLevel(v)
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Startup.App.LogLevel = level
+					})
 					return nil
 				},
 			},
@@ -348,7 +405,10 @@ func CreateCommand(
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.Startup.App.NoTUI = v
+					noTUI := v
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Startup.App.NoTUI = noTUI
+					})
 					return nil
 				},
 			},
@@ -361,7 +421,10 @@ func CreateCommand(
 				),
 				OnlyOnce: true,
 				Action: func(ctx context.Context, cmd *cli.Command, v bool) error {
-					argsCfg.Startup.App.AutoConfigureNetwork = v
+					auto := v
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Startup.App.AutoConfigureNetwork = auto
+					})
 					return nil
 				},
 			},
@@ -378,7 +441,10 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkUint16,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.Runtime.Conn.TCPTimeout = time.Duration(v * int64(time.Millisecond))
+					dur := time.Duration(v * int64(time.Millisecond))
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Runtime.Conn.TCPTimeout = dur
+					})
 					return nil
 				},
 			},
@@ -393,7 +459,10 @@ func CreateCommand(
 				OnlyOnce:  true,
 				Validator: checkFreeBSDFibID,
 				Action: func(ctx context.Context, cmd *cli.Command, v int64) error {
-					argsCfg.Startup.App.FreebsdFIB = int(v)
+					fib := int(v)
+					cliOverrides = append(cliOverrides, func(cfg *Config) {
+						cfg.Startup.App.FreebsdFIB = fib
+					})
 					return nil
 				},
 			},
@@ -413,7 +482,7 @@ func CreateCommand(
 				os.Exit(0)
 			}
 
-			cfg, configDir, err := Load(cmd, argsCfg)
+			cfg, configDir, err := Load(cmd, cliOverrides)
 			if err != nil {
 				return err
 			}
@@ -468,79 +537,4 @@ GLOBAL OPTIONS:
 		"{{.Usage}}",
 		"{{.DefaultText}}",
 	)
-}
-
-// applyCLIOverrides copies fields from `args` (populated by CLI Flag.Action
-// callbacks for flags the user explicitly set) onto `cfg` for each flag
-// that cmd.IsSet reports as set. Layered after defaults+TOML so CLI wins.
-func applyCLIOverrides(cfg *Config, cmd *cli.Command, args *Config) {
-	if cmd.IsSet("app-mode") {
-		cfg.Startup.App.Mode = args.Startup.App.Mode
-	}
-	if cmd.IsSet("default-fake-ttl") {
-		cfg.Runtime.Conn.DefaultFakeTTL = args.Runtime.Conn.DefaultFakeTTL
-	}
-	if cmd.IsSet("dns-addr") {
-		cfg.Runtime.DNS.Addr = args.Runtime.DNS.Addr
-	}
-	if cmd.IsSet("dns-cache") {
-		cfg.Runtime.DNS.Cache = args.Runtime.DNS.Cache
-	}
-	if cmd.IsSet("dns-mode") {
-		cfg.Runtime.DNS.Mode = args.Runtime.DNS.Mode
-	}
-	if cmd.IsSet("dns-https-url") {
-		cfg.Runtime.DNS.HTTPSURL = args.Runtime.DNS.HTTPSURL
-	}
-	if cmd.IsSet("dns-qtype") {
-		cfg.Runtime.DNS.QType = args.Runtime.DNS.QType
-	}
-	if cmd.IsSet("dns-timeout") {
-		cfg.Runtime.Conn.DNSTimeout = args.Runtime.Conn.DNSTimeout
-	}
-	if cmd.IsSet("https-fake-count") {
-		cfg.Runtime.HTTPS.FakeCount = args.Runtime.HTTPS.FakeCount
-	}
-	if cmd.IsSet("https-fake-packet") {
-		cfg.Runtime.HTTPS.FakePacket = args.Runtime.HTTPS.FakePacket
-	}
-	if cmd.IsSet("https-disorder") {
-		cfg.Runtime.HTTPS.Disorder = args.Runtime.HTTPS.Disorder
-	}
-	if cmd.IsSet("https-split-mode") {
-		cfg.Runtime.HTTPS.SplitMode = args.Runtime.HTTPS.SplitMode
-	}
-	if cmd.IsSet("https-skip") {
-		cfg.Runtime.HTTPS.Skip = args.Runtime.HTTPS.Skip
-	}
-	if cmd.IsSet("https-chunk-size") {
-		cfg.Runtime.HTTPS.ChunkSize = args.Runtime.HTTPS.ChunkSize
-	}
-	if cmd.IsSet("udp-fake-count") {
-		cfg.Runtime.UDP.FakeCount = args.Runtime.UDP.FakeCount
-	}
-	if cmd.IsSet("udp-fake-packet") {
-		cfg.Runtime.UDP.FakePacket = args.Runtime.UDP.FakePacket
-	}
-	if cmd.IsSet("udp-idle-timeout") {
-		cfg.Runtime.Conn.UDPIdleTimeout = args.Runtime.Conn.UDPIdleTimeout
-	}
-	if cmd.IsSet("listen-addr") {
-		cfg.Startup.App.ListenAddr = args.Startup.App.ListenAddr
-	}
-	if cmd.IsSet("log-level") {
-		cfg.Startup.App.LogLevel = args.Startup.App.LogLevel
-	}
-	if cmd.IsSet("no-tui") {
-		cfg.Startup.App.NoTUI = args.Startup.App.NoTUI
-	}
-	if cmd.IsSet("auto-configure-network") {
-		cfg.Startup.App.AutoConfigureNetwork = args.Startup.App.AutoConfigureNetwork
-	}
-	if cmd.IsSet("tcp-timeout") {
-		cfg.Runtime.Conn.TCPTimeout = args.Runtime.Conn.TCPTimeout
-	}
-	if cmd.IsSet("freebsd-fib") {
-		cfg.Startup.App.FreebsdFIB = args.Startup.App.FreebsdFIB
-	}
 }

@@ -16,10 +16,10 @@ import (
 // Validate (semantic checks). Returns the resolved Config and the
 // path of the TOML file that was used (or "" if none).
 //
-// argsCfg holds the CLI overrides accumulated by Flag.Action callbacks
-// during cmd.Run; only fields whose flags are reported set by cmd.IsSet
-// are copied onto the merged Config.
-func Load(cmd *cli.Command, argsCfg *Config) (*Config, string, error) {
+// cliOverrides is the slice of closures appended by Flag.Action
+// callbacks during cmd.Run — one per flag the user actually set.
+// Applying them after loadTOML is what makes CLI win over TOML.
+func Load(cmd *cli.Command, cliOverrides []func(*Config)) (*Config, string, error) {
 	cfg := DefaultConfig()
 
 	configPath, rawRules, err := loadTOML(cmd, cfg)
@@ -27,7 +27,9 @@ func Load(cmd *cli.Command, argsCfg *Config) (*Config, string, error) {
 		return nil, "", err
 	}
 
-	applyCLIOverrides(cfg, cmd, argsCfg)
+	for _, apply := range cliOverrides {
+		apply(cfg)
+	}
 
 	if err := cfg.Finalize(); err != nil {
 		return nil, "", err
