@@ -6,7 +6,6 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/samber/lo"
 	"github.com/xvzc/spoofdpi/internal/config"
 )
 
@@ -17,9 +16,8 @@ type AddrMatcher struct {
 }
 
 // cidrRule holds the parsed CIDR and the pointer to the original Rule.
-// [Modified]: Changed 'attrs' to 'rule' to satisfy the Search return type (*Rule).
 type cidrRule struct {
-	cidr     *net.IPNet
+	cidr     net.IPNet
 	portFrom uint16
 	portTo   uint16
 	rule     *config.Rule
@@ -42,31 +40,23 @@ func (m *AddrMatcher) Add(r *config.Rule) error {
 		return fmt.Errorf("addr rule must have addr attribute")
 	}
 
-	if r.Priority == nil {
-		r.Priority = lo.ToPtr(uint16(0))
-	}
-
-	if r.Block == nil {
-		r.Block = lo.ToPtr(false)
-	}
-
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	for _, addr := range r.Match.Addrs {
-		if addr.CIDR == nil {
+		if len(addr.CIDR.IP) == 0 {
 			return fmt.Errorf("addr rule must have cidr attribute")
 		}
 
-		if addr.PortFrom == nil || addr.PortTo == nil {
+		if addr.PortFrom == 0 && addr.PortTo == 0 {
 			return fmt.Errorf("addr rule must have port-from, port-to attribute")
 		}
 
 		// 4. Create internal rule
 		cr := cidrRule{
 			cidr:     addr.CIDR,
-			portFrom: *addr.PortFrom,
-			portTo:   *addr.PortTo,
+			portFrom: addr.PortFrom,
+			portTo:   addr.PortTo,
 			rule:     r,
 		}
 
@@ -76,16 +66,7 @@ func (m *AddrMatcher) Add(r *config.Rule) error {
 
 	// Sort (Priority Descending)
 	sort.SliceStable(m.rules, func(i, j int) bool {
-		p1 := uint16(0)
-		if m.rules[i].rule.Priority != nil {
-			p1 = *m.rules[i].rule.Priority
-		}
-
-		p2 := uint16(0)
-		if m.rules[j].rule.Priority != nil {
-			p2 = *m.rules[j].rule.Priority
-		}
-		return p1 > p2
+		return m.rules[i].rule.Priority > m.rules[j].rule.Priority
 	})
 
 	return nil

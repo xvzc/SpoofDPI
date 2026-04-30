@@ -2,10 +2,8 @@ package matcher
 
 import (
 	"fmt"
-	"net"
-
-	"github.com/samber/lo"
 	"github.com/xvzc/spoofdpi/internal/config"
+	"net"
 )
 
 // -----------------------------------------------------------------------------
@@ -142,7 +140,7 @@ func GetHigherPriorityRule(r1, r2 *config.Rule) *config.Rule {
 		return r1
 	}
 
-	if lo.FromPtr(r1.Priority) >= lo.FromPtr(r2.Priority) {
+	if r1.Priority >= r2.Priority {
 		return r1
 	}
 	return r2

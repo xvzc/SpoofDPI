@@ -59,12 +59,12 @@ func (h *UDPHandler) Handle(
 	}
 
 	// Apply rule if matched in server.go
-	udpOpts := h.defaultUDPOpts.Clone()
-	connOpts := h.defaultConnOpts.Clone()
+	udpOpts := h.defaultUDPOpts
+	connOpts := h.defaultConnOpts
 	if rule != nil {
 		logger.Trace().RawJSON("summary", rule.JSON()).Msg("match")
-		udpOpts = udpOpts.Merge(rule.UDP)
-		connOpts = connOpts.Merge(rule.Conn)
+		udpOpts = &rule.UDP
+		connOpts = &rule.Conn
 	}
 
 	// Dial remote connection
@@ -74,7 +74,7 @@ func (h *UDPHandler) Handle(
 		return
 	}
 
-	timeout := *connOpts.UDPIdleTimeout
+	timeout := connOpts.UDPIdleTimeout
 
 	// Wrap rConn with IdleTimeoutConn
 	rConnWrapped := netutil.NewIdleTimeoutConn(rawConn, timeout)

@@ -166,9 +166,9 @@ func (h *UdpAssociateHandler) Handle(
 		rConn := h.pool.Store(key, rRawConn)
 
 		// Apply UDP options from rule if matched
-		udpOpts := h.defaultUDPOpts.Clone()
-		if rule != nil && rule.UDP != nil {
-			udpOpts = udpOpts.Merge(rule.UDP)
+		udpOpts := h.defaultUDPOpts
+		if rule != nil {
+			udpOpts = &rule.UDP
 		}
 
 		// Send fake packets before real payload (UDP desync)

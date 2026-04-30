@@ -5,7 +5,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/samber/lo"
 	"github.com/xvzc/spoofdpi/internal/config"
 )
 
@@ -69,14 +68,6 @@ func (t *DomainMatcher) Add(r *config.Rule) error {
 
 	if len(r.Match.Domains) == 0 {
 		return fmt.Errorf("domain rule must have match.domain attribute")
-	}
-
-	if r.Priority == nil {
-		r.Priority = lo.ToPtr(uint16(0))
-	}
-
-	if r.Block == nil {
-		r.Block = lo.ToPtr(false)
 	}
 
 	t.mu.Lock()

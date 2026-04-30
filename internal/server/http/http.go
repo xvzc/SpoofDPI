@@ -66,7 +66,7 @@ func NewHTTPProxy(
 func (p *HTTPProxy) ListenAndServe(
 	appctx context.Context,
 ) error {
-	listener, err := net.ListenTCP("tcp", p.appOpts.ListenAddr)
+	listener, err := net.ListenTCP("tcp", &p.appOpts.ListenAddr)
 	if err != nil {
 		return fmt.Errorf(
 			"error creating listener on %s: %w",
@@ -257,11 +257,11 @@ func (p *HTTPProxy) handleNewConnection(ctx context.Context, conn net.Conn) {
 		Domain:  host, // Updated from Domain to Host
 		Addrs:   addrs,
 		Port:    dstPort,
-		Timeout: *p.connOpts.TCPTimeout,
+		Timeout: p.connOpts.TCPTimeout,
 	}
 
 	// Avoid recursively querying self.
-	ok, err := dst.IsValid(p.appOpts.ListenAddr)
+	ok, err := dst.IsValid(&p.appOpts.ListenAddr)
 	if err != nil {
 		logger.Debug().Err(err).Msg("error validating dst addrs")
 		if !ok {
@@ -285,7 +285,7 @@ func (p *HTTPProxy) handleNewConnection(ctx context.Context, conn net.Conn) {
 		logger.Trace().RawJSON("summary", bestMatch.JSON()).Msg("match")
 	}
 
-	if bestMatch != nil && *bestMatch.Block {
+	if bestMatch != nil && bestMatch.Block {
 		logger.Debug().Msg("request is blocked by policy")
 		return
 	}

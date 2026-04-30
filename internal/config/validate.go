@@ -198,10 +198,10 @@ func checkRule(r Rule) error {
 
 func checkMatchAttrs(m MatchAttrs) error {
 	for _, addr := range m.Addrs {
-		if addr.CIDR == nil {
+		if len(addr.CIDR.IP) == 0 {
 			return fmt.Errorf("addr rule must have cidr attribute")
 		}
-		if addr.PortFrom == nil || addr.PortTo == nil {
+		if addr.PortFrom == 0 && addr.PortTo == 0 {
 			return fmt.Errorf("addr rule must have port attribute")
 		}
 	}

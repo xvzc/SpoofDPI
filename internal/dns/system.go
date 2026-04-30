@@ -44,9 +44,9 @@ func (sr *SystemResolver) Resolve(
 	fallback Resolver,
 	rule *config.Rule,
 ) (*RecordSet, error) {
-	opts := sr.defaultDNSOpts.Clone()
+	opts := sr.defaultDNSOpts
 	if rule != nil {
-		opts = opts.Merge(rule.DNS)
+		opts = &rule.DNS
 	}
 
 	ips, err := sr.LookupIP(ctx, "ip", domain)
@@ -55,7 +55,7 @@ func (sr *SystemResolver) Resolve(
 	}
 
 	return &RecordSet{
-		Addrs: filtterAddrs(ips, parseQueryTypes(*opts.QType)),
+		Addrs: filtterAddrs(ips, parseQueryTypes(opts.QType)),
 		TTL:   0,
 	}, nil
 }

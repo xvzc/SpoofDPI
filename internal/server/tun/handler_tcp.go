@@ -80,8 +80,8 @@ func (h *TCPHandler) Handle(
 		Port:   port,
 		Addrs:  []net.IP{},
 	}
-	if h.defaultConnOpts != nil && h.defaultConnOpts.TCPTimeout != nil {
-		dst.Timeout = *h.defaultConnOpts.TCPTimeout
+	if h.defaultConnOpts != nil && h.defaultConnOpts.TCPTimeout != 0 {
+		dst.Timeout = h.defaultConnOpts.TCPTimeout
 	}
 	if ip != nil {
 		dst.Addrs = append(dst.Addrs, ip)
@@ -155,14 +155,14 @@ func (h *TCPHandler) handleTLS(
 	logger.Trace().Str("value", dst.Domain).Msgf("extracted sni feild")
 
 	// Match Rules
-	httpsOpts := h.defaultHTTPSOpts.Clone()
-	connOpts := h.defaultConnOpts.Clone()
+	httpsOpts := h.defaultHTTPSOpts
+	connOpts := h.defaultConnOpts
 
 	// First, apply IP-based rule if matched in server.go
 	if addrRule != nil {
 		logger.Trace().RawJSON("summary", addrRule.JSON()).Msg("addr match")
-		httpsOpts = httpsOpts.Merge(addrRule.HTTPS)
-		connOpts = connOpts.Merge(addrRule.Conn)
+		httpsOpts = &addrRule.HTTPS
+		connOpts = &addrRule.Conn
 	}
 
 	// Then, try domain-based matching (TLS-specific)
@@ -176,13 +176,13 @@ func (h *TCPHandler) handleTLS(
 			// Domain rule takes priority if it has higher priority
 			finalRule := matcher.GetHigherPriorityRule(addrRule, domainRule)
 			if finalRule == domainRule {
-				httpsOpts = h.defaultHTTPSOpts.Clone().Merge(domainRule.HTTPS)
-				connOpts = h.defaultConnOpts.Clone().Merge(domainRule.Conn)
+				httpsOpts = &domainRule.HTTPS
+				connOpts = &domainRule.Conn
 			}
 		}
 	}
 
-	dst.Timeout = *connOpts.TCPTimeout
+	dst.Timeout = connOpts.TCPTimeout
 
 	// Dial Remote
 	if h.sniffer != nil {

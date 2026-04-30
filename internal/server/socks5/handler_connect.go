@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/samber/lo"
 	"github.com/xvzc/spoofdpi/internal/config"
 	"github.com/xvzc/spoofdpi/internal/desync"
 	"github.com/xvzc/spoofdpi/internal/logging"
@@ -51,17 +50,17 @@ func (h *ConnectHandler) Handle(
 	dst *netutil.Destination,
 	rule *config.Rule,
 ) error {
-	httpsOpts := h.defaultHTTPSOpts.Clone()
-	connOpts := h.defaultConnOpts.Clone()
+	httpsOpts := h.defaultHTTPSOpts
+	connOpts := h.defaultConnOpts
 	if rule != nil {
-		httpsOpts = httpsOpts.Merge(rule.HTTPS)
-		connOpts = connOpts.Merge(rule.Conn)
+		httpsOpts = &rule.HTTPS
+		connOpts = &rule.Conn
 	}
 
 	logger := logging.WithLocalScope(ctx, h.logger, "connect")
 
 	// 1. Validate Destination
-	ok, err := dst.IsValid(h.appOpts.ListenAddr)
+	ok, err := dst.IsValid(&h.appOpts.ListenAddr)
 	if err != nil {
 		logger.Debug().Err(err).Msg("error determining if valid destination")
 		if !ok {
@@ -71,13 +70,13 @@ func (h *ConnectHandler) Handle(
 	}
 
 	// 2. Check if blocked
-	if rule != nil && *rule.Block {
+	if rule != nil && rule.Block {
 		logger.Debug().Msg("request is blocked by policy")
 		_ = proto.SOCKS5FailureResponse().Write(lConn)
 		return netutil.ErrBlocked
 	}
 
-	dst.Timeout = *connOpts.TCPTimeout
+	dst.Timeout = connOpts.TCPTimeout
 
 	rConn, err := netutil.DialFastest(ctx, "tcp", dst, nil)
 	if err != nil {
@@ -103,7 +102,7 @@ func (h *ConnectHandler) Handle(
 	b, err := bufConn.Peek(1)
 	if err == nil && b[0] == byte(proto.TLSHandshake) { // 0x16
 
-		if h.sniffer != nil && lo.FromPtr(httpsOpts.FakeCount) > 0 {
+		if h.sniffer != nil && httpsOpts.FakeCount > 0 {
 			h.sniffer.RegisterUntracked(dst.Addrs)
 		}
 
@@ -199,7 +198,7 @@ func (h *ConnectHandler) sendClientHello(
 	msg *proto.TLSMessage,
 	opts *config.HTTPSOptions,
 ) (int, error) {
-	if lo.FromPtr(opts.Skip) {
+	if opts.Skip {
 		return rConn.Write(msg.Raw())
 	}
 

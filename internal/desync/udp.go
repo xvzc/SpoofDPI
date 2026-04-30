@@ -37,8 +37,7 @@ func (d *UDPDesyncer) Desync(
 ) (int, error) {
 	logger := logging.WithLocalScope(ctx, d.logger, "udp_desync")
 
-	if d.sniffer == nil || d.writer == nil || opts == nil ||
-		opts.FakeCount == nil || *opts.FakeCount <= 0 {
+	if d.sniffer == nil || d.writer == nil || opts == nil || opts.FakeCount <= 0 {
 		return 0, nil
 	}
 
@@ -46,7 +45,7 @@ func (d *UDPDesyncer) Desync(
 	oTTL := d.sniffer.GetOptimalTTL(netutil.NewIPKey(dstIP))
 
 	var totalSent int
-	for range *opts.FakeCount {
+	for range opts.FakeCount {
 		n, err := d.writer.WriteCraftedPacket(
 			ctx,
 			lConn.LocalAddr(), // Spoofing source: original local address (TUN)
@@ -63,7 +62,7 @@ func (d *UDPDesyncer) Desync(
 
 	if totalSent > 0 {
 		logger.Debug().
-			Int("count", *opts.FakeCount).
+			Int("count", opts.FakeCount).
 			Int("bytes", totalSent).
 			Uint8("ttl", oTTL).
 			Msg("sent fake packets")

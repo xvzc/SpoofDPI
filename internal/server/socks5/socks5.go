@@ -72,7 +72,7 @@ func NewSOCKS5Proxy(
 func (p *SOCKS5Proxy) ListenAndServe(
 	appctx context.Context,
 ) error {
-	listener, err := net.ListenTCP("tcp", p.appOpts.ListenAddr)
+	listener, err := net.ListenTCP("tcp", &p.appOpts.ListenAddr)
 	if err != nil {
 		return fmt.Errorf(
 			"error creating listener on %s: %w",
@@ -130,7 +130,7 @@ func (p *SOCKS5Proxy) AutoConfigureNetwork(ctx context.Context) (func(), error) 
 
 	pacContent := fmt.Sprintf(`function FindProxyForURL(url, host) {
     return "SOCKS5 127.0.0.1:%d; DIRECT";
-}`, p.appOpts.ListenAddr.Port)
+}`, &p.appOpts.ListenAddr.Port)
 
 	pacURL, pacServer, err := netutil.RunPACServer(pacContent)
 	if err != nil {
@@ -276,7 +276,7 @@ func (p *SOCKS5Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 			Domain:  req.FQDN,
 			Addrs:   addrs,
 			Port:    req.Port,
-			Timeout: *p.connOpts.TCPTimeout,
+			Timeout: p.connOpts.TCPTimeout,
 		}
 		if err = p.connectHandler.Handle(ctx, conn, req, dst, bestMatch); err != nil {
 			return // Handler logs error

@@ -37,7 +37,7 @@ func NewHTTPSResolver(
 			NextProtos: []string{"h2", "http/1.1"},
 		},
 		DialContext: (&net.Dialer{
-			Timeout:   *defaultConnOpts.DNSTimeout,
+			Timeout:   defaultConnOpts.DNSTimeout,
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
 		TLSHandshakeTimeout: 9 * time.Second,
@@ -57,7 +57,7 @@ func NewHTTPSResolver(
 		logger: logger,
 		client: &http.Client{
 			Transport: tr,
-			Timeout:   *defaultConnOpts.DNSTimeout,
+			Timeout:   defaultConnOpts.DNSTimeout,
 		},
 		defaultDNSOpts:  defaultDNSOpts,
 		defaultConnOpts: defaultConnOpts,
@@ -68,7 +68,7 @@ func (dr *HTTPSResolver) Info() []ResolverInfo {
 	return []ResolverInfo{
 		{
 			Name: "https",
-			Dst:  *dr.defaultDNSOpts.HTTPSURL,
+			Dst:  dr.defaultDNSOpts.HTTPSURL,
 		},
 	}
 }
@@ -79,12 +79,12 @@ func (dr *HTTPSResolver) Resolve(
 	fallback Resolver,
 	rule *config.Rule,
 ) (*RecordSet, error) {
-	opts := dr.defaultDNSOpts.Clone()
+	opts := dr.defaultDNSOpts
 	if rule != nil {
-		opts = opts.Merge(rule.DNS)
+		opts = &rule.DNS
 	}
 
-	upstream := *opts.HTTPSURL
+	upstream := opts.HTTPSURL
 	if !strings.HasPrefix(upstream, "https://") {
 		upstream = "https://" + upstream + "/dns-query"
 	}
@@ -93,7 +93,7 @@ func (dr *HTTPSResolver) Resolve(
 		ctx,
 		domain,
 		upstream,
-		parseQueryTypes(*opts.QType),
+		parseQueryTypes(opts.QType),
 		dr.exchange,
 	)
 	return processMessages(ctx, resCh)

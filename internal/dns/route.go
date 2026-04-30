@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/samber/lo"
 	"github.com/xvzc/spoofdpi/internal/config"
 	"github.com/xvzc/spoofdpi/internal/logging"
 )
@@ -55,9 +54,9 @@ func (rr *RouteResolver) Resolve(
 	fallback Resolver,
 	rule *config.Rule,
 ) (*RecordSet, error) {
-	opts := rr.defaultDNSOpts.Clone()
+	opts := rr.defaultDNSOpts
 	if rule != nil {
-		opts = opts.Merge(rule.DNS)
+		opts = &rule.DNS
 	}
 
 	logger := logging.WithLocalScope(ctx, rr.logger, "route")
@@ -77,13 +76,13 @@ func (rr *RouteResolver) Resolve(
 	}
 
 	resolverInfo := resolver.Info()[0]
-	logger.Debug().Str("mode", resolverInfo.Name).Bool("cache", lo.FromPtr(opts.Cache)).
+	logger.Debug().Str("mode", resolverInfo.Name).Bool("cache", opts.Cache).
 		Msgf("ready to resolve")
 
 	t1 := time.Now()
 	var rSet *RecordSet
 	var err error
-	if *opts.Mode != config.DNSModeSystem && *opts.Cache {
+	if opts.Mode != config.DNSModeSystem && opts.Cache {
 		rSet, err = rr.cache.Resolve(ctx, domain, resolver, rule)
 	} else {
 		rSet, err = resolver.Resolve(ctx, domain, nil, rule)
@@ -103,7 +102,7 @@ func (rr *RouteResolver) Resolve(
 }
 
 func (rr *RouteResolver) route(attrs *config.DNSOptions) Resolver {
-	switch *attrs.Mode {
+	switch attrs.Mode {
 	case config.DNSModeHTTPS:
 		return rr.https
 	case config.DNSModeUDP:

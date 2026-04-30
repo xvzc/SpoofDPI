@@ -81,7 +81,7 @@ func runApp(mainctx context.Context, configDir string, cfg *config.Config) error
 
 	var writer io.Writer
 	// Channel to capture critical TUI execution failures
-	if !*cfg.App.NoTUI {
+	if !cfg.App.NoTUI {
 		if err := startTUI(cancel); err != nil {
 			return fmt.Errorf("failed to start tui: %w", err)
 		}
@@ -96,7 +96,7 @@ func runApp(mainctx context.Context, configDir string, cfg *config.Config) error
 	}
 	sw := &SwitchableWriter{target: dw}
 
-	logging.SetGlobalLogger(appctx, *cfg.App.LogLevel, sw)
+	logging.SetGlobalLogger(appctx, cfg.App.LogLevel, sw)
 	logger := log.Logger.With().Ctx(appctx).Logger()
 
 	logger.Info().Str("version", version).Msg("spoofdpi")
@@ -113,7 +113,7 @@ func runApp(mainctx context.Context, configDir string, cfg *config.Config) error
 
 	logger.Info().Str("mode", cfg.App.Mode.String()).Msgf("app")
 
-	switch *cfg.App.Mode {
+	switch cfg.App.Mode {
 	case config.AppModeSOCKS5:
 		logger.Warn().Msg(" 'socks5' mode is an experimental feature")
 	case config.AppModeTUN:
@@ -138,25 +138,25 @@ func runApp(mainctx context.Context, configDir string, cfg *config.Config) error
 	logger.Info().Msg("https info")
 	logger.Info().
 		Str("split-mode", cfg.HTTPS.SplitMode.String()).
-		Uint8("chunk-size", uint8(*cfg.HTTPS.ChunkSize)).
-		Bool("disorder", *cfg.HTTPS.Disorder).
+		Uint8("chunk-size", uint8(cfg.HTTPS.ChunkSize)).
+		Bool("disorder", cfg.HTTPS.Disorder).
 		Msg(" split")
 
 	logger.Info().
-		Uint8("count", uint8(*cfg.HTTPS.FakeCount)).
+		Uint8("count", uint8(cfg.HTTPS.FakeCount)).
 		Msg(" fake")
 
-	if *cfg.Conn.DNSTimeout > 0 {
+	if cfg.Conn.DNSTimeout > 0 {
 		logger.Info().
 			Str("value", fmt.Sprintf("%dms", cfg.Conn.DNSTimeout.Milliseconds())).
 			Msgf("dns connection timeout")
 	}
-	if *cfg.Conn.TCPTimeout > 0 {
+	if cfg.Conn.TCPTimeout > 0 {
 		logger.Info().
 			Str("value", fmt.Sprintf("%dms", cfg.Conn.TCPTimeout.Milliseconds())).
 			Msgf("tcp connection timeout")
 	}
-	if *cfg.Conn.UDPIdleTimeout > 0 {
+	if cfg.Conn.UDPIdleTimeout > 0 {
 		logger.Info().
 			Str("value", fmt.Sprintf("%dms", cfg.Conn.UDPIdleTimeout.Milliseconds())).
 			Msgf("udp idle timeout")
@@ -168,7 +168,7 @@ func runApp(mainctx context.Context, configDir string, cfg *config.Config) error
 		logger.Error().Err(err).Msg("server failed to start")
 	} else {
 		logger.Info().Msgf("server started on %s", srv.Addr())
-		if *cfg.App.AutoConfigureNetwork {
+		if cfg.App.AutoConfigureNetwork {
 			unset, err := srv.AutoConfigureNetwork(appctx)
 			if err != nil {
 				logger.Error().Err(err).Msg("failed to set system network config")
@@ -190,19 +190,19 @@ func createResolver(logger zerolog.Logger, cfg *config.Config) dns.Resolver {
 
 	udpResolver := dns.NewUDPResolver(
 		logging.WithScope(logger, "dns"),
-		cfg.DNS.Clone(),
-		cfg.Conn.Clone(),
+		&cfg.DNS,
+		&cfg.Conn,
 	)
 
 	dohResolver := dns.NewHTTPSResolver(
 		logging.WithScope(logger, "dns"),
-		cfg.DNS.Clone(),
-		cfg.Conn.Clone(),
+		&cfg.DNS,
+		&cfg.Conn,
 	)
 
 	sysResolver := dns.NewSystemResolver(
 		logging.WithScope(logger, "dns"),
-		cfg.DNS.Clone(),
+		&cfg.DNS,
 	)
 
 	cacheResolver := dns.NewCacheResolver(
@@ -222,7 +222,7 @@ func createResolver(logger zerolog.Logger, cfg *config.Config) dns.Resolver {
 		udpResolver,
 		sysResolver,
 		cacheResolver,
-		cfg.DNS.Clone(),
+		&cfg.DNS,
 	)
 }
 
@@ -292,7 +292,7 @@ func createPacketObjects(
 		logging.WithScope(logger, "pkt"),
 		hopCache,
 		tcpHandle,
-		uint8(*cfg.Conn.DefaultFakeTTL),
+		uint8(cfg.Conn.DefaultFakeTTL),
 	)
 	tcpSniffer.StartCapturing()
 
@@ -308,7 +308,7 @@ func createPacketObjects(
 		logging.WithScope(logger, "pkt"),
 		hopCache,
 		udpHandle,
-		uint8(*cfg.Conn.DefaultFakeTTL),
+		uint8(cfg.Conn.DefaultFakeTTL),
 	)
 	udpSniffer.StartCapturing()
 
@@ -366,15 +366,15 @@ func createServer(
 		return nil, fmt.Errorf("failed to find default route: %w", err)
 	}
 
-	switch *cfg.App.Mode {
+	switch cfg.App.Mode {
 	case config.AppModeHTTP:
 		httpHandler := http.NewHTTPHandler(logging.WithScope(logger, "hnd"))
 		httpsHandler := http.NewHTTPSHandler(
 			logging.WithScope(logger, "hnd"),
 			desyncer,
 			tcpSniffer,
-			cfg.HTTPS.Clone(),
-			cfg.Conn.Clone(),
+			&cfg.HTTPS,
+			&cfg.Conn,
 		)
 
 		sysNet := http.NewHTTPSystemNetwork(
@@ -389,18 +389,18 @@ func createServer(
 			httpsHandler,
 			ruleMatcher,
 			sysNet,
-			cfg.App.Clone(),
-			cfg.Conn.Clone(),
-			cfg.Policy.Clone(),
+			&cfg.App,
+			&cfg.Conn,
+			&cfg.Policy,
 		), nil
 	case config.AppModeSOCKS5:
 		connectHandler := socks5.NewConnectHandler(
 			logging.WithScope(logger, "hnd"),
 			desyncer,
 			tcpSniffer,
-			cfg.App.Clone(),
-			cfg.Conn.Clone(),
-			cfg.HTTPS.Clone(),
+			&cfg.App,
+			&cfg.Conn,
+			&cfg.HTTPS,
 		)
 		udpDesyncer := desync.NewUDPDesyncer(
 			logging.WithScope(logger, "dsn"),
@@ -413,7 +413,7 @@ func createServer(
 			logging.WithScope(logger, "hnd"),
 			udpPool,
 			udpDesyncer,
-			cfg.UDP.Clone(),
+			&cfg.UDP,
 		)
 		bindHandler := socks5.NewBindHandler(logging.WithScope(logger, "hnd"))
 
@@ -428,9 +428,9 @@ func createServer(
 				logging.WithScope(logger, "sys"),
 				defaultRoute,
 			),
-			cfg.App.Clone(),
-			cfg.Conn.Clone(),
-			cfg.Policy.Clone(),
+			&cfg.App,
+			&cfg.Conn,
+			&cfg.Policy,
 		), nil
 	case config.AppModeTUN:
 		if err != nil {
@@ -442,16 +442,13 @@ func createServer(
 			Msg("determined default interface and gateway")
 
 		// Get FIB ID from config (FreeBSD only, default to 1)
-		fibID := 1
-		if cfg.App.FreebsdFIB != nil {
-			fibID = *cfg.App.FreebsdFIB
-		}
+		fibID := cfg.App.FreebsdFIB
 
 		tcpHandler := tun.NewTCPHandler(
 			logging.WithScope(logger, "hnd"),
 			ruleMatcher, // For domain-based TLS matching
-			cfg.HTTPS.Clone(),
-			cfg.Conn.Clone(),
+			&cfg.HTTPS,
+			&cfg.Conn,
 			desyncer,
 			tcpSniffer, // For TTL tracking
 		)
@@ -465,8 +462,8 @@ func createServer(
 		udpHandler := tun.NewUDPHandler(
 			logging.WithScope(logger, "hnd"),
 			udpDesyncer,
-			cfg.UDP.Clone(),
-			cfg.Conn.Clone(),
+			&cfg.UDP,
+			&cfg.Conn,
 		)
 
 		sysNet, err := tun.NewTUNSystemNetwork(
@@ -487,6 +484,6 @@ func createServer(
 			sysNet,
 		), nil
 	default:
-		return nil, fmt.Errorf("unknown server mode: %s", *cfg.App.Mode)
+		return nil, fmt.Errorf("unknown server mode: %s", cfg.App.Mode)
 	}
 }

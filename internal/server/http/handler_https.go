@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/samber/lo"
 	"github.com/xvzc/spoofdpi/internal/config"
 	"github.com/xvzc/spoofdpi/internal/desync"
 	"github.com/xvzc/spoofdpi/internal/logging"
@@ -49,11 +48,11 @@ func (h *HTTPSHandler) HandleRequest(
 	dst *netutil.Destination,
 	rule *config.Rule,
 ) error {
-	httpsOpts := h.defaultHTTPSOpts.Clone()
-	connOpts := h.defaultConnOpts.Clone()
+	httpsOpts := h.defaultHTTPSOpts
+	connOpts := h.defaultConnOpts
 	if rule != nil {
-		httpsOpts = httpsOpts.Merge(rule.HTTPS)
-		connOpts = connOpts.Merge(rule.Conn)
+		httpsOpts = &rule.HTTPS
+		connOpts = &rule.Conn
 	}
 
 	logger := logging.WithLocalScope(ctx, h.logger, "handshake")
@@ -79,13 +78,13 @@ func (h *HTTPSHandler) tunnel(
 	httpsOpts *config.HTTPSOptions,
 	connOpts *config.ConnOptions,
 ) error {
-	if h.sniffer != nil && lo.FromPtr(httpsOpts.FakeCount) > 0 {
+	if h.sniffer != nil && httpsOpts.FakeCount > 0 {
 		h.sniffer.RegisterUntracked(dst.Addrs)
 	}
 
 	logger := logging.WithLocalScope(ctx, h.logger, "https")
 
-	dst.Timeout = *connOpts.TCPTimeout
+	dst.Timeout = connOpts.TCPTimeout
 	rConn, err := netutil.DialFastest(ctx, "tcp", dst, nil)
 	if err != nil {
 		return err

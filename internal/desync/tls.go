@@ -8,7 +8,6 @@ import (
 	"net"
 
 	"github.com/rs/zerolog"
-	"github.com/samber/lo"
 	"github.com/xvzc/spoofdpi/internal/config"
 	"github.com/xvzc/spoofdpi/internal/logging"
 	"github.com/xvzc/spoofdpi/internal/netutil"
@@ -46,12 +45,12 @@ func (d *TLSDesyncer) Desync(
 ) (int, error) {
 	logger = logging.WithLocalScope(ctx, logger, "tls_desync")
 
-	if lo.FromPtr(httpsOpts.Skip) {
+	if httpsOpts.Skip {
 		logger.Trace().Msg("skip desync for this request")
 		return d.sendSegments(conn, logger, []Segment{{Packet: msg.Raw()}})
 	}
 
-	if d.sniffer != nil && d.writer != nil && lo.FromPtr(httpsOpts.FakeCount) > 0 {
+	if d.sniffer != nil && d.writer != nil && httpsOpts.FakeCount > 0 {
 		oTTL := d.sniffer.GetOptimalTTL(
 			netutil.NewIPKey(conn.RemoteAddr().(*net.TCPAddr).IP),
 		)
@@ -114,7 +113,7 @@ func split(
 	msg *proto.TLSMessage,
 	opts *config.HTTPSOptions,
 ) []Segment {
-	mode := *opts.SplitMode
+	mode := opts.SplitMode
 	raw := msg.Raw()
 	var segments []Segment
 	var err error
@@ -125,15 +124,15 @@ func split(
 		if err != nil {
 			break
 		}
-		segments, err = splitSNI(raw, start, end, *opts.Disorder)
+		segments, err = splitSNI(raw, start, end, opts.Disorder)
 		logger.Trace().Msgf("extracted SNI is '%s'", raw[start:end])
 	case config.HTTPSSplitModeRandom:
 		mask := genPatternMask()
-		segments, err = splitMask(raw, mask, *opts.Disorder)
+		segments, err = splitMask(raw, mask, opts.Disorder)
 	case config.HTTPSSplitModeChunk:
-		segments, err = splitChunks(raw, int(*opts.ChunkSize), *opts.Disorder)
+		segments, err = splitChunks(raw, int(opts.ChunkSize), opts.Disorder)
 	case config.HTTPSSplitModeFirstByte:
-		segments, err = splitFirstByte(raw, *opts.Disorder)
+		segments, err = splitFirstByte(raw, opts.Disorder)
 	case config.HTTPSSplitModeCustom:
 		segments, err = applySegmentPlans(msg, opts.CustomSegmentPlans)
 	case config.HTTPSSplitModeNone:
@@ -147,7 +146,7 @@ func split(
 		Int("len", len(segments)).
 		Str("mode", mode.String()).
 		Str("kind", msg.Kind()).
-		Bool("disorder", *opts.Disorder).
+		Bool("disorder", opts.Disorder).
 		Msg("segments ready")
 
 	if err != nil {
@@ -287,7 +286,7 @@ func (d *TLSDesyncer) sendFakePackets(
 	var totalSent int
 	segments := split(logger, opts.FakePacket, opts)
 
-	for range *(opts.FakeCount) {
+	for range opts.FakeCount {
 		for _, v := range segments {
 			n, err := d.writer.WriteCraftedPacket(
 				ctx,

@@ -26,7 +26,7 @@ func NewUDPResolver(
 ) *UDPResolver {
 	return &UDPResolver{
 		client: &dns.Client{
-			Timeout: *defaultConnOpts.DNSTimeout,
+			Timeout: defaultConnOpts.DNSTimeout,
 		},
 		defaultDNSOpts:  defaultDNSOpts,
 		defaultConnOpts: defaultConnOpts,
@@ -49,16 +49,16 @@ func (ur *UDPResolver) Resolve(
 	fallback Resolver,
 	rule *config.Rule,
 ) (*RecordSet, error) {
-	opts := ur.defaultDNSOpts.Clone()
+	opts := ur.defaultDNSOpts
 	if rule != nil {
-		opts = opts.Merge(rule.DNS)
+		opts = &rule.DNS
 	}
 
 	resCh := lookupAllTypes(
 		ctx,
 		domain,
 		opts.Addr.String(),
-		parseQueryTypes(*opts.QType),
+		parseQueryTypes(opts.QType),
 		ur.exchange,
 	)
 
