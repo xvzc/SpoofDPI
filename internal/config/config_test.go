@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfig_UnmarshalTOML(t *testing.T) {
@@ -63,15 +64,17 @@ func TestConfig_UnmarshalTOML(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			var c Config
+			c := DefaultConfig()
 			err := c.UnmarshalTOML(tc.input)
 			if tc.wantErr {
 				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				if tc.assert != nil {
-					tc.assert(t, c)
-				}
+				return
+			}
+			assert.NoError(t, err)
+			// Finalize promotes captured raw overrides into resolved Rules.
+			require.NoError(t, c.Finalize())
+			if tc.assert != nil {
+				tc.assert(t, *c)
 			}
 		})
 	}
@@ -135,4 +138,37 @@ func TestConfig_ShouldEnablePcap(t *testing.T) {
 			assert.Equal(t, tc.expect, tc.config.ShouldEnablePcap())
 		})
 	}
+}
+
+func TestConfig_resolveRules_inheritsFromBase(t *testing.T) {
+	c := DefaultConfig()
+	c.HTTPS.FakeCount = 5
+	c.HTTPS.SplitMode = HTTPSSplitModeChunk
+	c.HTTPS.ChunkSize = 99
+	c.Policy.rawOverrides = []map[string]any{
+		{
+			"name": "rule1",
+			"match": map[string]any{
+				"domain": []any{"example.com"},
+			},
+			"https": map[string]any{
+				// Only override fake-count; other HTTPS fields should
+				// inherit from the base config (eager-resolve at load).
+				"fake-count": int64(2),
+			},
+		},
+	}
+
+	require.NoError(t, c.Finalize())
+	require.Len(t, c.Policy.Overrides, 1)
+	rule := c.Policy.Overrides[0]
+	assert.Equal(t, "rule1", rule.Name)
+	assert.Equal(t, uint8(2), rule.HTTPS.FakeCount, "rule overrides fake-count")
+	assert.Equal(
+		t, HTTPSSplitModeChunk, rule.HTTPS.SplitMode,
+		"rule inherits split-mode from base",
+	)
+	assert.Equal(t, uint8(99), rule.HTTPS.ChunkSize, "rule inherits chunk-size from base")
+	// rawOverrides should be cleared after resolution
+	assert.Nil(t, c.Policy.rawOverrides)
 }

@@ -136,13 +136,15 @@ func DefaultUDPOptions() UDPOptions { //exhaustruct:enforce
 // DefaultPolicyOptions returns the default values for the [policy] section.
 func DefaultPolicyOptions() PolicyOptions { //exhaustruct:enforce
 	return PolicyOptions{
-		Overrides: []Rule{},
+		Overrides:    []Rule{},
+		rawOverrides: nil,
 	}
 }
 
-// Finalize applies defaults that depend on other fields. Called after
+// Finalize applies defaults that depend on other fields and expands the
+// captured rule overrides into fully-populated Rules. Called after
 // defaults+TOML+CLI layers are merged, before Validate.
-func (c *Config) Finalize() {
+func (c *Config) Finalize() error {
 	if c.App.ListenAddr.IP == nil && c.App.ListenAddr.Port == 0 {
 		port := 8080
 		if c.App.Mode == AppModeSOCKS5 {
@@ -153,4 +155,73 @@ func (c *Config) Finalize() {
 			Port: port,
 		}
 	}
+	return c.resolveRules()
+}
+
+// resolveRules expands the raw [[policy.overrides]] tables captured during
+// TOML decoding into a slice of fully-populated Rules. Each rule's
+// HTTPS/DNS/UDP/Conn sections are pre-filled from the corresponding base
+// Config sections, then the rule's own TOML is decoded on top — this is
+// the eager-resolve pattern that lets consumers use rule.X directly at
+// request time without re-merging.
+func (c *Config) resolveRules() error {
+	rules := make([]Rule, 0, len(c.Policy.rawOverrides))
+	for i, raw := range c.Policy.rawOverrides {
+		r := Rule{ //exhaustruct:enforce
+			Name:     "",
+			Priority: 0,
+			Block:    false,
+			Match:    nil,
+			HTTPS:    c.HTTPS,
+			DNS:      c.DNS,
+			UDP:      c.UDP,
+			Conn:     c.Conn,
+		}
+
+		var err error
+		if v, ok := raw["name"].(string); ok {
+			r.Name = v
+		}
+		if v, ok := raw["priority"]; ok {
+			pv, perr := parseIntFn[uint16](checkUint16)(v)
+			if perr != nil {
+				return fmt.Errorf("rule %d: priority: %w", i, perr)
+			}
+			r.Priority = pv
+		}
+		if v, ok := raw["block"].(bool); ok {
+			r.Block = v
+		}
+		if v, ok := raw["match"]; ok {
+			r.Match = &MatchAttrs{} //exhaustruct:enforce
+			if err = r.Match.UnmarshalTOML(v); err != nil {
+				return fmt.Errorf("rule %d: match: %w", i, err)
+			}
+		}
+		if v, ok := raw["dns"]; ok {
+			if err = r.DNS.UnmarshalTOML(v); err != nil {
+				return fmt.Errorf("rule %d: dns: %w", i, err)
+			}
+		}
+		if v, ok := raw["https"]; ok {
+			if err = r.HTTPS.UnmarshalTOML(v); err != nil {
+				return fmt.Errorf("rule %d: https: %w", i, err)
+			}
+		}
+		if v, ok := raw["udp"]; ok {
+			if err = r.UDP.UnmarshalTOML(v); err != nil {
+				return fmt.Errorf("rule %d: udp: %w", i, err)
+			}
+		}
+		if v, ok := raw["connection"]; ok {
+			if err = r.Conn.UnmarshalTOML(v); err != nil {
+				return fmt.Errorf("rule %d: connection: %w", i, err)
+			}
+		}
+
+		rules = append(rules, r)
+	}
+	c.Policy.Overrides = rules
+	c.Policy.rawOverrides = nil
+	return nil
 }

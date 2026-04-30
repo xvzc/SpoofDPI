@@ -440,7 +440,9 @@ func CreateCommand(
 			}
 
 			applyCLIOverrides(finalCfg, cmd, argsCfg)
-			finalCfg.Finalize()
+			if err := finalCfg.Finalize(); err != nil {
+				return err
+			}
 
 			return runFunc(
 				ctx,

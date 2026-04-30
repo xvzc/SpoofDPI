@@ -484,6 +484,9 @@ func TestFromTomlFile(t *testing.T) {
 			return
 		}
 
+		// Finalize promotes captured raw overrides into resolved Rules.
+		assert.NoError(t, cfg.Finalize())
+
 		assert.Equal(t, "127.0.0.1:8080", cfg.App.ListenAddr.String())
 		assert.Equal(t, time.Duration(1000*time.Millisecond), cfg.Conn.DNSTimeout)
 		assert.Equal(t, time.Duration(1000*time.Millisecond), cfg.Conn.TCPTimeout)

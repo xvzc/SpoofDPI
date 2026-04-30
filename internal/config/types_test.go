@@ -235,8 +235,13 @@ func TestPolicyOptions_UnmarshalTOML(t *testing.T) {
 			},
 			wantErr: false,
 			assert: func(t *testing.T, o PolicyOptions) {
-				assert.Len(t, o.Overrides, 1)
-				assert.Equal(t, "rule1", o.Overrides[0].Name)
+				// PolicyOptions.UnmarshalTOML captures raw overrides for
+				// deferred resolution by Config.Finalize; Overrides itself
+				// is populated only after resolveRules runs.
+				assert.Empty(t, o.Overrides)
+				if assert.Len(t, o.rawOverrides, 1) {
+					assert.Equal(t, "rule1", o.rawOverrides[0]["name"])
+				}
 			},
 		},
 		{

@@ -472,7 +472,17 @@ func (o *UDPOptions) UnmarshalTOML(data any) (err error) {
 // └────────────────┘
 
 type PolicyOptions struct {
-	Overrides []Rule `toml:"overrides"`
+	// Overrides holds the fully-resolved per-rule configurations.
+	// It is populated by Config.resolveRules during Finalize, with each
+	// rule's HTTPS/DNS/UDP/Conn sections pre-filled from the base config
+	// so consumers can use rule.X directly without re-merging at request
+	// time.
+	Overrides []Rule `toml:"-"`
+
+	// rawOverrides captures the raw [[policy.overrides]] tables from the
+	// TOML so resolveRules can decode them on top of pre-filled defaults
+	// later (after the base config is fully merged from defaults+CLI).
+	rawOverrides []map[string]any
 }
 
 func (o *PolicyOptions) UnmarshalTOML(data any) (err error) {
@@ -487,11 +497,20 @@ func (o *PolicyOptions) UnmarshalTOML(data any) (err error) {
 		)
 	}
 
-	if rules := findStructSliceFrom[Rule](m, "overrides", &err); rules != nil {
-		o.Overrides = rules
+	if raw, ok := m["overrides"]; ok {
+		switch list := raw.(type) {
+		case []any:
+			for _, item := range list {
+				if rm, ok := item.(map[string]any); ok {
+					o.rawOverrides = append(o.rawOverrides, rm)
+				}
+			}
+		case []map[string]any:
+			o.rawOverrides = append(o.rawOverrides, list...)
+		}
 	}
 
-	return err
+	return nil
 }
 
 // ┌──────────────┐
