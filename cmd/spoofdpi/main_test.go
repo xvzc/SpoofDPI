@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xvzc/spoofdpi/internal/config"
@@ -15,18 +14,18 @@ import (
 )
 
 func TestCreateResolver(t *testing.T) {
-	cfg := config.NewConfig()
-	cfg.DNS = &config.DNSOptions{
-		Mode:     lo.ToPtr(config.DNSModeUDP),
-		Addr:     &net.TCPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53},
-		HTTPSURL: lo.ToPtr("https://dns.google/dns-query"),
-		QType:    lo.ToPtr(config.DNSQueryIPv4),
-		Cache:    lo.ToPtr(true),
+	cfg := &config.Config{}
+	cfg.DNS = config.DNSOptions{
+		Mode:     config.DNSModeUDP,
+		Addr:     net.TCPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53},
+		HTTPSURL: "https://dns.google/dns-query",
+		QType:    config.DNSQueryIPv4,
+		Cache:    true,
 	}
-	cfg.Conn = &config.ConnOptions{
-		DNSTimeout:     lo.ToPtr(time.Duration(0)),
-		TCPTimeout:     lo.ToPtr(time.Duration(0)),
-		UDPIdleTimeout: lo.ToPtr(time.Duration(0)),
+	cfg.Conn = config.ConnOptions{
+		DNSTimeout:     time.Duration(0),
+		TCPTimeout:     time.Duration(0),
+		UDPIdleTimeout: time.Duration(0),
 	}
 
 	logger := zerolog.Nop()
@@ -37,42 +36,42 @@ func TestCreateResolver(t *testing.T) {
 
 func TestCreateProxy_NoPcap(t *testing.T) {
 	// Setup configuration that dAppModeHTTP PCAP (root privileges)
-	cfg := config.NewConfig()
+	cfg := &config.Config{}
 
 	// App Config
-	cfg.App = &config.AppOptions{
-		Mode:       lo.ToPtr(config.AppModeHTTP),
-		ListenAddr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0},
+	cfg.App = config.AppOptions{
+		Mode:       config.AppModeHTTP,
+		ListenAddr: net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0},
 	}
 
 	// Conn Config
-	cfg.Conn = &config.ConnOptions{
-		DefaultFakeTTL: lo.ToPtr(uint8(64)),
-		DNSTimeout:     lo.ToPtr(time.Duration(0)),
-		TCPTimeout:     lo.ToPtr(time.Duration(0)),
-		UDPIdleTimeout: lo.ToPtr(time.Duration(0)),
+	cfg.Conn = config.ConnOptions{
+		DefaultFakeTTL: uint8(64),
+		DNSTimeout:     time.Duration(0),
+		TCPTimeout:     time.Duration(0),
+		UDPIdleTimeout: time.Duration(0),
 	}
 
 	// HTTPS Config (Ensure FakeCount is 0 to disable PCAP)
-	cfg.HTTPS = &config.HTTPSOptions{
-		Disorder:   lo.ToPtr(false),
-		FakeCount:  lo.ToPtr(uint8(0)),
+	cfg.HTTPS = config.HTTPSOptions{
+		Disorder:   false,
+		FakeCount:  uint8(0),
 		FakePacket: proto.NewFakeTLSMessage([]byte{}),
-		SplitMode:  lo.ToPtr(config.HTTPSSplitModeChunk),
-		ChunkSize:  lo.ToPtr(uint8(10)),
-		Skip:       lo.ToPtr(false),
+		SplitMode:  config.HTTPSSplitModeChunk,
+		ChunkSize:  uint8(10),
+		Skip:       false,
 	}
 
 	// Policy Config
-	cfg.Policy = &config.PolicyOptions{}
+	cfg.Policy = config.PolicyOptions{}
 
 	// DNS Config
-	cfg.DNS = &config.DNSOptions{
-		Mode:     lo.ToPtr(config.DNSModeUDP),
-		Addr:     &net.TCPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53},
-		HTTPSURL: lo.ToPtr("https://dns.google/dns-query"),
-		QType:    lo.ToPtr(config.DNSQueryIPv4),
-		Cache:    lo.ToPtr(false),
+	cfg.DNS = config.DNSOptions{
+		Mode:     config.DNSModeUDP,
+		Addr:     net.TCPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53},
+		HTTPSURL: "https://dns.google/dns-query",
+		QType:    config.DNSQueryIPv4,
+		Cache:    false,
 	}
 
 	logger := zerolog.Nop()
@@ -84,52 +83,52 @@ func TestCreateProxy_NoPcap(t *testing.T) {
 }
 
 func TestCreateProxy_WithPolicy(t *testing.T) {
-	cfg := config.NewConfig()
+	cfg := &config.Config{}
 
 	// App Config
-	cfg.App = &config.AppOptions{
-		Mode:       lo.ToPtr(config.AppModeHTTP),
-		ListenAddr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0},
+	cfg.App = config.AppOptions{
+		Mode:       config.AppModeHTTP,
+		ListenAddr: net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0},
 	}
 
 	// Conn Config
-	cfg.Conn = &config.ConnOptions{
-		DefaultFakeTTL: lo.ToPtr(uint8(64)),
-		DNSTimeout:     lo.ToPtr(time.Duration(0)),
-		TCPTimeout:     lo.ToPtr(time.Duration(0)),
-		UDPIdleTimeout: lo.ToPtr(time.Duration(0)),
+	cfg.Conn = config.ConnOptions{
+		DefaultFakeTTL: uint8(64),
+		DNSTimeout:     time.Duration(0),
+		TCPTimeout:     time.Duration(0),
+		UDPIdleTimeout: time.Duration(0),
 	}
 
 	// HTTPS Config
-	cfg.HTTPS = &config.HTTPSOptions{
-		FakeCount: lo.ToPtr(uint8(0)),
+	cfg.HTTPS = config.HTTPSOptions{
+		FakeCount: uint8(0),
 	}
 
 	// Policy Config with one override
-	cfg.Policy = &config.PolicyOptions{
+	cfg.Policy = config.PolicyOptions{
 		Overrides: []config.Rule{
 			{
-				Name: lo.ToPtr("test-rule"),
+				Name: "test-rule",
 				Match: &config.MatchAttrs{
 					Domains: []string{"example.com"},
 				},
-				DNS: &config.DNSOptions{
-					Mode: lo.ToPtr(config.DNSModeSystem),
+				DNS: config.DNSOptions{
+					Mode: config.DNSModeSystem,
 				},
-				HTTPS: &config.HTTPSOptions{
-					Skip: lo.ToPtr(true),
+				HTTPS: config.HTTPSOptions{
+					Skip: true,
 				},
 			},
 		},
 	}
 
 	// DNS Config
-	cfg.DNS = &config.DNSOptions{
-		Mode:     lo.ToPtr(config.DNSModeUDP),
-		Addr:     &net.TCPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53},
-		HTTPSURL: lo.ToPtr("https://dns.google/dns-query"),
-		QType:    lo.ToPtr(config.DNSQueryIPv4),
-		Cache:    lo.ToPtr(false),
+	cfg.DNS = config.DNSOptions{
+		Mode:     config.DNSModeUDP,
+		Addr:     net.TCPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53},
+		HTTPSURL: "https://dns.google/dns-query",
+		QType:    config.DNSQueryIPv4,
+		Cache:    false,
 	}
 
 	logger := zerolog.Nop()

@@ -24,25 +24,25 @@ func TestCreateCommand_Flags(t *testing.T) {
 			args: []string{"spoofdpi", "--clean"},
 			assert: func(t *testing.T, cfg *Config) {
 				// Verify defaults are preserved
-				assert.Equal(t, zerolog.InfoLevel, *cfg.App.LogLevel)
-				assert.False(t, *cfg.App.NoTUI)
-				assert.False(t, *cfg.App.AutoConfigureNetwork)
+				assert.Equal(t, zerolog.InfoLevel, cfg.App.LogLevel)
+				assert.False(t, cfg.App.NoTUI)
+				assert.False(t, cfg.App.AutoConfigureNetwork)
 				assert.Equal(t, "127.0.0.1:8080", cfg.App.ListenAddr.String())
-				assert.Equal(t, uint8(8), *cfg.Conn.DefaultFakeTTL)
+				assert.Equal(t, uint8(8), cfg.Conn.DefaultFakeTTL)
 				assert.Equal(t, int64(5000), cfg.Conn.DNSTimeout.Milliseconds())
 				assert.Equal(t, int64(10000), cfg.Conn.TCPTimeout.Milliseconds())
 				assert.Equal(t, int64(25000), cfg.Conn.UDPIdleTimeout.Milliseconds())
 				assert.Equal(t, "8.8.8.8:53", cfg.DNS.Addr.String())
-				assert.Equal(t, DNSModeUDP, *cfg.DNS.Mode)
-				assert.Equal(t, "https://dns.google/dns-query", *cfg.DNS.HTTPSURL)
-				assert.Equal(t, DNSQueryIPv4, *cfg.DNS.QType)
-				assert.False(t, *cfg.DNS.Cache)
-				assert.Equal(t, uint8(0), *cfg.HTTPS.FakeCount)
-				assert.False(t, *cfg.HTTPS.Disorder)
-				assert.Equal(t, HTTPSSplitModeSNI, *cfg.HTTPS.SplitMode)
-				assert.Equal(t, uint8(35), *cfg.HTTPS.ChunkSize)
-				assert.False(t, *cfg.HTTPS.Skip)
-				assert.Equal(t, 0, *cfg.UDP.FakeCount)
+				assert.Equal(t, DNSModeUDP, cfg.DNS.Mode)
+				assert.Equal(t, "https://dns.google/dns-query", cfg.DNS.HTTPSURL)
+				assert.Equal(t, DNSQueryIPv4, cfg.DNS.QType)
+				assert.False(t, cfg.DNS.Cache)
+				assert.Equal(t, uint8(0), cfg.HTTPS.FakeCount)
+				assert.False(t, cfg.HTTPS.Disorder)
+				assert.Equal(t, HTTPSSplitModeSNI, cfg.HTTPS.SplitMode)
+				assert.Equal(t, uint8(35), cfg.HTTPS.ChunkSize)
+				assert.False(t, cfg.HTTPS.Skip)
+				assert.Equal(t, 0, cfg.UDP.FakeCount)
 				assert.Equal(t, 64, len(cfg.UDP.FakePacket))
 			},
 		},
@@ -75,34 +75,34 @@ func TestCreateCommand_Flags(t *testing.T) {
 			},
 			assert: func(t *testing.T, cfg *Config) {
 				// General
-				assert.Equal(t, zerolog.DebugLevel, *cfg.App.LogLevel)
-				assert.True(t, *cfg.App.NoTUI)
-				assert.True(t, *cfg.App.AutoConfigureNetwork)
+				assert.Equal(t, zerolog.DebugLevel, cfg.App.LogLevel)
+				assert.True(t, cfg.App.NoTUI)
+				assert.True(t, cfg.App.AutoConfigureNetwork)
 
 				// Server
 				assert.Equal(t, "127.0.0.1:9090", cfg.App.ListenAddr.String())
-				assert.Equal(t, uint8(128), *cfg.Conn.DefaultFakeTTL)
-				assert.Equal(t, 5000*time.Millisecond, *cfg.Conn.DNSTimeout)
-				assert.Equal(t, 5000*time.Millisecond, *cfg.Conn.TCPTimeout)
-				assert.Equal(t, 5000*time.Millisecond, *cfg.Conn.UDPIdleTimeout)
+				assert.Equal(t, uint8(128), cfg.Conn.DefaultFakeTTL)
+				assert.Equal(t, 5000*time.Millisecond, cfg.Conn.DNSTimeout)
+				assert.Equal(t, 5000*time.Millisecond, cfg.Conn.TCPTimeout)
+				assert.Equal(t, 5000*time.Millisecond, cfg.Conn.UDPIdleTimeout)
 
 				// DNS
 				assert.Equal(t, "1.1.1.1:53", cfg.DNS.Addr.String())
-				assert.Equal(t, DNSModeHTTPS, *cfg.DNS.Mode)
-				assert.Equal(t, "https://cloudflare-dns.com/dns-query", *cfg.DNS.HTTPSURL)
-				assert.Equal(t, DNSQueryIPv6, *cfg.DNS.QType)
-				assert.True(t, *cfg.DNS.Cache)
+				assert.Equal(t, DNSModeHTTPS, cfg.DNS.Mode)
+				assert.Equal(t, "https://cloudflare-dns.com/dns-query", cfg.DNS.HTTPSURL)
+				assert.Equal(t, DNSQueryIPv6, cfg.DNS.QType)
+				assert.True(t, cfg.DNS.Cache)
 
 				// HTTPS
-				assert.Equal(t, uint8(10), *cfg.HTTPS.FakeCount)
+				assert.Equal(t, uint8(10), cfg.HTTPS.FakeCount)
 				assert.Equal(t, []byte{0x16, 0x03}, cfg.HTTPS.FakePacket.Raw())
-				assert.True(t, *cfg.HTTPS.Disorder)
-				assert.Equal(t, HTTPSSplitModeChunk, *cfg.HTTPS.SplitMode)
-				assert.Equal(t, uint8(50), *cfg.HTTPS.ChunkSize)
-				assert.True(t, *cfg.HTTPS.Skip)
+				assert.True(t, cfg.HTTPS.Disorder)
+				assert.Equal(t, HTTPSSplitModeChunk, cfg.HTTPS.SplitMode)
+				assert.Equal(t, uint8(50), cfg.HTTPS.ChunkSize)
+				assert.True(t, cfg.HTTPS.Skip)
 
 				// UDP
-				assert.Equal(t, 5, *cfg.UDP.FakeCount)
+				assert.Equal(t, 5, cfg.UDP.FakeCount)
 				assert.Equal(t, []byte{0x01, 0x02}, cfg.UDP.FakePacket)
 			},
 		},
@@ -117,10 +117,10 @@ func TestCreateCommand_Flags(t *testing.T) {
 				"--https-split-mode", "random",
 			},
 			assert: func(t *testing.T, cfg *Config) {
-				assert.Equal(t, zerolog.ErrorLevel, *cfg.App.LogLevel)
-				assert.Equal(t, DNSModeSystem, *cfg.DNS.Mode)
-				assert.Equal(t, DNSQueryAll, *cfg.DNS.QType)
-				assert.Equal(t, HTTPSSplitModeRandom, *cfg.HTTPS.SplitMode)
+				assert.Equal(t, zerolog.ErrorLevel, cfg.App.LogLevel)
+				assert.Equal(t, DNSModeSystem, cfg.DNS.Mode)
+				assert.Equal(t, DNSQueryAll, cfg.DNS.QType)
+				assert.Equal(t, HTTPSSplitModeRandom, cfg.HTTPS.SplitMode)
 			},
 		},
 		{
@@ -145,7 +145,7 @@ func TestCreateCommand_Flags(t *testing.T) {
 			},
 			assert: func(t *testing.T, cfg *Config) {
 				assert.Equal(t, "127.0.0.1:1080", cfg.App.ListenAddr.String())
-				assert.Equal(t, AppModeSOCKS5, *cfg.App.Mode)
+				assert.Equal(t, AppModeSOCKS5, cfg.App.Mode)
 			},
 		},
 	}
@@ -275,40 +275,40 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 
 	// Verify Overrides
 	// General
-	assert.Equal(t, zerolog.ErrorLevel, *capturedCfg.App.LogLevel)
-	assert.False(t, *capturedCfg.App.NoTUI)
-	assert.False(t, *capturedCfg.App.AutoConfigureNetwork)
+	assert.Equal(t, zerolog.ErrorLevel, capturedCfg.App.LogLevel)
+	assert.False(t, capturedCfg.App.NoTUI)
+	assert.False(t, capturedCfg.App.AutoConfigureNetwork)
 
 	// Server
 	assert.Equal(t, "127.0.0.1:9090", capturedCfg.App.ListenAddr.String())
-	assert.Equal(t, 2000*time.Millisecond, *capturedCfg.Conn.DNSTimeout)
-	assert.Equal(t, 2000*time.Millisecond, *capturedCfg.Conn.TCPTimeout)
-	assert.Equal(t, 2000*time.Millisecond, *capturedCfg.Conn.UDPIdleTimeout)
-	assert.Equal(t, uint8(200), *capturedCfg.Conn.DefaultFakeTTL)
+	assert.Equal(t, 2000*time.Millisecond, capturedCfg.Conn.DNSTimeout)
+	assert.Equal(t, 2000*time.Millisecond, capturedCfg.Conn.TCPTimeout)
+	assert.Equal(t, 2000*time.Millisecond, capturedCfg.Conn.UDPIdleTimeout)
+	assert.Equal(t, uint8(200), capturedCfg.Conn.DefaultFakeTTL)
 
 	// DNS
 	assert.Equal(t, "1.1.1.1:53", capturedCfg.DNS.Addr.String())
-	assert.False(t, *capturedCfg.DNS.Cache)
-	assert.Equal(t, DNSModeUDP, *capturedCfg.DNS.Mode)
-	assert.Equal(t, "https://8.8.8.8/dns-query", *capturedCfg.DNS.HTTPSURL)
-	assert.Equal(t, DNSQueryIPv6, *capturedCfg.DNS.QType)
+	assert.False(t, capturedCfg.DNS.Cache)
+	assert.Equal(t, DNSModeUDP, capturedCfg.DNS.Mode)
+	assert.Equal(t, "https://8.8.8.8/dns-query", capturedCfg.DNS.HTTPSURL)
+	assert.Equal(t, DNSQueryIPv6, capturedCfg.DNS.QType)
 
 	// HTTPS
-	assert.False(t, *capturedCfg.HTTPS.Disorder)
-	assert.Equal(t, uint8(10), *capturedCfg.HTTPS.FakeCount)
+	assert.False(t, capturedCfg.HTTPS.Disorder)
+	assert.Equal(t, uint8(10), capturedCfg.HTTPS.FakeCount)
 	assert.Equal(t, []byte{0xff, 0xff}, capturedCfg.HTTPS.FakePacket.Raw())
-	assert.Equal(t, HTTPSSplitModeSNI, *capturedCfg.HTTPS.SplitMode)
-	assert.Equal(t, uint8(10), *capturedCfg.HTTPS.ChunkSize)
-	assert.False(t, *capturedCfg.HTTPS.Skip)
+	assert.Equal(t, HTTPSSplitModeSNI, capturedCfg.HTTPS.SplitMode)
+	assert.Equal(t, uint8(10), capturedCfg.HTTPS.ChunkSize)
+	assert.False(t, capturedCfg.HTTPS.Skip)
 
 	// UDP
-	assert.Equal(t, 20, *capturedCfg.UDP.FakeCount)
+	assert.Equal(t, 20, capturedCfg.UDP.FakeCount)
 	assert.Equal(t, []byte{0xcc, 0xdd}, capturedCfg.UDP.FakePacket)
 	assert.Equal(t, []byte{0xcc, 0xdd}, capturedCfg.UDP.FakePacket)
 
 	// Verify TOML-only fields are preserved
 	require.Len(t, capturedCfg.Policy.Overrides, 1)
 	override := capturedCfg.Policy.Overrides[0]
-	assert.Equal(t, "test-rule", *override.Name)
+	assert.Equal(t, "test-rule", override.Name)
 	assert.Equal(t, "example.com", override.Match.Domains[0])
 }

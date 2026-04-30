@@ -1,10 +1,8 @@
 package config
 
 import (
-	"net"
 	"testing"
 
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -43,7 +41,7 @@ func TestConfig_UnmarshalTOML(t *testing.T) {
 				assert.Equal(t, "127.0.0.1:9090", c.App.ListenAddr.String())
 				assert.Equal(t, "1.1.1.1:53", c.DNS.Addr.String())
 				if assert.Len(t, c.Policy.Overrides, 1) {
-					assert.Equal(t, "test", *c.Policy.Overrides[0].Name)
+					assert.Equal(t, "test", c.Policy.Overrides[0].Name)
 				}
 			},
 		},
@@ -88,8 +86,8 @@ func TestConfig_ShouldEnablePcap(t *testing.T) {
 		{
 			name: "global fake count > 0",
 			config: Config{
-				HTTPS: &HTTPSOptions{
-					FakeCount: lo.ToPtr(uint8(1)),
+				HTTPS: HTTPSOptions{
+					FakeCount: uint8(1),
 				},
 			},
 			expect: true,
@@ -97,14 +95,14 @@ func TestConfig_ShouldEnablePcap(t *testing.T) {
 		{
 			name: "rule fake count > 0",
 			config: Config{
-				HTTPS: &HTTPSOptions{
-					FakeCount: lo.ToPtr(uint8(0)),
+				HTTPS: HTTPSOptions{
+					FakeCount: uint8(0),
 				},
-				Policy: &PolicyOptions{
+				Policy: PolicyOptions{
 					Overrides: []Rule{
 						{
-							HTTPS: &HTTPSOptions{
-								FakeCount: lo.ToPtr(uint8(1)),
+							HTTPS: HTTPSOptions{
+								FakeCount: uint8(1),
 							},
 						},
 					},
@@ -115,14 +113,14 @@ func TestConfig_ShouldEnablePcap(t *testing.T) {
 		{
 			name: "none",
 			config: Config{
-				HTTPS: &HTTPSOptions{
-					FakeCount: lo.ToPtr(uint8(0)),
+				HTTPS: HTTPSOptions{
+					FakeCount: uint8(0),
 				},
-				Policy: &PolicyOptions{
+				Policy: PolicyOptions{
 					Overrides: []Rule{
 						{
-							HTTPS: &HTTPSOptions{
-								FakeCount: lo.ToPtr(uint8(0)),
+							HTTPS: HTTPSOptions{
+								FakeCount: uint8(0),
 							},
 						},
 					},
@@ -135,92 +133,6 @@ func TestConfig_ShouldEnablePcap(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.expect, tc.config.ShouldEnablePcap())
-		})
-	}
-}
-
-func TestConfig_Merge(t *testing.T) {
-	tcs := []struct {
-		name    string
-		tomlCfg *Config
-		argsCfg *Config
-		assert  func(t *testing.T, merged *Config)
-	}{
-		{
-			name: "keep toml if arg is nil",
-			tomlCfg: &Config{
-				App: &AppOptions{
-					ListenAddr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8080},
-				},
-			},
-			argsCfg: &Config{
-				App: &AppOptions{
-					ListenAddr: nil,
-				},
-			},
-			assert: func(t *testing.T, merged *Config) {
-				assert.Equal(t, "127.0.0.1:8080", merged.App.ListenAddr.String())
-			},
-		},
-		{
-			name:    "default udp fake packet",
-			tomlCfg: &Config{},
-			argsCfg: &Config{},
-			assert: func(t *testing.T, merged *Config) {
-				defaultCfg := DefaultConfig()
-				assert.Equal(t, 64, len(defaultCfg.UDP.FakePacket))
-				for _, b := range defaultCfg.UDP.FakePacket {
-					assert.Equal(t, byte(0), b)
-				}
-			},
-		},
-	}
-
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			tc.assert(t, tc.tomlCfg.Merge(tc.argsCfg))
-		})
-	}
-}
-
-func TestConfig_Clone(t *testing.T) {
-	tcs := []struct {
-		name   string
-		input  *Config
-		assert func(t *testing.T, input *Config, output *Config)
-	}{
-		{
-			name:  "nil receiver",
-			input: nil,
-			assert: func(t *testing.T, input *Config, output *Config) {
-				assert.Nil(t, output)
-			},
-		},
-		{
-			name: "non-nil receiver",
-			input: &Config{
-				App:    &AppOptions{},
-				Conn:   &ConnOptions{},
-				DNS:    &DNSOptions{},
-				HTTPS:  &HTTPSOptions{},
-				Policy: &PolicyOptions{},
-			},
-			assert: func(t *testing.T, input *Config, output *Config) {
-				assert.NotNil(t, output)
-				assert.NotSame(t, input, output)
-				assert.NotSame(t, input.App, output.App)
-				assert.NotSame(t, input.Conn, output.Conn)
-				assert.NotSame(t, input.DNS, output.DNS)
-				assert.NotSame(t, input.HTTPS, output.HTTPS)
-				assert.NotSame(t, input.Policy, output.Policy)
-			},
-		},
-	}
-
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			output := tc.input.Clone()
-			tc.assert(t, tc.input, output)
 		})
 	}
 }

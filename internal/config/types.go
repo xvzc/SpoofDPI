@@ -59,7 +59,15 @@ func (o *AppOptions) UnmarshalTOML(data any) (err error) {
 	if p := findFrom(m, "listen-addr", parseStringFn(checkHostPort), &err); isOk(p, err) {
 		o.ListenAddr = MustParseTCPAddr(*p)
 	}
-	if p := findFrom(m, "freebsd-fib", parseIntFn[int](checkFreeBSDFibID), &err); isOk(p, err) {
+	if p := findFrom(
+		m,
+		"freebsd-fib",
+		parseIntFn[int](checkFreeBSDFibID),
+		&err,
+	); isOk(
+		p,
+		err,
+	) {
 		o.FreebsdFIB = *p
 	}
 
@@ -101,16 +109,48 @@ func (o *ConnOptions) UnmarshalTOML(data any) (err error) {
 		return fmt.Errorf("non-table type connection config")
 	}
 
-	if p := findFrom(v, "default-fake-ttl", parseIntFn[uint8](checkUint8NonZero), &err); isOk(p, err) {
+	if p := findFrom(
+		v,
+		"default-fake-ttl",
+		parseIntFn[uint8](checkUint8NonZero),
+		&err,
+	); isOk(
+		p,
+		err,
+	) {
 		o.DefaultFakeTTL = *p
 	}
-	if p := findFrom(v, "dns-timeout", parseIntFn[uint16](checkUint16), &err); isOk(p, err) {
+	if p := findFrom(
+		v,
+		"dns-timeout",
+		parseIntFn[uint16](checkUint16),
+		&err,
+	); isOk(
+		p,
+		err,
+	) {
 		o.DNSTimeout = time.Duration(*p) * time.Millisecond
 	}
-	if p := findFrom(v, "tcp-timeout", parseIntFn[uint16](checkUint16), &err); isOk(p, err) {
+	if p := findFrom(
+		v,
+		"tcp-timeout",
+		parseIntFn[uint16](checkUint16),
+		&err,
+	); isOk(
+		p,
+		err,
+	) {
 		o.TCPTimeout = time.Duration(*p) * time.Millisecond
 	}
-	if p := findFrom(v, "udp-idle-timeout", parseIntFn[uint16](checkUint16), &err); isOk(p, err) {
+	if p := findFrom(
+		v,
+		"udp-idle-timeout",
+		parseIntFn[uint16](checkUint16),
+		&err,
+	); isOk(
+		p,
+		err,
+	) {
 		o.UDPIdleTimeout = time.Duration(*p) * time.Millisecond
 	}
 
@@ -171,7 +211,15 @@ func (o *DNSOptions) UnmarshalTOML(data any) (err error) {
 	if p := findFrom(m, "addr", parseStringFn(checkHostPort), &err); isOk(p, err) {
 		o.Addr = MustParseTCPAddr(*p)
 	}
-	if p := findFrom(m, "https-url", parseStringFn(checkHTTPSEndpoint), &err); isOk(p, err) {
+	if p := findFrom(
+		m,
+		"https-url",
+		parseStringFn(checkHTTPSEndpoint),
+		&err,
+	); isOk(
+		p,
+		err,
+	) {
 		o.HTTPSURL = *p
 	}
 	if p := findFrom(m, "qtype", parseStringFn(checkDNSQueryType), &err); isOk(p, err) {
@@ -335,25 +383,51 @@ func (o *HTTPSOptions) UnmarshalTOML(data any) (err error) {
 		o.FakeCount = *p
 	}
 
-	if fakePacket := findSliceFrom(m, "fake-packet", parseByteFn(nil), &err); fakePacket != nil {
+	if fakePacket := findSliceFrom(
+		m,
+		"fake-packet",
+		parseByteFn(nil),
+		&err,
+	); fakePacket != nil {
 		o.FakePacket = proto.NewFakeTLSMessage(fakePacket)
 	}
 
-	if p := findFrom(m, "split-mode", parseStringFn(checkHTTPSSplitMode), &err); isOk(p, err) {
+	if p := findFrom(
+		m,
+		"split-mode",
+		parseStringFn(checkHTTPSSplitMode),
+		&err,
+	); isOk(
+		p,
+		err,
+	) {
 		o.SplitMode = mustParseHTTPSSplitModeType(*p)
 	}
 
-	if p := findFrom(m, "chunk-size", parseIntFn[uint8](checkUint8NonZero), &err); isOk(p, err) {
+	if p := findFrom(
+		m,
+		"chunk-size",
+		parseIntFn[uint8](checkUint8NonZero),
+		&err,
+	); isOk(
+		p,
+		err,
+	) {
 		o.ChunkSize = *p
 	}
 	if p := findFrom(m, "skip", parseBoolFn(), &err); isOk(p, err) {
 		o.Skip = *p
 	}
 
-	if plans := findStructSliceFrom[SegmentPlan](m, "custom-segments", &err); plans != nil {
+	if plans := findStructSliceFrom[SegmentPlan](
+		m,
+		"custom-segments",
+		&err,
+	); plans != nil {
 		o.CustomSegmentPlans = plans
 	}
-	if err == nil && o.SplitMode == HTTPSSplitModeCustom && len(o.CustomSegmentPlans) == 0 {
+	if err == nil && o.SplitMode == HTTPSSplitModeCustom &&
+		len(o.CustomSegmentPlans) == 0 {
 		err = fmt.Errorf("custom-segments must be provided when split-mode is 'custom'")
 	}
 
@@ -375,7 +449,15 @@ func (o *UDPOptions) UnmarshalTOML(data any) (err error) {
 		return fmt.Errorf("'udp' must be table type")
 	}
 
-	if p := findFrom(m, "fake-count", parseIntFn[int](int64Range(0, math.MaxInt64)), &err); isOk(p, err) {
+	if p := findFrom(
+		m,
+		"fake-count",
+		parseIntFn[int](int64Range(0, math.MaxInt64)),
+		&err,
+	); isOk(
+		p,
+		err,
+	) {
 		o.FakeCount = *p
 	}
 	if fp := findSliceFrom(m, "fake-packet", parseByteFn(nil), &err); fp != nil {
@@ -400,7 +482,9 @@ func (o *PolicyOptions) UnmarshalTOML(data any) (err error) {
 	}
 
 	if _, hasTemplate := m["template"]; hasTemplate {
-		return fmt.Errorf("'policy.template' was removed; move template fields to top-level [app]/[connection]/[dns]/[https]/[udp] sections")
+		return fmt.Errorf(
+			"'policy.template' was removed; move template fields to top-level [app]/[connection]/[dns]/[https]/[udp] sections",
+		)
 	}
 
 	if rules := findStructSliceFrom[Rule](m, "overrides", &err); rules != nil {
@@ -452,7 +536,12 @@ func (a *MatchAttrs) UnmarshalTOML(data any) (err error) {
 		return fmt.Errorf("'match' must be table type")
 	}
 
-	if domains := findSliceFrom(v, "domain", parseStringFn(checkDomainPattern), &err); domains != nil {
+	if domains := findSliceFrom(
+		v,
+		"domain",
+		parseStringFn(checkDomainPattern),
+		&err,
+	); domains != nil {
 		a.Domains = domains
 	}
 	if addrs := findStructSliceFrom[AddrMatch](v, "addr", &err); addrs != nil {
@@ -471,14 +560,14 @@ func (a *MatchAttrs) UnmarshalTOML(data any) (err error) {
 // └──────┘
 
 type Rule struct {
-	Name     string       `toml:"name"           json:"nm,omitempty"`
-	Priority uint16       `toml:"priority"       json:"pr,omitempty"`
-	Block    bool         `toml:"block"          json:"bk,omitempty"`
-	Match    *MatchAttrs  `toml:"match"          json:"mt,omitempty"`
-	DNS      DNSOptions   `toml:"dns"            json:"D,omitempty"`
-	HTTPS    HTTPSOptions `toml:"https"          json:"H,omitempty"`
-	UDP      UDPOptions   `toml:"udp"            json:"U,omitempty"`
-	Conn     ConnOptions  `toml:"connection"     json:"C,omitempty"`
+	Name     string       `toml:"name"       json:"nm,omitempty"`
+	Priority uint16       `toml:"priority"   json:"pr,omitempty"`
+	Block    bool         `toml:"block"      json:"bk,omitempty"`
+	Match    *MatchAttrs  `toml:"match"      json:"mt,omitempty"`
+	DNS      DNSOptions   `toml:"dns"        json:"D,omitempty"`
+	HTTPS    HTTPSOptions `toml:"https"      json:"H,omitempty"`
+	UDP      UDPOptions   `toml:"udp"        json:"U,omitempty"`
+	Conn     ConnOptions  `toml:"connection" json:"C,omitempty"`
 }
 
 func (r *Rule) UnmarshalTOML(data any) (err error) {

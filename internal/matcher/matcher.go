@@ -2,8 +2,9 @@ package matcher
 
 import (
 	"fmt"
-	"github.com/xvzc/spoofdpi/internal/config"
 	"net"
+
+	"github.com/xvzc/spoofdpi/internal/config"
 )
 
 // -----------------------------------------------------------------------------

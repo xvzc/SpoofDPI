@@ -3,7 +3,6 @@ package config
 import (
 	"testing"
 
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -179,9 +178,9 @@ func TestCheckMatchAttrs(t *testing.T) {
 				Domains: []string{"www.google.com"},
 				Addrs: []AddrMatch{
 					{
-						CIDR:     lo.ToPtr(MustParseCIDR("192.168.0.1/24")),
-						PortFrom: lo.ToPtr(uint16(80)),
-						PortTo:   lo.ToPtr(uint16(443)),
+						CIDR:     MustParseCIDR("192.168.0.1/24"),
+						PortFrom: uint16(80),
+						PortTo:   uint16(443),
 					},
 				},
 			},
@@ -199,9 +198,9 @@ func TestCheckMatchAttrs(t *testing.T) {
 			input: MatchAttrs{
 				Addrs: []AddrMatch{
 					{
-						CIDR:     lo.ToPtr(MustParseCIDR("10.0.0.0/8")),
-						PortFrom: lo.ToPtr(uint16(0)),
-						PortTo:   lo.ToPtr(uint16(65535)),
+						CIDR:     MustParseCIDR("10.0.0.0/8"),
+						PortFrom: uint16(0),
+						PortTo:   uint16(65535),
 					},
 				},
 			},
@@ -217,7 +216,7 @@ func TestCheckMatchAttrs(t *testing.T) {
 			input: MatchAttrs{
 				Addrs: []AddrMatch{
 					{
-						CIDR: lo.ToPtr(MustParseCIDR("10.0.0.0/8")),
+						CIDR: MustParseCIDR("10.0.0.0/8"),
 					},
 				},
 			},
@@ -228,8 +227,8 @@ func TestCheckMatchAttrs(t *testing.T) {
 			input: MatchAttrs{
 				Addrs: []AddrMatch{
 					{
-						PortFrom: lo.ToPtr(uint16(80)),
-						PortTo:   lo.ToPtr(uint16(443)),
+						PortFrom: uint16(80),
+						PortTo:   uint16(443),
 					},
 				},
 			},
@@ -261,8 +260,8 @@ func TestCheckRule(t *testing.T) {
 				Match: &MatchAttrs{
 					Domains: []string{"example.com"},
 				},
-				DNS: &DNSOptions{
-					Mode: lo.ToPtr(DNSModeUDP),
+				DNS: DNSOptions{
+					Mode: DNSModeUDP,
 				},
 			},
 			wantErr: false,
@@ -273,14 +272,14 @@ func TestCheckRule(t *testing.T) {
 				Match: &MatchAttrs{
 					Addrs: []AddrMatch{
 						{
-							CIDR:     lo.ToPtr(MustParseCIDR("192.168.1.0/24")),
-							PortFrom: lo.ToPtr(uint16(80)),
-							PortTo:   lo.ToPtr(uint16(80)),
+							CIDR:     MustParseCIDR("192.168.1.0/24"),
+							PortFrom: uint16(80),
+							PortTo:   uint16(80),
 						},
 					},
 				},
-				HTTPS: &HTTPSOptions{
-					Disorder: lo.ToPtr(true),
+				HTTPS: HTTPSOptions{
+					Disorder: true,
 				},
 			},
 			wantErr: false,

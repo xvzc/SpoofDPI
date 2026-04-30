@@ -4,7 +4,6 @@ import (
 	"net"
 	"testing"
 
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/xvzc/spoofdpi/internal/config"
 )
@@ -13,28 +12,28 @@ func TestAddrMatcher(t *testing.T) {
 	matcher := NewAddrMatcher()
 
 	rule1 := &config.Rule{
-		Name:     lo.ToPtr("rule1"),
-		Priority: lo.ToPtr(uint16(10)),
+		Name:     "rule1",
+		Priority: uint16(10),
 		Match: &config.MatchAttrs{
 			Addrs: []config.AddrMatch{
 				{
-					CIDR:     lo.ToPtr(config.MustParseCIDR("192.168.1.0/24")),
-					PortFrom: lo.ToPtr(uint16(80)),
-					PortTo:   lo.ToPtr(uint16(80)),
+					CIDR:     config.MustParseCIDR("192.168.1.0/24"),
+					PortFrom: uint16(80),
+					PortTo:   uint16(80),
 				},
 			},
 		},
 	}
 
 	rule2 := &config.Rule{
-		Name:     lo.ToPtr("rule2"),
-		Priority: lo.ToPtr(uint16(20)),
+		Name:     "rule2",
+		Priority: uint16(20),
 		Match: &config.MatchAttrs{
 			Addrs: []config.AddrMatch{
 				{
-					CIDR:     lo.ToPtr(config.MustParseCIDR("10.0.0.0/8")),
-					PortFrom: lo.ToPtr(uint16(0)),
-					PortTo:   lo.ToPtr(uint16(65535)),
+					CIDR:     config.MustParseCIDR("10.0.0.0/8"),
+					PortFrom: uint16(0),
+					PortTo:   uint16(65535),
 				},
 			},
 		},
@@ -42,14 +41,14 @@ func TestAddrMatcher(t *testing.T) {
 
 	// Overlapping lower priority rule
 	rule3 := &config.Rule{
-		Name:     lo.ToPtr("rule3"),
-		Priority: lo.ToPtr(uint16(5)),
+		Name:     "rule3",
+		Priority: uint16(5),
 		Match: &config.MatchAttrs{
 			Addrs: []config.AddrMatch{
 				{
-					CIDR:     lo.ToPtr(config.MustParseCIDR("172.16.0.0/16")),
-					PortFrom: lo.ToPtr(uint16(0)),
-					PortTo:   lo.ToPtr(uint16(65535)),
+					CIDR:     config.MustParseCIDR("172.16.0.0/16"),
+					PortFrom: uint16(0),
+					PortTo:   uint16(65535),
 				},
 			},
 		},
@@ -57,14 +56,14 @@ func TestAddrMatcher(t *testing.T) {
 
 	// Overlapping lower priority rule
 	rule4 := &config.Rule{
-		Name:     lo.ToPtr("rule4"),
-		Priority: lo.ToPtr(uint16(4)),
+		Name:     "rule4",
+		Priority: uint16(4),
 		Match: &config.MatchAttrs{
 			Addrs: []config.AddrMatch{
 				{
-					CIDR:     lo.ToPtr(config.MustParseCIDR("172.16.0.0/16")),
-					PortFrom: lo.ToPtr(uint16(443)),
-					PortTo:   lo.ToPtr(uint16(443)),
+					CIDR:     config.MustParseCIDR("172.16.0.0/16"),
+					PortFrom: uint16(443),
+					PortTo:   uint16(443),
 				},
 			},
 		},
@@ -87,7 +86,7 @@ func TestAddrMatcher(t *testing.T) {
 			port: 80,
 			assert: func(t *testing.T, output *config.Rule) {
 				assert.NotNil(t, output)
-				assert.Equal(t, "rule1", *output.Name)
+				assert.Equal(t, "rule1", output.Name)
 			},
 		},
 		{
@@ -97,7 +96,7 @@ func TestAddrMatcher(t *testing.T) {
 			assert: func(t *testing.T, output *config.Rule) {
 				// Should still match rule2 because priority 20 > 5
 				assert.NotNil(t, output)
-				assert.Equal(t, "rule2", *output.Name)
+				assert.Equal(t, "rule2", output.Name)
 			},
 		},
 		{
@@ -107,7 +106,7 @@ func TestAddrMatcher(t *testing.T) {
 			assert: func(t *testing.T, output *config.Rule) {
 				// Should still match rule2 because priority 20 > 5
 				assert.NotNil(t, output)
-				assert.Equal(t, "rule2", *output.Name)
+				assert.Equal(t, "rule2", output.Name)
 			},
 		},
 		{
@@ -117,7 +116,7 @@ func TestAddrMatcher(t *testing.T) {
 			assert: func(t *testing.T, output *config.Rule) {
 				// Should still match rule2 because priority 20 > 5
 				assert.NotNil(t, output)
-				assert.Equal(t, "rule3", *output.Name)
+				assert.Equal(t, "rule3", output.Name)
 			},
 		},
 		{
@@ -142,7 +141,8 @@ func TestAddrMatcher(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ip := net.ParseIP(tc.ip)
 			port := tc.port
-			selector := &Selector{IP: &ip, Port: lo.ToPtr(uint16(port))}
+			p := uint16(port)
+			selector := &Selector{IP: &ip, Port: &p}
 			output := matcher.Search(selector)
 			tc.assert(t, output)
 		})
