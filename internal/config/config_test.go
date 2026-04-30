@@ -182,7 +182,7 @@ func TestConfig_Validate_acceptsValidRule(t *testing.T) {
 }
 
 func TestResolveRules_inheritsFromBase(t *testing.T) {
-	base := DefaultRuntimeConfig()
+	base := DefaultConfig().Runtime
 	base.HTTPS.FakeCount = 5
 	base.HTTPS.SplitMode = HTTPSSplitModeChunk
 	base.HTTPS.ChunkSize = 99
@@ -267,7 +267,7 @@ func TestResolveRules_skipAutoResetWhenBaseSkipTrue(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			base := DefaultRuntimeConfig()
+			base := DefaultConfig().Runtime
 			base.HTTPS.Skip = tc.baseSkip
 
 			item := map[string]any{
