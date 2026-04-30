@@ -316,3 +316,63 @@ func TestCreateCommand_OverrideTOML(t *testing.T) {
 	assert.Equal(t, "test-rule", override.Name)
 	assert.Equal(t, "example.com", override.Match.Domains[0])
 }
+
+// TestLoad_RuleInheritsFromCLIAndTOML pins the end-to-end precedence
+// for fields a policy override leaves unset:
+// override-set > CLI > TOML > package default. The two halves of the
+// pipeline (CLI-over-TOML at base, rule-over-base) are covered
+// individually by TestCreateCommand_OverrideTOML and
+// TestResolveRules_inheritsFromBase, but their composition wasn't —
+// so a regression that broke base→rule plumbing could slip through.
+func TestLoad_RuleInheritsFromCLIAndTOML(t *testing.T) {
+	tomlContent := `
+[https]
+    split-mode = "chunk"
+    chunk-size = 20
+
+[[policy.overrides]]
+    name = "partial-rule"
+    match = { domain = ["example.com"] }
+    https = { chunk-size = 50, skip = true }
+`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "spoofdpi.toml")
+	require.NoError(t, os.WriteFile(configPath, []byte(tomlContent), 0o644))
+
+	var capturedCfg *Config
+	cmd := CreateCommand(
+		func(_ context.Context, _ string, cfg *Config) error {
+			capturedCfg = cfg
+			return nil
+		},
+		"v0.0.0", "commit", "build",
+	)
+
+	args := []string{
+		"spoofdpi",
+		"--config", configPath,
+		// CLI sets a key the TOML and the rule both leave alone:
+		"--https-fake-count", "10",
+	}
+	require.NoError(t, cmd.Run(context.Background(), args))
+	require.NotNil(t, capturedCfg)
+	require.Len(t, capturedCfg.Startup.Policy.Overrides, 1)
+
+	rule := capturedCfg.Startup.Policy.Overrides[0]
+
+	// Override-set wins
+	assert.Equal(t, uint8(50), rule.Runtime.HTTPS.ChunkSize, "rule overrides chunk-size")
+	assert.True(t, rule.Runtime.HTTPS.Skip, "rule sets skip explicitly")
+
+	// TOML inherited (rule didn't set, CLI didn't touch)
+	assert.Equal(t, HTTPSSplitModeChunk, rule.Runtime.HTTPS.SplitMode,
+		"rule inherits split-mode from static TOML")
+
+	// CLI inherited (rule didn't set, TOML didn't set) — the key claim
+	assert.Equal(t, uint8(10), rule.Runtime.HTTPS.FakeCount,
+		"rule inherits fake-count from CLI override")
+
+	// Package default inherited (no one set it)
+	assert.False(t, rule.Runtime.HTTPS.Disorder,
+		"rule inherits disorder=false from package default")
+}
