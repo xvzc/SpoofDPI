@@ -16,7 +16,7 @@ tasks:
 
   test:
     desc: Run tests with race detector
-    cmd: go test -race ./...
+    cmd: go test {{.CLI_ARGS}} -race ./...
 
   lint:
     desc: Run golangci-lint
