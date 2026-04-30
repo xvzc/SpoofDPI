@@ -190,19 +190,17 @@ func createResolver(logger zerolog.Logger, cfg *config.Config) dns.Resolver {
 
 	udpResolver := dns.NewUDPResolver(
 		logging.WithScope(logger, "dns"),
-		&cfg.Runtime.DNS,
-		&cfg.Runtime.Conn,
+		&cfg.Runtime,
 	)
 
 	dohResolver := dns.NewHTTPSResolver(
 		logging.WithScope(logger, "dns"),
-		&cfg.Runtime.DNS,
-		&cfg.Runtime.Conn,
+		&cfg.Runtime,
 	)
 
 	sysResolver := dns.NewSystemResolver(
 		logging.WithScope(logger, "dns"),
-		&cfg.Runtime.DNS,
+		&cfg.Runtime,
 	)
 
 	cacheResolver := dns.NewCacheResolver(
@@ -222,7 +220,7 @@ func createResolver(logger zerolog.Logger, cfg *config.Config) dns.Resolver {
 		udpResolver,
 		sysResolver,
 		cacheResolver,
-		&cfg.Runtime.DNS,
+		&cfg.Runtime,
 	)
 }
 
@@ -373,8 +371,7 @@ func createServer(
 			logging.WithScope(logger, "hnd"),
 			desyncer,
 			tcpSniffer,
-			&cfg.Runtime.HTTPS,
-			&cfg.Runtime.Conn,
+			&cfg.Runtime,
 		)
 
 		sysNet := http.NewHTTPSystemNetwork(
@@ -389,18 +386,15 @@ func createServer(
 			httpsHandler,
 			ruleMatcher,
 			sysNet,
-			&cfg.Startup.App,
-			&cfg.Runtime.Conn,
-			&cfg.Startup.Policy,
+			cfg,
 		), nil
 	case config.AppModeSOCKS5:
 		connectHandler := socks5.NewConnectHandler(
 			logging.WithScope(logger, "hnd"),
 			desyncer,
 			tcpSniffer,
-			&cfg.Startup.App,
-			&cfg.Runtime.Conn,
-			&cfg.Runtime.HTTPS,
+			cfg.Startup.App.ListenAddr,
+			&cfg.Runtime,
 		)
 		udpDesyncer := desync.NewUDPDesyncer(
 			logging.WithScope(logger, "dsn"),
@@ -413,7 +407,7 @@ func createServer(
 			logging.WithScope(logger, "hnd"),
 			udpPool,
 			udpDesyncer,
-			&cfg.Runtime.UDP,
+			&cfg.Runtime,
 		)
 		bindHandler := socks5.NewBindHandler(logging.WithScope(logger, "hnd"))
 
@@ -428,9 +422,7 @@ func createServer(
 				logging.WithScope(logger, "sys"),
 				defaultRoute,
 			),
-			&cfg.Startup.App,
-			&cfg.Runtime.Conn,
-			&cfg.Startup.Policy,
+			cfg,
 		), nil
 	case config.AppModeTUN:
 		if err != nil {
@@ -447,8 +439,7 @@ func createServer(
 		tcpHandler := tun.NewTCPHandler(
 			logging.WithScope(logger, "hnd"),
 			ruleMatcher, // For domain-based TLS matching
-			&cfg.Runtime.HTTPS,
-			&cfg.Runtime.Conn,
+			&cfg.Runtime,
 			desyncer,
 			tcpSniffer, // For TTL tracking
 		)
@@ -462,8 +453,7 @@ func createServer(
 		udpHandler := tun.NewUDPHandler(
 			logging.WithScope(logger, "hnd"),
 			udpDesyncer,
-			&cfg.Runtime.UDP,
-			&cfg.Runtime.Conn,
+			&cfg.Runtime,
 		)
 
 		sysNet, err := tun.NewTUNSystemNetwork(
@@ -477,7 +467,6 @@ func createServer(
 
 		return tun.NewTUNServer(
 			logging.WithScope(logger, "srv"),
-			cfg,
 			ruleMatcher, // For IP-based matching in server.go
 			tcpHandler,
 			udpHandler,

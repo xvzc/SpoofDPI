@@ -14,23 +14,20 @@ var _ Resolver = (*UDPResolver)(nil)
 type UDPResolver struct {
 	logger zerolog.Logger
 
-	client          *dns.Client
-	defaultDNSOpts  *config.DNSOptions
-	defaultConnOpts *config.ConnOptions
+	client *dns.Client
+	rt     *config.RuntimeConfig
 }
 
 func NewUDPResolver(
 	logger zerolog.Logger,
-	defaultDNSOpts *config.DNSOptions,
-	defaultConnOpts *config.ConnOptions,
+	rt *config.RuntimeConfig,
 ) *UDPResolver {
 	return &UDPResolver{
 		client: &dns.Client{
-			Timeout: defaultConnOpts.DNSTimeout,
+			Timeout: rt.Conn.DNSTimeout,
 		},
-		defaultDNSOpts:  defaultDNSOpts,
-		defaultConnOpts: defaultConnOpts,
-		logger:          logger,
+		rt:     rt,
+		logger: logger,
 	}
 }
 
@@ -38,7 +35,7 @@ func (ur *UDPResolver) Info() []ResolverInfo {
 	return []ResolverInfo{
 		{
 			Name: "udp",
-			Dst:  ur.defaultDNSOpts.Addr.String(),
+			Dst:  ur.rt.DNS.Addr.String(),
 		},
 	}
 }
@@ -49,16 +46,16 @@ func (ur *UDPResolver) Resolve(
 	fallback Resolver,
 	rule *config.Rule,
 ) (*RecordSet, error) {
-	opts := ur.defaultDNSOpts
+	rt := ur.rt
 	if rule != nil {
-		opts = &rule.Runtime.DNS
+		rt = &rule.Runtime
 	}
 
 	resCh := lookupAllTypes(
 		ctx,
 		domain,
-		opts.Addr.String(),
-		parseQueryTypes(opts.QType),
+		rt.DNS.Addr.String(),
+		parseQueryTypes(rt.DNS.QType),
 		ur.exchange,
 	)
 

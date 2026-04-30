@@ -13,12 +13,12 @@ import (
 )
 
 type RouteResolver struct {
-	logger         zerolog.Logger
-	https          Resolver
-	udp            Resolver
-	system         Resolver
-	cache          Resolver
-	defaultDNSOpts *config.DNSOptions
+	logger zerolog.Logger
+	https  Resolver
+	udp    Resolver
+	system Resolver
+	cache  Resolver
+	rt     *config.RuntimeConfig
 }
 
 func NewRouteResolver(
@@ -27,15 +27,15 @@ func NewRouteResolver(
 	udp Resolver,
 	sys Resolver,
 	cache Resolver,
-	defaultDNSOpts *config.DNSOptions,
+	rt *config.RuntimeConfig,
 ) *RouteResolver {
 	return &RouteResolver{
-		logger:         logger,
-		https:          doh,
-		udp:            udp,
-		system:         sys,
-		cache:          cache,
-		defaultDNSOpts: defaultDNSOpts,
+		logger: logger,
+		https:  doh,
+		udp:    udp,
+		system: sys,
+		cache:  cache,
+		rt:     rt,
 	}
 }
 
@@ -54,9 +54,9 @@ func (rr *RouteResolver) Resolve(
 	fallback Resolver,
 	rule *config.Rule,
 ) (*RecordSet, error) {
-	opts := rr.defaultDNSOpts
+	rt := rr.rt
 	if rule != nil {
-		opts = &rule.Runtime.DNS
+		rt = &rule.Runtime
 	}
 
 	logger := logging.WithLocalScope(ctx, rr.logger, "route")
@@ -70,19 +70,19 @@ func (rr *RouteResolver) Resolve(
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	resolver := rr.route(opts)
+	resolver := rr.route(rt.DNS.Mode)
 	if resolver == nil {
 		return nil, fmt.Errorf("no resolver available for spec")
 	}
 
 	resolverInfo := resolver.Info()[0]
-	logger.Debug().Str("mode", resolverInfo.Name).Bool("cache", opts.Cache).
+	logger.Debug().Str("mode", resolverInfo.Name).Bool("cache", rt.DNS.Cache).
 		Msgf("ready to resolve")
 
 	t1 := time.Now()
 	var rSet *RecordSet
 	var err error
-	if opts.Mode != config.DNSModeSystem && opts.Cache {
+	if rt.DNS.Mode != config.DNSModeSystem && rt.DNS.Cache {
 		rSet, err = rr.cache.Resolve(ctx, domain, resolver, rule)
 	} else {
 		rSet, err = resolver.Resolve(ctx, domain, nil, rule)
@@ -101,8 +101,8 @@ func (rr *RouteResolver) Resolve(
 	return rSet, nil
 }
 
-func (rr *RouteResolver) route(attrs *config.DNSOptions) Resolver {
-	switch attrs.Mode {
+func (rr *RouteResolver) route(mode config.DNSModeType) Resolver {
+	switch mode {
 	case config.DNSModeHTTPS:
 		return rr.https
 	case config.DNSModeUDP:

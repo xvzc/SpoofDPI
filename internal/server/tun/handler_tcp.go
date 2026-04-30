@@ -18,29 +18,26 @@ import (
 )
 
 type TCPHandler struct {
-	logger           zerolog.Logger
-	domainMatcher    matcher.RuleMatcher // For TLS domain matching only
-	defaultHTTPSOpts *config.HTTPSOptions
-	defaultConnOpts  *config.ConnOptions
-	desyncer         *desync.TLSDesyncer
-	sniffer          packet.Sniffer // For TTL tracking
+	logger        zerolog.Logger
+	domainMatcher matcher.RuleMatcher // For TLS domain matching only
+	rt            *config.RuntimeConfig
+	desyncer      *desync.TLSDesyncer
+	sniffer       packet.Sniffer // For TTL tracking
 }
 
 func NewTCPHandler(
 	logger zerolog.Logger,
 	domainMatcher matcher.RuleMatcher,
-	defaultHTTPSOpts *config.HTTPSOptions,
-	defaultConnOpts *config.ConnOptions,
+	rt *config.RuntimeConfig,
 	desyncer *desync.TLSDesyncer,
 	sniffer packet.Sniffer,
 ) *TCPHandler {
 	return &TCPHandler{
-		logger:           logger,
-		domainMatcher:    domainMatcher,
-		defaultHTTPSOpts: defaultHTTPSOpts,
-		defaultConnOpts:  defaultConnOpts,
-		desyncer:         desyncer,
-		sniffer:          sniffer,
+		logger:        logger,
+		domainMatcher: domainMatcher,
+		rt:            rt,
+		desyncer:      desyncer,
+		sniffer:       sniffer,
 	}
 }
 
@@ -80,8 +77,8 @@ func (h *TCPHandler) Handle(
 		Port:   port,
 		Addrs:  []net.IP{},
 	}
-	if h.defaultConnOpts != nil && h.defaultConnOpts.TCPTimeout != 0 {
-		dst.Timeout = h.defaultConnOpts.TCPTimeout
+	if h.rt != nil && h.rt.Conn.TCPTimeout != 0 {
+		dst.Timeout = h.rt.Conn.TCPTimeout
 	}
 	if ip != nil {
 		dst.Addrs = append(dst.Addrs, ip)
@@ -154,15 +151,13 @@ func (h *TCPHandler) handleTLS(
 
 	logger.Trace().Str("value", dst.Domain).Msgf("extracted sni feild")
 
-	// Match Rules
-	httpsOpts := h.defaultHTTPSOpts
-	connOpts := h.defaultConnOpts
+	// Match Rules — start from base RuntimeConfig, swap in rule's Runtime when matched.
+	rt := h.rt
 
 	// First, apply IP-based rule if matched in server.go
 	if addrRule != nil {
 		logger.Trace().RawJSON("summary", addrRule.JSON()).Msg("addr match")
-		httpsOpts = &addrRule.Runtime.HTTPS
-		connOpts = &addrRule.Runtime.Conn
+		rt = &addrRule.Runtime
 	}
 
 	// Then, try domain-based matching (TLS-specific)
@@ -176,13 +171,12 @@ func (h *TCPHandler) handleTLS(
 			// Domain rule takes priority if it has higher priority
 			finalRule := matcher.GetHigherPriorityRule(addrRule, domainRule)
 			if finalRule == domainRule {
-				httpsOpts = &domainRule.Runtime.HTTPS
-				connOpts = &domainRule.Runtime.Conn
+				rt = &domainRule.Runtime
 			}
 		}
 	}
 
-	dst.Timeout = connOpts.TCPTimeout
+	dst.Timeout = rt.Conn.TCPTimeout
 
 	// Dial Remote
 	if h.sniffer != nil {
@@ -198,7 +192,7 @@ func (h *TCPHandler) handleTLS(
 		Msgf("new remote conn (%s -> %s)", lConn.RemoteAddr(), rConn.RemoteAddr())
 
 	// Send ClientHello with Desync
-	if _, err := h.desyncer.Desync(ctx, logger, rConn, tlsMsg, httpsOpts); err != nil {
+	if _, err := h.desyncer.Desync(ctx, logger, rConn, tlsMsg, &rt.HTTPS); err != nil {
 		return err
 	}
 

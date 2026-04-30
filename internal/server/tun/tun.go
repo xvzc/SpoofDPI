@@ -46,7 +46,6 @@ type TUNSystemNetwork interface {
 
 type TunServer struct {
 	logger  zerolog.Logger
-	config  *config.Config
 	matcher matcher.RuleMatcher // For IP-based rule matching
 
 	tcpHandler *TCPHandler
@@ -57,7 +56,6 @@ type TunServer struct {
 
 func NewTUNServer(
 	logger zerolog.Logger,
-	config *config.Config,
 	matcher matcher.RuleMatcher,
 	tcpHandler *TCPHandler,
 	udpHandler *UDPHandler,
@@ -65,7 +63,6 @@ func NewTUNServer(
 ) server.Server {
 	return &TunServer{
 		logger:     logger,
-		config:     config,
 		matcher:    matcher,
 		tcpHandler: tcpHandler,
 		udpHandler: udpHandler,

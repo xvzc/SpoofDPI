@@ -15,17 +15,17 @@ type SystemResolver struct {
 	logger zerolog.Logger
 
 	*net.Resolver
-	defaultDNSOpts *config.DNSOptions
+	rt *config.RuntimeConfig
 }
 
 func NewSystemResolver(
 	logger zerolog.Logger,
-	defaultDNSOpts *config.DNSOptions,
+	rt *config.RuntimeConfig,
 ) *SystemResolver {
 	return &SystemResolver{
-		logger:         logger,
-		Resolver:       &net.Resolver{PreferGo: true},
-		defaultDNSOpts: defaultDNSOpts,
+		logger:   logger,
+		Resolver: &net.Resolver{PreferGo: true},
+		rt:       rt,
 	}
 }
 
@@ -44,9 +44,9 @@ func (sr *SystemResolver) Resolve(
 	fallback Resolver,
 	rule *config.Rule,
 ) (*RecordSet, error) {
-	opts := sr.defaultDNSOpts
+	rt := sr.rt
 	if rule != nil {
-		opts = &rule.Runtime.DNS
+		rt = &rule.Runtime
 	}
 
 	ips, err := sr.LookupIP(ctx, "ip", domain)
@@ -55,7 +55,7 @@ func (sr *SystemResolver) Resolve(
 	}
 
 	return &RecordSet{
-		Addrs: filtterAddrs(ips, parseQueryTypes(opts.QType)),
+		Addrs: filtterAddrs(ips, parseQueryTypes(rt.DNS.QType)),
 		TTL:   0,
 	}, nil
 }

@@ -17,29 +17,26 @@ import (
 )
 
 type ConnectHandler struct {
-	logger           zerolog.Logger
-	desyncer         *desync.TLSDesyncer
-	sniffer          packet.Sniffer
-	appOpts          *config.AppOptions
-	defaultConnOpts  *config.ConnOptions
-	defaultHTTPSOpts *config.HTTPSOptions
+	logger     zerolog.Logger
+	desyncer   *desync.TLSDesyncer
+	sniffer    packet.Sniffer
+	listenAddr net.TCPAddr
+	rt         *config.RuntimeConfig
 }
 
 func NewConnectHandler(
 	logger zerolog.Logger,
 	desyncer *desync.TLSDesyncer,
 	sniffer packet.Sniffer,
-	appOpts *config.AppOptions,
-	defaultConnOpts *config.ConnOptions,
-	defaultHTTPSOpts *config.HTTPSOptions,
+	listenAddr net.TCPAddr,
+	rt *config.RuntimeConfig,
 ) *ConnectHandler {
 	return &ConnectHandler{
-		logger:           logger,
-		desyncer:         desyncer,
-		sniffer:          sniffer,
-		appOpts:          appOpts,
-		defaultConnOpts:  defaultConnOpts,
-		defaultHTTPSOpts: defaultHTTPSOpts,
+		logger:     logger,
+		desyncer:   desyncer,
+		sniffer:    sniffer,
+		listenAddr: listenAddr,
+		rt:         rt,
 	}
 }
 
@@ -50,17 +47,15 @@ func (h *ConnectHandler) Handle(
 	dst *netutil.Destination,
 	rule *config.Rule,
 ) error {
-	httpsOpts := h.defaultHTTPSOpts
-	connOpts := h.defaultConnOpts
+	rt := h.rt
 	if rule != nil {
-		httpsOpts = &rule.Runtime.HTTPS
-		connOpts = &rule.Runtime.Conn
+		rt = &rule.Runtime
 	}
 
 	logger := logging.WithLocalScope(ctx, h.logger, "connect")
 
 	// 1. Validate Destination
-	ok, err := dst.IsValid(&h.appOpts.ListenAddr)
+	ok, err := dst.IsValid(&h.listenAddr)
 	if err != nil {
 		logger.Debug().Err(err).Msg("error determining if valid destination")
 		if !ok {
@@ -76,7 +71,7 @@ func (h *ConnectHandler) Handle(
 		return netutil.ErrBlocked
 	}
 
-	dst.Timeout = connOpts.TCPTimeout
+	dst.Timeout = rt.Conn.TCPTimeout
 
 	rConn, err := netutil.DialFastest(ctx, "tcp", dst, nil)
 	if err != nil {
@@ -102,11 +97,11 @@ func (h *ConnectHandler) Handle(
 	b, err := bufConn.Peek(1)
 	if err == nil && b[0] == byte(proto.TLSHandshake) { // 0x16
 
-		if h.sniffer != nil && httpsOpts.FakeCount > 0 {
+		if h.sniffer != nil && rt.HTTPS.FakeCount > 0 {
 			h.sniffer.RegisterUntracked(dst.Addrs)
 		}
 
-		return h.handleHTTPS(ctx, bufConn, rConn, httpsOpts)
+		return h.handleHTTPS(ctx, bufConn, rConn, &rt.HTTPS)
 	}
 
 	// If not TLS, fall back to pure TCP tunnel

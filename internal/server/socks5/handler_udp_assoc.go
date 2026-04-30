@@ -16,23 +16,23 @@ import (
 )
 
 type UdpAssociateHandler struct {
-	logger         zerolog.Logger
-	pool           *netutil.ConnRegistry[netutil.NATKey]
-	desyncer       *desync.UDPDesyncer
-	defaultUDPOpts *config.UDPOptions
+	logger   zerolog.Logger
+	pool     *netutil.ConnRegistry[netutil.NATKey]
+	desyncer *desync.UDPDesyncer
+	rt       *config.RuntimeConfig
 }
 
 func NewUdpAssociateHandler(
 	logger zerolog.Logger,
 	pool *netutil.ConnRegistry[netutil.NATKey],
 	desyncer *desync.UDPDesyncer,
-	defaultUDPOpts *config.UDPOptions,
+	rt *config.RuntimeConfig,
 ) *UdpAssociateHandler {
 	return &UdpAssociateHandler{
-		logger:         logger,
-		pool:           pool,
-		desyncer:       desyncer,
-		defaultUDPOpts: defaultUDPOpts,
+		logger:   logger,
+		pool:     pool,
+		desyncer: desyncer,
+		rt:       rt,
 	}
 }
 
@@ -166,14 +166,14 @@ func (h *UdpAssociateHandler) Handle(
 		rConn := h.pool.Store(key, rRawConn)
 
 		// Apply UDP options from rule if matched
-		udpOpts := h.defaultUDPOpts
+		rt := h.rt
 		if rule != nil {
-			udpOpts = &rule.Runtime.UDP
+			rt = &rule.Runtime
 		}
 
 		// Send fake packets before real payload (UDP desync)
 		if h.desyncer != nil {
-			_, _ = h.desyncer.Desync(ctx, lUDPConn, rConn.Conn, udpOpts)
+			_, _ = h.desyncer.Desync(ctx, lUDPConn, rConn.Conn, &rt.UDP)
 		}
 
 		// Start a goroutine to read from the target and forward to the client.

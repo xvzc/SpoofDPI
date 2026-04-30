@@ -14,23 +14,20 @@ import (
 )
 
 type UDPHandler struct {
-	logger          zerolog.Logger
-	defaultUDPOpts  *config.UDPOptions
-	defaultConnOpts *config.ConnOptions
-	desyncer        *desync.UDPDesyncer
+	logger   zerolog.Logger
+	rt       *config.RuntimeConfig
+	desyncer *desync.UDPDesyncer
 }
 
 func NewUDPHandler(
 	logger zerolog.Logger,
 	desyncer *desync.UDPDesyncer,
-	defaultUDPOpts *config.UDPOptions,
-	defaultConnOpts *config.ConnOptions,
+	rt *config.RuntimeConfig,
 ) *UDPHandler {
 	return &UDPHandler{
-		logger:          logger,
-		desyncer:        desyncer,
-		defaultUDPOpts:  defaultUDPOpts,
-		defaultConnOpts: defaultConnOpts,
+		logger:   logger,
+		desyncer: desyncer,
+		rt:       rt,
 	}
 }
 
@@ -59,12 +56,10 @@ func (h *UDPHandler) Handle(
 	}
 
 	// Apply rule if matched in server.go
-	udpOpts := h.defaultUDPOpts
-	connOpts := h.defaultConnOpts
+	rt := h.rt
 	if rule != nil {
 		logger.Trace().RawJSON("summary", rule.JSON()).Msg("match")
-		udpOpts = &rule.Runtime.UDP
-		connOpts = &rule.Runtime.Conn
+		rt = &rule.Runtime
 	}
 
 	// Dial remote connection
@@ -74,7 +69,7 @@ func (h *UDPHandler) Handle(
 		return
 	}
 
-	timeout := connOpts.UDPIdleTimeout
+	timeout := rt.Conn.UDPIdleTimeout
 
 	// Wrap rConn with IdleTimeoutConn
 	rConnWrapped := netutil.NewIdleTimeoutConn(rawConn, timeout)
@@ -83,7 +78,7 @@ func (h *UDPHandler) Handle(
 	lConnWrapped := netutil.NewIdleTimeoutConn(lConn, timeout)
 
 	// Desync
-	_, _ = h.desyncer.Desync(ctx, lConnWrapped, rConnWrapped, udpOpts)
+	_, _ = h.desyncer.Desync(ctx, lConnWrapped, rConnWrapped, &rt.UDP)
 
 	logger.Debug().
 		Msgf("new remote conn (%s -> %s)", lConn.RemoteAddr(), rConnWrapped.RemoteAddr())

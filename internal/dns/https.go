@@ -21,23 +21,18 @@ import (
 var _ Resolver = (*HTTPSResolver)(nil)
 
 type HTTPSResolver struct {
-	logger          zerolog.Logger
-	client          *http.Client
-	defaultDNSOpts  *config.DNSOptions
-	defaultConnOpts *config.ConnOptions
+	logger zerolog.Logger
+	client *http.Client
+	rt     *config.RuntimeConfig
 }
 
-func NewHTTPSResolver(
-	logger zerolog.Logger,
-	defaultDNSOpts *config.DNSOptions,
-	defaultConnOpts *config.ConnOptions,
-) *HTTPSResolver {
+func NewHTTPSResolver(logger zerolog.Logger, rt *config.RuntimeConfig) *HTTPSResolver {
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			NextProtos: []string{"h2", "http/1.1"},
 		},
 		DialContext: (&net.Dialer{
-			Timeout:   defaultConnOpts.DNSTimeout,
+			Timeout:   rt.Conn.DNSTimeout,
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
 		TLSHandshakeTimeout: 9 * time.Second,
@@ -57,10 +52,9 @@ func NewHTTPSResolver(
 		logger: logger,
 		client: &http.Client{
 			Transport: tr,
-			Timeout:   defaultConnOpts.DNSTimeout,
+			Timeout:   rt.Conn.DNSTimeout,
 		},
-		defaultDNSOpts:  defaultDNSOpts,
-		defaultConnOpts: defaultConnOpts,
+		rt: rt,
 	}
 }
 
@@ -68,7 +62,7 @@ func (dr *HTTPSResolver) Info() []ResolverInfo {
 	return []ResolverInfo{
 		{
 			Name: "https",
-			Dst:  dr.defaultDNSOpts.HTTPSURL,
+			Dst:  dr.rt.DNS.HTTPSURL,
 		},
 	}
 }
@@ -79,12 +73,12 @@ func (dr *HTTPSResolver) Resolve(
 	fallback Resolver,
 	rule *config.Rule,
 ) (*RecordSet, error) {
-	opts := dr.defaultDNSOpts
+	rt := dr.rt
 	if rule != nil {
-		opts = &rule.Runtime.DNS
+		rt = &rule.Runtime
 	}
 
-	upstream := opts.HTTPSURL
+	upstream := rt.DNS.HTTPSURL
 	if !strings.HasPrefix(upstream, "https://") {
 		upstream = "https://" + upstream + "/dns-query"
 	}
@@ -93,7 +87,7 @@ func (dr *HTTPSResolver) Resolve(
 		ctx,
 		domain,
 		upstream,
-		parseQueryTypes(opts.QType),
+		parseQueryTypes(rt.DNS.QType),
 		dr.exchange,
 	)
 	return processMessages(ctx, resCh)
