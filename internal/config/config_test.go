@@ -206,3 +206,63 @@ func TestResolveRules_inheritsFromBase(t *testing.T) {
 		"rule inherits chunk-size from base",
 	)
 }
+
+func TestResolveRules_skipAutoResetWhenBaseSkipTrue(t *testing.T) {
+	tcs := []struct {
+		name      string
+		baseSkip  bool
+		ruleHTTPS map[string]any
+		wantSkip  bool
+	}{
+		{
+			name:      "base skip=true, rule omits skip → reset to false",
+			baseSkip:  true,
+			ruleHTTPS: map[string]any{"chunk-size": int64(8)},
+			wantSkip:  false,
+		},
+		{
+			name:      "base skip=true, rule has no https section → reset to false",
+			baseSkip:  true,
+			ruleHTTPS: nil,
+			wantSkip:  false,
+		},
+		{
+			name:      "base skip=true, rule explicitly skip=true → kept",
+			baseSkip:  true,
+			ruleHTTPS: map[string]any{"skip": true},
+			wantSkip:  true,
+		},
+		{
+			name:      "base skip=true, rule explicitly skip=false → kept",
+			baseSkip:  true,
+			ruleHTTPS: map[string]any{"skip": false},
+			wantSkip:  false,
+		},
+		{
+			name:      "base skip=false, rule omits skip → false (no warning)",
+			baseSkip:  false,
+			ruleHTTPS: map[string]any{"chunk-size": int64(8)},
+			wantSkip:  false,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			base := DefaultRuntimeConfig()
+			base.HTTPS.Skip = tc.baseSkip
+
+			item := map[string]any{
+				"name":  "r",
+				"match": map[string]any{"domain": []any{"example.com"}},
+			}
+			if tc.ruleHTTPS != nil {
+				item["https"] = tc.ruleHTTPS
+			}
+
+			rules, err := resolveRules([]map[string]any{item}, base)
+			require.NoError(t, err)
+			require.Len(t, rules, 1)
+			assert.Equal(t, tc.wantSkip, rules[0].Runtime.HTTPS.Skip)
+		})
+	}
+}

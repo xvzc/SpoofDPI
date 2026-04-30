@@ -6,6 +6,7 @@ import (
 	"path"
 
 	"github.com/BurntSushi/toml"
+	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v3"
 )
 
@@ -165,7 +166,30 @@ func resolveRules(raw []map[string]any, base RuntimeConfig) ([]Rule, error) {
 			}
 		}
 
+		// Transitional: rules currently inherit base's https.skip when they
+		// don't set it explicitly, which makes a global skip=true silently
+		// disable desync inside otherwise-tuned rules. Force-reset to false
+		// when no explicit skip is present and warn the user — eventually
+		// resolveRules will require https.skip to be set explicitly.
+		if !hasExplicitKey(item, "https", "skip") && base.HTTPS.Skip {
+			log.Warn().
+				Int("rule", i).
+				Str("name", r.Name).
+				Msg("policy override inherits https.skip=true from base; auto-resetting to false. Set [policy.overrides.https].skip explicitly — this auto-reset will be removed in a future version.")
+			r.Runtime.HTTPS.Skip = false
+		}
+
 		rules = append(rules, r)
 	}
 	return rules, nil
+}
+
+// hasExplicitKey reports whether item[section] is a table that contains key.
+func hasExplicitKey(item map[string]any, section, key string) bool {
+	sub, ok := item[section].(map[string]any)
+	if !ok {
+		return false
+	}
+	_, present := sub[key]
+	return present
 }
