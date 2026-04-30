@@ -3,10 +3,6 @@ package config
 import (
 	"fmt"
 	"net"
-	"time"
-
-	"github.com/rs/zerolog"
-	"github.com/xvzc/spoofdpi/internal/proto"
 )
 
 // Config groups configuration by lifecycle:
@@ -97,97 +93,6 @@ func (c *Config) ShouldEnablePcap() bool {
 		}
 	}
 	return false
-}
-
-// DefaultConfig returns a fully-populated Config with default values for
-// every field. Used as the starting point of the load pipeline
-// (defaults → TOML → CLI → Finalize → Validate).
-func DefaultConfig() *Config { //exhaustruct:enforce
-	return &Config{
-		Startup:  DefaultStartupConfig(),
-		Runtime:  DefaultRuntimeConfig(),
-		WarnMsgs: nil,
-	}
-}
-
-// DefaultStartupConfig returns the default startup-time configuration.
-func DefaultStartupConfig() StartupConfig { //exhaustruct:enforce
-	return StartupConfig{
-		App:    DefaultAppOptions(),
-		Policy: DefaultPolicyOptions(),
-	}
-}
-
-// DefaultRuntimeConfig returns the default runtime configuration.
-func DefaultRuntimeConfig() RuntimeConfig { //exhaustruct:enforce
-	return RuntimeConfig{
-		Conn:  DefaultConnOptions(),
-		DNS:   DefaultDNSOptions(),
-		HTTPS: DefaultHTTPSOptions(),
-		UDP:   DefaultUDPOptions(),
-	}
-}
-
-// DefaultAppOptions returns the default values for the [app] section.
-func DefaultAppOptions() AppOptions { //exhaustruct:enforce
-	return AppOptions{
-		NoTUI:                false,
-		LogLevel:             zerolog.InfoLevel,
-		Silent:               false,
-		AutoConfigureNetwork: false,
-		Mode:                 AppModeHTTP,
-		ListenAddr:           net.TCPAddr{},
-		FreebsdFIB:           1,
-	}
-}
-
-// DefaultConnOptions returns the default values for the [connection] section.
-func DefaultConnOptions() ConnOptions { //exhaustruct:enforce
-	return ConnOptions{
-		DefaultFakeTTL: 8,
-		DNSTimeout:     5000 * time.Millisecond,
-		TCPTimeout:     10000 * time.Millisecond,
-		UDPIdleTimeout: 25000 * time.Millisecond,
-	}
-}
-
-// DefaultDNSOptions returns the default values for the [dns] section.
-func DefaultDNSOptions() DNSOptions { //exhaustruct:enforce
-	return DNSOptions{
-		Mode:     DNSModeUDP,
-		Addr:     net.TCPAddr{IP: net.ParseIP("8.8.8.8"), Port: 53, Zone: ""},
-		HTTPSURL: "https://dns.google/dns-query",
-		QType:    DNSQueryIPv4,
-		Cache:    false,
-	}
-}
-
-// DefaultHTTPSOptions returns the default values for the [https] section.
-func DefaultHTTPSOptions() HTTPSOptions { //exhaustruct:enforce
-	return HTTPSOptions{
-		Disorder:           false,
-		FakeCount:          0,
-		FakePacket:         proto.NewFakeTLSMessage([]byte(FakeClientHello)),
-		SplitMode:          HTTPSSplitModeSNI,
-		ChunkSize:          35,
-		CustomSegmentPlans: []SegmentPlan{},
-		Skip:               false,
-	}
-}
-
-// DefaultUDPOptions returns the default values for the [udp] section.
-func DefaultUDPOptions() UDPOptions { //exhaustruct:enforce
-	return UDPOptions{
-		FakeCount:  0,
-		FakePacket: make([]byte, 64),
-	}
-}
-
-// DefaultPolicyOptions returns the default values for the [policy] section.
-func DefaultPolicyOptions() PolicyOptions { //exhaustruct:enforce
-	return PolicyOptions{
-		Overrides: []Rule{},
-	}
 }
 
 // Finalize applies defaults that depend on other fields (e.g. ListenAddr
