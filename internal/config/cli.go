@@ -8,7 +8,6 @@ import (
 	"math"
 	"os"
 	"os/user"
-	"path"
 	"time"
 
 	"github.com/urfave/cli/v3"
@@ -412,44 +411,12 @@ func CreateCommand(
 				os.Exit(0)
 			}
 
-			realHome := determineRealHome()
-
-			finalCfg := DefaultConfig()
-
-			var configDir string
-			if !cmd.Bool("clean") {
-				configFilename := "spoofdpi.toml"
-
-				configDirs := []string{
-					path.Join(string(os.PathSeparator), "etc", configFilename),
-					path.Join(os.Getenv("XDG_CONFIG_HOME"), "spoofdpi", configFilename),
-					path.Join(realHome, ".config", "spoofdpi", configFilename),
-				}
-
-				c, err := searchTomlFile(cmd.String("config"), configDirs)
-				if err != nil {
-					return err
-				}
-
-				if c != "" {
-					configDir = c
-					if err := fromTomlFile(c, finalCfg); err != nil {
-						return fmt.Errorf("error parsing '%s': %w", c, err)
-					}
-				}
-			}
-
-			applyCLIOverrides(finalCfg, cmd, argsCfg)
-			if err := finalCfg.Finalize(); err != nil {
+			cfg, configDir, err := Load(cmd, argsCfg)
+			if err != nil {
 				return err
 			}
 
-			return runFunc(
-				ctx,
-				configDir,
-				// strings.Replace(configDir, realHome, "~", 1),
-				finalCfg,
-			)
+			return runFunc(ctx, configDir, cfg)
 		},
 	}
 
