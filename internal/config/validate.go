@@ -208,3 +208,17 @@ func checkMatchAttrs(m MatchAttrs) error {
 
 	return nil
 }
+
+// Validate runs cross-field semantic checks on the resolved Config.
+// Format-level validation (e.g. "valid log level") happens earlier
+// during UnmarshalTOML / CLI Validators; this pass catches issues that
+// can only be detected once defaults+TOML+CLI are merged and rule
+// overrides are eager-resolved.
+func (c *Config) Validate() error {
+	for i, rule := range c.Policy.Overrides {
+		if err := checkRule(rule); err != nil {
+			return fmt.Errorf("policy.overrides[%d]: %w", i, err)
+		}
+	}
+	return nil
+}

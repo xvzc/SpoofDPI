@@ -30,7 +30,9 @@ func Load(cmd *cli.Command, argsCfg *Config) (*Config, string, error) {
 	if err := cfg.Finalize(); err != nil {
 		return nil, "", err
 	}
-	// Validate is wired in a follow-up commit.
+	if err := cfg.Validate(); err != nil {
+		return nil, "", err
+	}
 
 	return cfg, configDir, nil
 }

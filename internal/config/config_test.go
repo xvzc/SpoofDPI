@@ -140,6 +140,33 @@ func TestConfig_ShouldEnablePcap(t *testing.T) {
 	}
 }
 
+func TestConfig_Validate_rejectsRuleWithoutMatch(t *testing.T) {
+	c := DefaultConfig()
+	c.Policy.Overrides = []Rule{
+		{
+			Name:  "no-match",
+			Match: nil, // missing match attribute
+		},
+	}
+	err := c.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "policy.overrides[0]")
+	assert.Contains(t, err.Error(), "match attribute")
+}
+
+func TestConfig_Validate_acceptsValidRule(t *testing.T) {
+	c := DefaultConfig()
+	c.Policy.Overrides = []Rule{
+		{
+			Name: "ok",
+			Match: &MatchAttrs{
+				Domains: []string{"example.com"},
+			},
+		},
+	}
+	assert.NoError(t, c.Validate())
+}
+
 func TestConfig_resolveRules_inheritsFromBase(t *testing.T) {
 	c := DefaultConfig()
 	c.HTTPS.FakeCount = 5
