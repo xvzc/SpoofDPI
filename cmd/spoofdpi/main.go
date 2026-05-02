@@ -33,6 +33,8 @@ var (
 	build   = "unknown"
 )
 
+var defaultRouteFunc = netutil.DefaultRoute
+
 type SwitchableWriter struct {
 	// target is a pointer to an interface, or just the interface itself.
 	// We use a pointer to the interface for direct updates.
@@ -124,6 +126,7 @@ func runApp(mainctx context.Context, configDir string, cfg *config.Config) error
 	srv, err := createServer(appctx, logger, cfg, resolver)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to create server")
+		return err
 	}
 
 	logger.Info().Msg("dns info")
@@ -360,13 +363,20 @@ func createServer(
 		tcpSniffer,
 	)
 
-	defaultRoute, err := netutil.DefaultRoute()
-	if err != nil {
-		return nil, fmt.Errorf("failed to find default route: %w", err)
-	}
-
 	switch *cfg.App.Mode {
 	case config.AppModeHTTP:
+		var sysNet http.HTTPSystemNetwork
+		if cfg.App.AutoConfigureNetwork != nil && *cfg.App.AutoConfigureNetwork {
+			route, err := defaultRouteFunc()
+			if err != nil {
+				return nil, fmt.Errorf("failed to find default route: %w", err)
+			}
+			sysNet = http.NewHTTPSystemNetwork(
+				logging.WithScope(logger, "sys"),
+				route,
+			)
+		}
+
 		httpHandler := http.NewHTTPHandler(logging.WithScope(logger, "hnd"))
 		httpsHandler := http.NewHTTPSHandler(
 			logging.WithScope(logger, "hnd"),
@@ -374,11 +384,6 @@ func createServer(
 			tcpSniffer,
 			cfg.HTTPS.Clone(),
 			cfg.Conn.Clone(),
-		)
-
-		sysNet := http.NewHTTPSystemNetwork(
-			logging.WithScope(logger, "sys"),
-			defaultRoute,
 		)
 
 		return http.NewHTTPProxy(
@@ -393,6 +398,18 @@ func createServer(
 			cfg.Policy.Clone(),
 		), nil
 	case config.AppModeSOCKS5:
+		var sysNet socks5.SOCKS5SystemNetwork
+		if cfg.App.AutoConfigureNetwork != nil && *cfg.App.AutoConfigureNetwork {
+			route, err := defaultRouteFunc()
+			if err != nil {
+				return nil, fmt.Errorf("failed to find default route: %w", err)
+			}
+			sysNet = socks5.NewSOCKS5SystemNetwork(
+				logging.WithScope(logger, "sys"),
+				route,
+			)
+		}
+
 		connectHandler := socks5.NewConnectHandler(
 			logging.WithScope(logger, "hnd"),
 			desyncer,
@@ -423,15 +440,13 @@ func createServer(
 			connectHandler,
 			bindHandler,
 			udpAssociateHandler,
-			socks5.NewSOCKS5SystemNetwork(
-				logging.WithScope(logger, "sys"),
-				defaultRoute,
-			),
+			sysNet,
 			cfg.App.Clone(),
 			cfg.Conn.Clone(),
 			cfg.Policy.Clone(),
 		), nil
 	case config.AppModeTUN:
+		defaultRoute, err := defaultRouteFunc()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get default route: %w", err)
 		}
