@@ -124,6 +124,7 @@ func runApp(mainctx context.Context, configDir string, cfg *config.Config) error
 	srv, err := createServer(appctx, logger, cfg, resolver)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to create server")
+		return err
 	}
 
 	logger.Info().Msg("dns info")
