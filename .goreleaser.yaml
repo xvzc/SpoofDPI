@@ -74,13 +74,28 @@ archives:
 # Linux Packages
 nfpms:
   - id: packages
-    ids: ['linux'] 
+    ids: ['linux']
     file_name_template: "{{ .ConventionalFileName }}"
     formats:
-      - apk
       - deb
       - rpm
       - archlinux
+    vendor: xvzc
+    homepage: https://github.com/xvzc/spoofdpi
+    maintainer: xvzc
+    description: A simple and fast anti-censorship tool written in Go
+    license: Apache-2.0
+    bindir: /usr/local/bin
+    section: networking
+    priority: optional
+
+  # Alpine Linux package — named with "-alpine" suffix to distinguish from
+  # Android APK files, which share the same .apk extension.
+  - id: alpine-package
+    ids: ['linux']
+    file_name_template: "{{ .ConventionalFileName | replace \".apk\" \"-alpine.apk\" }}"
+    formats:
+      - apk
     vendor: xvzc
     homepage: https://github.com/xvzc/spoofdpi
     maintainer: xvzc
