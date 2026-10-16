@@ -3,9 +3,16 @@ package executil
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 
 	"mvdan.cc/sh/shell"
 )
+
+// Quote wraps s in single quotes so shell.Fields treats it as a single literal
+// argument, escaping any embedded single quotes.
+func Quote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
 
 func Commandf(format string, args ...any) (string, error) {
 	return Command(fmt.Sprintf(format, args...))
