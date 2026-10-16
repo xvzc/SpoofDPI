@@ -119,9 +119,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c":
+		key := msg.String()
+		if msg.Type == tea.KeyCtrlC {
 			return m, tea.Quit
+		}
+
+		switch key {
 		case "enter":
 			if m.inputMode {
 				m.activeFilter = m.filterInput
