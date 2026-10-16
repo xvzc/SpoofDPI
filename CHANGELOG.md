@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.5](https://github.com/xvzc/spoofdpi/compare/v1.5.4...v1.5.5) (2026-10-16)
+
+
+### Bug Fixes
+
+* **network:** quote macOS network service names ([5a4e60b](https://github.com/xvzc/spoofdpi/commit/5a4e60b3eb74390ef66c190861b9414ebec5272e))
+* **tui:** recognize Ctrl-C by key type ([82e5eaa](https://github.com/xvzc/spoofdpi/commit/82e5eaa84c31a55a28715c2d19affe39c5bc0339))
+
 ## [1.5.4](https://github.com/xvzc/spoofdpi/compare/v1.5.3...v1.5.4) (2026-09-28)
 
 
