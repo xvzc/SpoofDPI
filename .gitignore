@@ -9,6 +9,7 @@ result
 .DS_Store
 .idea/
 .direnv/
+.devenv/
 dist/
 COMMIT
 site/

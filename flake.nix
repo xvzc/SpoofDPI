@@ -4,6 +4,9 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    devenv.url = "github:cachix/devenv";
+    devenv.inputs.nixpkgs.follows = "nixpkgs";
+    nixpkgs-multiverse.url = "github:fzakaria/nixpkgs-multiverse";
   };
 
   outputs =
@@ -11,7 +14,9 @@
       self,
       nixpkgs,
       flake-utils,
-    }:
+      devenv,
+      ...
+    }@inputs:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
@@ -43,7 +48,10 @@
           };
         };
 
-        devShells.default = import ./shell.nix { inherit pkgs; };
+        devShells.default = devenv.lib.mkShell {
+          inherit inputs pkgs;
+          modules = [ ./devenv.nix ];
+        };
       }
     );
 }
