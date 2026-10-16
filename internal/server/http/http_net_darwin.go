@@ -89,12 +89,18 @@ func (n *httpSystemNetworkDarwin) BuildJobs(
 			executil.Quote(info.Service),
 			info.PACURL,
 		),
-		Reset: fmt.Sprintf("networksetup -setautoproxystate %s off", executil.Quote(info.Service)),
+		Reset: fmt.Sprintf(
+			"networksetup -setautoproxystate %s off",
+			executil.Quote(info.Service),
+		),
 	})
 
 	jobs = append(jobs, netutil.NetworkJob{
 		Description: "enable proxy auto discovery",
-		Apply:       fmt.Sprintf("networksetup -setproxyautodiscovery %s on", executil.Quote(info.Service)),
+		Apply: fmt.Sprintf(
+			"networksetup -setproxyautodiscovery %s on",
+			executil.Quote(info.Service),
+		),
 		Reset: fmt.Sprintf(
 			"networksetup -setproxyautodiscovery %s off",
 			executil.Quote(info.Service),
